@@ -1,5 +1,10 @@
 import Link from 'next/link';
-import type { NextPage } from 'next';
+import type { NextPage, Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Quick Toolkit',
+  description: 'A collection of common simple tools.',
+};
 
 const Page: NextPage = () => {
   return (

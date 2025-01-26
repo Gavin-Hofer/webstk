@@ -1,6 +1,11 @@
-import type { NextPage } from 'next';
+import type { NextPage, Metadata } from 'next';
 
 import { PasswordGenerator } from './components/password-generator';
+
+export const metadata: Metadata = {
+  title: 'Simple Password Generator',
+  description: 'A simple, client-side random password generator.',
+};
 
 const Page: NextPage = () => {
   return (
