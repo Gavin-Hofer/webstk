@@ -1,0 +1,30 @@
+{
+  "editor.tabSize": 2,
+  "editor.rulers": [80, 120],
+  "cSpell.words": ["endregion"],
+  "terminal.integrated.env.osx": {
+    "PATH": "${workspaceFolder}/node_modules/.bin:${env:PATH}"
+  },
+  "terminal.integrated.env.linux": {
+    "PATH": "${workspaceFolder}/node_modules/.bin:${env:PATH}"
+  },
+  "files.autoSaveWhenNoErrors": false,
+  "files.autoSaveDelay": 2000,
+  "editor.formatOnSave": true,
+  "javascript.format.enable": true,
+  "typescript.format.enable": true,
+  "git.autofetch": "all",
+  "git.branchProtection": ["main"],
+  "typescript.tsserver.experimental.enableProjectDiagnostics": true,
+  "files.autoSave": "afterDelay",
+  "prettier.experimentalTernaries": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "typescript.suggest.autoImports": false,
+  "javascript.suggest.autoImports": false,
+  "tailwindCSS.classAttributes": [
+    "class",
+    "className",
+    "ngClass",
+    ".*ClassName.*"
+  ]
+}
