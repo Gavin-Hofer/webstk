@@ -1,10 +1,12 @@
 'use client';
 
+import { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, type UseFormReturn } from 'react-hook-form';
 import { z } from 'zod';
-import { CopyIcon, EyeIcon, EyeOffIcon } from 'lucide-react';
+import { CheckIcon, CopyIcon, EyeIcon, EyeOffIcon } from 'lucide-react';
 
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -17,7 +19,8 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { useState } from 'react';
+
+import { useNotification, type Notification } from '@/hooks/use-notification';
 
 // #region Form Schema
 // =============================================================================
@@ -41,6 +44,7 @@ const formSchema = z.object({
 // =============================================================================
 
 export const PasswordGenerator: React.FC = () => {
+  const copyNotification = useNotification();
   const [password, setPassword] = useState<string>('');
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -56,6 +60,7 @@ export const PasswordGenerator: React.FC = () => {
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     setPassword(generateRandomPassword(values.length, values));
+    copyNotification.trigger();
   }
 
   return (
@@ -97,7 +102,13 @@ export const PasswordGenerator: React.FC = () => {
         <div className='flex justify-end'>
           <Button type='submit'>Generate Password</Button>
         </div>
-        <PasswordDisplay password={password} />
+        <div className='flex flex-col gap-2'>
+          <PasswordDisplay
+            password={password}
+            notification={copyNotification}
+          />
+          <PasswordCopiedNotification notification={copyNotification} />
+        </div>
       </form>
     </Form>
   );
@@ -176,12 +187,13 @@ const CheckboxField: React.FC<{
 
 const PasswordDisplay: React.FC<{
   password: string;
-}> = ({ password }) => {
+  notification: Notification;
+}> = ({ password, notification }) => {
   const [showPassword, setShowPassword] = useState<boolean>(false);
-
 
   function handleCopyPassword() {
     navigator.clipboard.writeText(password);
+    notification.trigger();
   }
 
   return (
@@ -208,13 +220,33 @@ const PasswordDisplay: React.FC<{
           <button
             type='button'
             disabled={password.length === 0}
-            className='flex items-center justify-evenly gap-2 hover:bg-secondary rounded-md border border-input bg-transparent px-2 py-1 transition-colors duration-500 ease-out disabled:opacity-50 md:w-20'
+            className='flex items-center justify-evenly gap-2 rounded-md border border-input bg-transparent px-2 py-1 transition-colors duration-500 ease-out hover:bg-secondary disabled:opacity-50 md:w-20'
             onPointerDown={handleCopyPassword}
           >
             <CopyIcon className='h-4 w-4' />
             <span className='sr-only md:not-sr-only'>Copy</span>
           </button>
         </div>
+      </div>
+    </div>
+  );
+};
+
+const PasswordCopiedNotification: React.FC<{ notification: Notification }> = ({
+  notification,
+}) => {
+  if (!notification.show) return null;
+  return (
+    <div className='flex w-full items-center justify-center'>
+      <div
+        className={cn(
+          'flex items-center justify-evenly gap-2 rounded-lg border border-green-800 bg-green-50 px-4 py-2',
+          'transition-opacity duration-500 ease-out',
+          notification.transparent && 'opacity-0',
+        )}
+      >
+        <CheckIcon className='h-4 w-4' />
+        <p>Password copied to clipboard!</p>
       </div>
     </div>
   );
