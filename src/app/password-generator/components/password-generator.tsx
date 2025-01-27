@@ -115,15 +115,15 @@ export const PasswordGenerator: React.FC = () => {
             Generate Password
           </Button>
         </div>
-        <div className='flex flex-col gap-2'>
-          <PasswordDisplay
-            password={password}
-            notification={copyNotification}
-            setPassword={setPassword}
-          />
-          <PasswordCopiedNotification notification={copyNotification} />
-        </div>
       </form>
+      <div className='flex flex-col gap-2'>
+        <PasswordDisplay
+          password={password}
+          notification={copyNotification}
+          setPassword={setPassword}
+        />
+        <PasswordCopiedNotification notification={copyNotification} />
+      </div>
     </Form>
   );
 };
