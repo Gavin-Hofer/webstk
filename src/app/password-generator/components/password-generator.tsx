@@ -29,10 +29,10 @@ const formSchema = z.object({
   length: z.coerce
     .number()
     .min(1, {
-      message: 'Password length must be at least 1 character.',
+      message: 'Password length must be at least 1.',
     })
     .max(65536, {
-      message: 'Password length must be at most 65536 characters.',
+      message: 'Password length must be at most 65536.',
     }),
   includeLowercase: z.boolean(),
   includeUppercase: z.boolean(),
@@ -309,7 +309,7 @@ function generateRandomPassword(
   }
 
   const indices = Array.from(
-    window.crypto.getRandomValues(new Uint32Array(length)),
+    window.crypto.getRandomValues(new Uint8Array(length)),
   );
   const password = indices
     .map((index) => charSet[index % charSet.length])
