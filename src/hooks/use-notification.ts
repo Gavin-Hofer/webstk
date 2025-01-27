@@ -1,6 +1,6 @@
 import 'client-only';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 
 export type Notification = {
   show: boolean;
@@ -16,14 +16,18 @@ export type Notification = {
 export function useNotification(delay: number = 1000): Notification {
   const [show, setShow] = useState<boolean>(false);
   const [transparent, setTransparent] = useState<boolean>(true);
+  const timeoutRef1 = useRef<NodeJS.Timeout | undefined>(undefined);
+  const timeoutRef2 = useRef<NodeJS.Timeout | undefined>(undefined);
 
   const trigger = () => {
+    clearTimeout(timeoutRef1.current);
+    clearTimeout(timeoutRef2.current);
     setShow(true);
     setTransparent(false);
-    setTimeout(() => {
+    timeoutRef1.current = setTimeout(() => {
       setTransparent(true);
     }, delay);
-    setTimeout(() => {
+    timeoutRef2.current = setTimeout(() => {
       setShow(false);
     }, delay + 1000);
   };

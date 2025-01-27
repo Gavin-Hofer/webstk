@@ -26,7 +26,7 @@ import { useNotification, type Notification } from '@/hooks/use-notification';
 // =============================================================================
 
 const formSchema = z.object({
-  length: z
+  length: z.coerce
     .number()
     .min(1, {
       message: 'Password length must be at least 1 character.',
@@ -100,12 +100,26 @@ export const PasswordGenerator: React.FC = () => {
           </div>
         </div>
         <div className='flex justify-end'>
-          <Button type='submit'>Generate Password</Button>
+          <Button
+            type='submit'
+            disabled={
+              !form.formState.isValid ||
+              !(
+                form.getValues('includeLowercase') ||
+                form.getValues('includeUppercase') ||
+                form.getValues('includeNumbers') ||
+                form.getValues('includeSymbols')
+              )
+            }
+          >
+            Generate Password
+          </Button>
         </div>
         <div className='flex flex-col gap-2'>
           <PasswordDisplay
             password={password}
             notification={copyNotification}
+            setPassword={setPassword}
           />
           <PasswordCopiedNotification notification={copyNotification} />
         </div>
@@ -133,11 +147,14 @@ const NumericInputField: React.FC<{
           <FormControl className='flex items-center justify-center'>
             <Input
               type='number'
+              min={1}
+              max={65536}
+              step={1}
               ref={field.ref}
               name={field.name}
               disabled={field.disabled}
               value={field.value as number}
-              onChange={(e) => field.onChange(Number(e.target.value))}
+              onChange={field.onChange}
               onBlur={field.onBlur}
             />
           </FormControl>
@@ -188,7 +205,8 @@ const CheckboxField: React.FC<{
 const PasswordDisplay: React.FC<{
   password: string;
   notification: Notification;
-}> = ({ password, notification }) => {
+  setPassword: (password: string) => void;
+}> = ({ password, notification, setPassword }) => {
   const [showPassword, setShowPassword] = useState<boolean>(false);
 
   function handleCopyPassword() {
@@ -199,12 +217,15 @@ const PasswordDisplay: React.FC<{
   return (
     <div className='flex flex-col gap-2'>
       <FormLabel className='text-lg'>Generated Password</FormLabel>
-      <div className='relative flex min-h-10 w-full rounded-md border border-input bg-background text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm'>
-        <div className='w-full overflow-x-auto text-nowrap px-3 py-2'>
-          {showPassword ? password : '•'.repeat(password.length)}
-        </div>
+      <div className='flex min-h-10 w-full cursor-text select-none rounded-md border border-input bg-background text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 md:text-sm'>
+        <input
+          type={showPassword ? 'text' : 'password'}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className='w-full cursor-text select-text overflow-x-auto text-nowrap rounded-md border-none px-3 py-2 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0'
+        />
         {/* show/hide and copy button */}
-        <div className='absolute inset-0 flex items-center justify-end gap-2 px-2'>
+        <div className='flex items-center justify-evenly gap-2 rounded-r-md border-l px-2'>
           <button
             type='button'
             className='flex items-center justify-evenly gap-2 rounded-md border border-input bg-transparent px-2 py-1 transition-colors duration-500 ease-out hover:bg-secondary disabled:opacity-50 md:w-20'
@@ -213,9 +234,7 @@ const PasswordDisplay: React.FC<{
             {showPassword ?
               <EyeOffIcon className='h-4 w-4' />
             : <EyeIcon className='h-4 w-4' />}
-            <span className='sr-only md:not-sr-only'>
-              {showPassword ? 'Hide' : 'Show'}
-            </span>
+            <span>{showPassword ? 'Hide' : 'Show'}</span>
           </button>
           <button
             type='button'
@@ -224,7 +243,7 @@ const PasswordDisplay: React.FC<{
             onPointerDown={handleCopyPassword}
           >
             <CopyIcon className='h-4 w-4' />
-            <span className='sr-only md:not-sr-only'>Copy</span>
+            <span>Copy</span>
           </button>
         </div>
       </div>
@@ -276,23 +295,25 @@ function generateRandomPassword(
     includeSymbols: boolean;
   },
 ): string {
-  let characters = '';
-  if (options.includeLowercase) {
-    characters += LOWERCASE;
+  if (!window.crypto) {
+    throw new Error('Crypto API not available.');
   }
-  if (options.includeUppercase) {
-    characters += UPPERCASE;
-  }
-  if (options.includeNumbers) {
-    characters += NUMBERS;
-  }
-  if (options.includeSymbols) {
-    characters += SYMBOLS;
+  const charSet = [
+    options.includeLowercase ? LOWERCASE : '',
+    options.includeUppercase ? UPPERCASE : '',
+    options.includeNumbers ? NUMBERS : '',
+    options.includeSymbols ? SYMBOLS : '',
+  ].join('');
+  if (charSet.length === 0) {
+    throw new Error('No character set selected.');
   }
 
-  let password = '';
-  for (let i = 0; i < length; i++) {
-    password += characters[Math.floor(Math.random() * characters.length)];
-  }
+  const indices = Array.from(
+    window.crypto.getRandomValues(new Uint32Array(length)),
+  );
+  const password = indices
+    .map((index) => charSet[index % charSet.length])
+    .join('');
+
   return password;
 }

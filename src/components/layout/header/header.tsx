@@ -12,7 +12,7 @@ export const Header: React.FC = () => {
         </div>
         <div className='flex h-full items-center gap-4'>
           <a
-            href={process.env.NEXT_PUBLIC_GITHUB_REPO_URL ?? ''}
+            href='https://github.com/Gavin-Hofer/quicktoolkit'
             target='_blank'
             rel='noopener noreferrer'
           >
