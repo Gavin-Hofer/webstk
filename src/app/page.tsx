@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { NextPage, Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Quick Toolkit',
+  title: 'WebSTK',
   description: 'A collection of common simple tools.',
 };
 
