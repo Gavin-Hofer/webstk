@@ -10,7 +10,7 @@ const Page: NextPage = () => {
   return (
     <div className='m-4 flex w-full max-w-2xl flex-col gap-4'>
       <div className='flex flex-col gap-2'>
-        <h1 className='text-3xl'>Quick Toolkit</h1>
+        <h1 className='text-3xl'>Web Simple Toolkit</h1>
         <p className='text-lg text-gray-700'>
           I made this site for myself so I could always have quick access to
           some tools I frequently need.
@@ -18,7 +18,7 @@ const Page: NextPage = () => {
         <p className='text-lg text-gray-700'>
           If you have any suggestions or feedback, please let me know by{' '}
           <a
-            href='https://github.com/Gavin-Hofer/quicktoolkit/issues'
+            href='https://github.com/Gavin-Hofer/webstk/issues'
             target='_blank'
             className='text-blue-500 hover:underline'
           >
