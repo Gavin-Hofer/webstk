@@ -59,7 +59,9 @@ export const PasswordGenerator: React.FC = () => {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    setPassword(generateRandomPassword(values.length, values));
+    const password = generateRandomPassword(values.length, values);
+    setPassword(password);
+    navigator.clipboard.writeText(password);
     copyNotification.trigger();
   }
 
