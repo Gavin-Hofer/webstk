@@ -1,4 +1,18 @@
-import type { ImageFormat } from './image-formats';
+import 'client-only';
+
+import { replaceFileExtension } from '@/lib/utils';
+
+// #region Constants and types
+// =============================================================================
+
+/** Supported image formats to convert to. */
+export const IMAGE_FORMATS = ['png', 'jpeg', 'webp'] as const;
+
+/** Supported image format. */
+export type ImageFormat = (typeof IMAGE_FORMATS)[number];
+
+// #region Exported Functions
+// =============================================================================
 
 /**
  * Converts an image file to a specified format with optional quality settings.
@@ -16,7 +30,7 @@ import type { ImageFormat } from './image-formats';
  * @param options.quality - Quality setting for the output image (1-100, defaults to 85)
  * @returns A Promise that resolves with the converted image as a Blob
  */
-export default async function convertImage(
+export function convertImage(
   file: File,
   options: {
     format: ImageFormat;
@@ -26,18 +40,7 @@ export default async function convertImage(
   },
 ): Promise<File> {
   const { format = 'webp', quality = 85, width, height } = options;
-  const filename = replaceExtension(file.name, format);
-
-  if (file.type.endsWith('heic') || file.type.endsWith('heif')) {
-    const { default: heic2any } = await import('heic2any');
-    const type = `image/${format}`;
-    const blob = await heic2any({
-      blob: file,
-      toType: type,
-      quality,
-    });
-    return new File(Array.isArray(blob) ? blob : [blob], filename, { type });
-  }
+  const filename = replaceFileExtension(file.name, format);
 
   return new Promise((resolve, reject) => {
     const canvas = document.createElement('canvas');
@@ -81,17 +84,4 @@ export default async function convertImage(
       reject(new Error('Failed to load image'));
     };
   });
-}
-
-// #region Helper Functions
-// =============================================================================
-
-/** Replaces the existing extension of a file name. */
-function replaceExtension(filename: string, filetype: string): string {
-  const parts: string[] = filename.split('.');
-  if (parts.length > 1) {
-    parts.pop();
-    parts.push(filetype);
-  }
-  return parts.join('.');
 }
