@@ -1,98 +1,149 @@
 'use client';
 
 import type { NextPage } from 'next';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
 
-import { convertImage, type ImageFormat } from '@/lib/client/image-tools';
+import { Loader2 } from 'lucide-react';
+import { buttonVariants } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+import {
+  convertImage,
+  type ImageFormat,
+  IMAGE_FORMATS,
+} from '@/lib/client/image-tools';
 import { replaceFileExtension } from '@/lib/utils';
 import { useMutex } from '@/hooks/use-mutex';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { downloadFile } from '@/lib/client/download-file';
 
 // #region Page
 // =============================================================================
 
 const Page: NextPage = () => {
-  const mutex = useMutex(30);
-  const [outputFormat, setOutputFormat] = useState<ImageFormat>('png');
-
-  const inputChangeMutation = useMutation({
-    async mutationFn(fileList: FileList | null) {
-      if (!fileList) {
-        return;
-      }
-      const files = await loadImages(fileList, mutex);
-      return files;
-    },
-  });
-
-  const convertAndDownloadMutation = useMutation({
-    async mutationFn(files: File[]) {
-      return await Promise.all(
-        files.map(async (file) => {
-          const newFile = await convertImage(file, { format: outputFormat });
-          const objectUrl = URL.createObjectURL(newFile);
-          const link = document.createElement('a');
-          link.href = objectUrl;
-          link.download = newFile.name;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          URL.revokeObjectURL(objectUrl);
-          return newFile;
-        }),
-      );
-    },
-  });
+  const [files, setFiles] = useState<File[]>([]);
 
   const handleInputChange: React.ChangeEventHandler<HTMLInputElement> = (
     event,
   ) => {
-    inputChangeMutation.mutate(event.target.files);
-  };
-
-  const handleConvert = () => {
-    if (imageFiles) {
-      convertAndDownloadMutation.mutate(imageFiles);
+    if (!event.target.files) {
+      return;
     }
+    const fileList = Array.from(event.target.files).filter((file) => file);
+    setFiles((curr) => [...curr, ...fileList]);
   };
-
-  const imageFiles = inputChangeMutation.data;
 
   return (
     <div className='m-4 flex w-full flex-col gap-4'>
       <h1 className='text-2xl font-bold'>Image Converter</h1>
-      <input
-        type='file'
-        accept='image/*'
-        onChange={handleInputChange}
-        multiple
-      />
-
-      <div className='flex flex-row gap-2'>
-        <Button
-          disabled={!imageFiles}
-          onClick={handleConvert}
-          className='w-fit'
+      <ImageList files={files} />
+      <div className='flex w-full justify-between'>
+        <label
+          className={cn(
+            buttonVariants({ variant: 'default' }),
+            'cursor-pointer',
+          )}
         >
-          Convert and Download
-        </Button>
+          Add Images
+          <input
+            type='file'
+            accept='image/*'
+            className='hidden'
+            onChange={handleInputChange}
+            multiple
+          />
+        </label>
       </div>
-
-      {inputChangeMutation.isPending && <Loader2 className='animate-spin' />}
-      {imageFiles && (
-        <ul className='list-disc'>
-          {imageFiles.map((file) => (
-            <li key={file.name}>{file.name}</li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 };
 
 export default Page;
+
+// #region Subcomponents
+// =============================================================================
+
+function isHeic(file: File) {
+  return file.type === 'image/heic' || file.type === 'image/heif';
+}
+
+const ImageRow: React.FC<{
+  file: File;
+  mutex: ReturnType<typeof useMutex>;
+}> = ({ file, mutex }) => {
+  const [loadedFile, setLoadedFile] = useState(() =>
+    isHeic(file) ? null : file,
+  );
+  useEffect(() => {
+    if (isHeic(file)) {
+      setLoadedFile(null);
+      loadImage(file, mutex).then(setLoadedFile);
+    } else {
+      setLoadedFile(file);
+    }
+  }, [file]);
+
+  const [format, setFormat] = useState<ImageFormat | undefined>();
+  const { mutate: handleDownload, isPending } = useMutation({
+    async mutationFn() {
+      if (!loadedFile || !format) {
+        return;
+      }
+      const convertedFile = await convertImage(loadedFile, { format });
+      downloadFile(convertedFile);
+    },
+  });
+
+  return (
+    <div className='flex flex-row items-center justify-evenly bg-accent p-2 shadow-md'>
+      {!loadedFile && <Loader2 className='animate-spin' />}
+      {loadedFile && (
+        <img
+          src={URL.createObjectURL(loadedFile)}
+          alt={file.name}
+          className='aspect-square h-8 w-8 object-cover'
+        />
+      )}
+      <Select value={format} onValueChange={(f: ImageFormat) => setFormat(f)}>
+        <SelectTrigger className='w-[180px]'>
+          <SelectValue placeholder='Convert to?' />
+        </SelectTrigger>
+        <SelectContent>
+          {IMAGE_FORMATS.map((fmt) => (
+            <SelectItem key={fmt} value={fmt}>
+              {fmt.toUpperCase()}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button
+        disabled={!loadedFile || !format || isPending}
+        onClick={() => handleDownload()}
+      >
+        Download
+      </Button>
+    </div>
+  );
+};
+
+const ImageList: React.FC<{ files: File[] }> = ({ files }) => {
+  const mutex = useMutex(30);
+  return (
+    <div className='flex h-64 flex-col gap-4 overflow-auto'>
+      {files.map((file, i) => (
+        <ImageRow key={`${i}:${file.name}`} file={file} mutex={mutex} />
+      ))}
+    </div>
+  );
+};
 
 // #region Helper Functions
 // =============================================================================
@@ -121,15 +172,4 @@ async function loadImage(
     });
   }
   return file;
-}
-
-/** Filters the list of images and converts any HEIC images to PNG. */
-async function loadImages(
-  fileList: FileList,
-  mutex: ReturnType<typeof useMutex>,
-): Promise<File[]> {
-  const files = await Promise.all(
-    [...fileList].map((file) => loadImage(file, mutex)),
-  );
-  return files.filter((file) => file !== null);
 }
