@@ -33,11 +33,11 @@ export type ImageFormat = (typeof IMAGE_FORMATS)[number];
 export function convertImage(
   file: File,
   options: {
-    format: ImageFormat;
+    format?: ImageFormat;
     quality?: number;
     width?: number;
     height?: number;
-  },
+  } = {},
 ): Promise<File> {
   const { format = 'webp', quality = 85, width, height } = options;
   const filename = replaceFileExtension(file.name, format);
