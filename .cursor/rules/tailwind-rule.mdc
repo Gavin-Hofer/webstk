@@ -1,0 +1,23 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+- Do not use string interpolation for tailwing classes, instead use `cn`.
+
+Example:
+
+```ts
+import { cn } from '@/lib/utils`;
+
+...
+
+const MyComponent: React.FC = () => {
+  return (
+    <div className={cn('bg-white', ...)}>
+      {...}
+    </div>
+  )
+}
+
+```

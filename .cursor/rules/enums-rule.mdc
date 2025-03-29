@@ -1,0 +1,47 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Enums Rule
+
+In general, do not use enums in typescript files. Instead use string unions.
+This is because enums have weird and unpredicatble behavior in typescript.
+
+```ts
+// BAD
+enum DayOfWeek {
+  Sunday = 'Sunday',
+  Monday = 'Monday',
+  Tuesday = 'Tuesday',
+  Wednesday = 'Wednesday',
+  Thursday = 'Thursday',
+  Friday = 'Friday',
+  Saturday = 'Saturday',
+}
+
+// GOOD
+type DayOfWeek =
+  | 'Sunday'
+  | 'Monday'
+  | 'Tuesday'
+  | 'Wednesday'
+  | 'Thursday'
+  | 'Sunday'
+  | 'Friday'
+  | 'Saturday';
+
+// ALSO GOOD
+const DayOfWeek = {
+  Sunday: 'Sunday',
+  Monday: 'Monday',
+  Tuesday: 'Tuesday',
+  Wednesday: 'Wednesday',
+  Thursday: 'Thursday',
+  Friday: 'Friday',
+  Saturday: 'Saturday',
+};
+type DayOfWeek = (typeof DayOfWeek)[keyof typeof DayOfWeek]
+```
+
+If the user creates an enum in the file they're working on, suggest changing it to one of the other methods.

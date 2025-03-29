@@ -1,0 +1,17 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Check Docs
+
+If the user says "check docs", then check the function documentation of the main function in the file.
+- First, go over the function docs to understand what is intended.
+- Then go through the code in detail, making sure it matches the function docs. Look specifically for inputs, outputs, and side effects.
+- If you see any bahavior that does not match the docs, let the user know.
+
+The final output should be formatted like this:
+
+✅ Documented feature matches code implementation
+⚠ Un-documented feature (input, output or side effect), or code implementation for feature does not match documented behavior.
+❌ Documented behavior is missing from code implementation.

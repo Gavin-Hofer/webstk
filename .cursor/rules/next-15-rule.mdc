@@ -1,0 +1,20 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Next.js 15 Rules
+
+- Do not use ant React hooks in server components.
+- Import 'server-only' at the top of every server component file. A file must be a server component if any of the React components are async functions.
+- If a component uses any hooks, add 'use client' to the top of the file.
+- Page props in Next 15 are typed like this:
+
+```tsx
+type PageProps = {
+  params?: Promise<{ code: string }>;
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+};
+```
+
+- `useCallback` and `useMemo` are only neccessary if the object is part of a `useEffect` dependency array.

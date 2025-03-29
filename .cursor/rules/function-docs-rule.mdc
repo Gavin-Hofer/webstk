@@ -1,0 +1,54 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Function documentation format
+
+Function documentation for exported functions should be in this format. React components can exclude the @returns part.
+
+```ts
+/**
+ * Short, one sentence description of the function or component.
+ * 
+ * Optional, detailed description if necessary.
+ *
+ * Conditions: // Any conditions that the inputs have to meet or else a failure result will be returned. Omit for react components.
+ *  - Condition 1
+ *  - Condition 2
+ *  - Condition 3
+ * 
+ * Assumptions:  // Any assumptions about the inputs that would cause an error to be thrown if violated. Do not include if no errors are thrown. Omit for React components.
+ *  - Assumption 1
+ *  - Assumption 2
+ *  - Assumption 3
+ *
+ * Mutations: // Any database mutations
+ *  - Mutation 1
+ *  - Mutation 2
+ *  - Mutation 3
+ *
+ * Side Effects: // Any side effects outside of mutations (e.g. in external APIs).
+ *  - Side effect 1
+ *  - Side effect 2
+ *
+ * @param input - The input parameters object.
+ * @param input.property1 - Description of first property
+ * @param input.property2 - Description of second property
+ * @returns Brief description of the return value.
+ */
+export function exampleFunction(input: {
+  property1: string;
+  property2: boolean;
+}): ReturnType {
+  // Function implementation
+}
+```
+
+Note: 
+ - The sections `Assumptions`, `Mutations`, and `Side Effects` are optional and should only be included when relevant. Additional sections can be included where neccessary.
+ - Make sure all inputs, outputs, and side effects are documented.
+ - Provide additional explanation only when the short description is not enough.
+ - @returns should be ommitted for any 
+
+If the user types "doc", then apply this style of documentation to all exported functions in the file, and add the short description to any non-exported functions that do not already have them.
