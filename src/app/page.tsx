@@ -36,6 +36,12 @@ const Page: NextPage = () => {
         >
           Password Generator
         </Link>
+        <Link
+          href='/image-converted'
+          className='rounded-lg border border-gray-200 px-4 py-2 transition-colors duration-500 ease-out hover:bg-gray-100'
+        >
+          Image Converter
+        </Link>
       </div>
     </div>
   );
