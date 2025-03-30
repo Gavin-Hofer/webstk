@@ -102,7 +102,7 @@ export function usePersistentImages(): [
 function removeFromIndexedDB(id: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open('ImageConverterDB', 1);
-    request.onupgradeneeded = (event) => {
+    request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains('files')) {
         db.createObjectStore('files', { keyPath: 'id' });
@@ -125,7 +125,7 @@ function removeFromIndexedDB(id: string): Promise<void> {
 function saveToIndexedDB(item: ImageFile): Promise<void> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open('ImageConverterDB', 1);
-    request.onupgradeneeded = (event) => {
+    request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains('files')) {
         db.createObjectStore('files', { keyPath: 'id' });
@@ -155,7 +155,7 @@ async function retrieveFilesFromIndexedDB(): Promise<ImageFile[]> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open('ImageConverterDB', 1);
 
-    request.onupgradeneeded = (event) => {
+    request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains('files')) {
         db.createObjectStore('files', { keyPath: 'id' });
