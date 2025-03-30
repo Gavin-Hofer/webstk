@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 const Page: NextPage = () => {
   return (
-    <div className='m-4 flex w-full max-w-2xl flex-col gap-4'>
+    <div className='m-4 flex w-full max-w-4xl flex-col gap-4'>
       <div className='flex flex-col gap-2'>
         <h1 className='text-3xl'>Web Simple Toolkit</h1>
         <p className='text-lg text-gray-700'>
@@ -29,12 +29,18 @@ const Page: NextPage = () => {
       </div>
 
       <h2 className='text-2xl'>Tools</h2>
-      <div className='flex flex-wrap gap-4'>
+      <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3'>
         <Link
           href='/password-generator'
-          className='rounded-lg border border-gray-200 px-4 py-2 transition-colors duration-500 ease-out hover:bg-gray-100'
+          className='flex items-center justify-center rounded-lg border border-gray-200 px-4 py-2 transition-colors duration-500 ease-out hover:bg-gray-100'
         >
           Password Generator
+        </Link>
+        <Link
+          href='/image-converter'
+          className='flex items-center justify-center rounded-lg border border-gray-200 px-4 py-2 transition-colors duration-500 ease-out hover:bg-gray-100'
+        >
+          Image Converter
         </Link>
       </div>
     </div>

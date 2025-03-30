@@ -1,0 +1,137 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+#  TSX File Structure (for page files)
+
+TSX generally have the following structure:
+
+```tsx
+{library imports}
+
+{project imports}
+
+
+// #region Types (if any types to define)
+// =============================================================================
+
+type PageProps  = {...};
+
+
+// #region Main component
+// =============================================================================
+
+const Page: NextPage = () => {
+    ...
+};
+
+// OR
+
+const Page: NextPage = async (props: PageProps) => {
+    ...
+};
+
+
+// #region Components (if any)
+// =============================================================================
+
+const MyComponent: React.FC<{prop1: Prop1Type}> = (props) => {
+    ...
+};
+
+
+// #region Helper functions (if any)
+// =============================================================================
+
+function myHelperFunction(): OutputType {
+    ...
+};
+
+
+// #region Exports
+// =============================================================================
+
+export default Page;
+```
+
+#  TSX File Structure (for component files)
+
+TSX generally have the following structure:
+
+```tsx
+import type { NextPage } from 'next';
+{library imports}
+
+{project imports}
+
+
+// #region Types (if any types to define)
+// =============================================================================
+
+type MyComponentProps  = {...};
+
+
+// #region Main component
+// =============================================================================
+
+const MyComponentName: React.FC<MyComponentProps> = (props) => {
+    ...
+};
+
+
+// #region Subcomponents (if any)
+// =============================================================================
+
+const MySubcomponent: React.FC<{prop1: Prop1Type}> = (props) => {
+    ...
+};
+
+
+// #region Helper functions (if any)
+// =============================================================================
+
+function myHelperFunction(): OutputType {
+    ...
+};
+
+
+// #region Exports
+// =============================================================================
+
+export default MyComponentName;
+```
+
+#  TS File Structure
+
+TS generally have the following structure:
+
+```ts
+{library imports}
+
+{project imports}
+
+
+// #region Main function
+// =============================================================================
+
+export default myFunction(params: {input types}): {output types} {
+    ...
+};
+
+// #region Helper functions (if any)
+// =============================================================================
+
+function myHelperFunction() {
+    ...
+};
+```
+
+
+# React Rules
+
+- Avoid ternaries in JSX, instead do one of the following:
+  - Extract to a subcomponent and use if statements to return one version or the other
+  - Use {condition && <Component/>} or {!condition && <OtherComponent/>}
+
+

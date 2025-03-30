@@ -225,7 +225,7 @@ const PasswordDisplay: React.FC<{
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           autoComplete='off'
-          className='w-full cursor-text select-text overflow-x-auto text-nowrap rounded-md border-none px-3 py-2 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0'
+          className='w-full cursor-text select-text overflow-x-auto text-nowrap rounded-md border-none px-3 py-2 focus:outline-hidden focus:ring-0 focus-visible:outline-hidden focus-visible:ring-0'
         />
         {/* show/hide and copy button */}
         <div className='flex items-center justify-evenly gap-2 rounded-r-md border-l px-2'>
