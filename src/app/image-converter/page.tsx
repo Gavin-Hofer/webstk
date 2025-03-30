@@ -1,6 +1,6 @@
 'use client';
 
-import type { NextPage, Metadata } from 'next';
+import type { NextPage } from 'next';
 import { useState } from 'react';
 
 import { Loader2, FileUpIcon, XIcon, FileDownIcon } from 'lucide-react';
