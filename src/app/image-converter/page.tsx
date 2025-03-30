@@ -29,11 +29,6 @@ import {
 // #region Page
 // =============================================================================
 
-export const metadata: Metadata = {
-  title: 'Image Converter | WebSTK',
-  description: 'Fully client-side image converter.',
-};
-
 const Page: NextPage = () => {
   const [images, addFiles, removeImage] = usePersistentImages();
   const [format, setFormat] = useState<ImageFormat | undefined>('png');
@@ -198,7 +193,15 @@ const ImageList: React.FC<{
   removeImage: (id: string) => void;
 }> = ({ images, removeImage }) => {
   return (
-    <div className='my-8 flex max-h-[calc(100vh-25rem)] min-h-64 flex-col gap-4 overflow-auto shadow-md'>
+    <div
+      className={cn(
+        'my-8 flex max-h-[calc(100vh-25rem)] flex-col gap-4 overflow-auto shadow-md',
+        images.length > 0 && 'min-h-14',
+        images.length > 1 && 'min-h-32',
+        images.length > 2 && 'min-h-50',
+        images.length > 3 && 'min-h-64',
+      )}
+    >
       {images.map((image) => (
         <ImageRow
           key={image.id}
