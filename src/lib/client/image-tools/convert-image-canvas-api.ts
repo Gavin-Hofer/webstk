@@ -1,7 +1,16 @@
 import type { ImageFormat } from './image-formats';
 import { replaceFileExtension } from '@/lib/utils';
+import { z } from 'zod';
 
-import { WorkerResponseSchema } from './convert-image-canvas-api.worker';
+// import { WorkerResponseSchema } from './convert-image-canvas-api.worker';
+
+const WorkerResponseSchema = z.union([
+  z.object({
+    blob: z.instanceof(Blob),
+    filename: z.string(),
+  }),
+  z.object({ error: z.string() }),
+]);
 
 /**
  * Converts an image file to a specified format with optional quality settings.
