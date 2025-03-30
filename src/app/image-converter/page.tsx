@@ -193,7 +193,7 @@ const ImageList: React.FC<{
   removeImage: (id: string) => void;
 }> = ({ images, removeImage }) => {
   return (
-    <div className='my-8 flex max-h-[calc(100vh-25rem)] flex-col gap-4 overflow-auto shadow-md'>
+    <div className='my-8 flex max-h-[calc(100vh-25rem)] min-h-64 flex-col gap-4 overflow-auto shadow-md'>
       {images.map((image) => (
         <ImageRow
           key={image.id}
