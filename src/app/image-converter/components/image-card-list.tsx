@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2, FileUpIcon, XIcon, FileDownIcon } from 'lucide-react';
+import { Loader2, XIcon, FileDownIcon } from 'lucide-react';
 
 import type { ImageFile } from '@/hooks/use-persistent-files';
 import type { ImageFormat } from '@/lib/client/image-tools';
