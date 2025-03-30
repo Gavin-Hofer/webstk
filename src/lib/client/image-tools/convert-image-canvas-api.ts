@@ -1,18 +1,7 @@
-import 'client-only';
-
+import type { ImageFormat } from './image-formats';
 import { replaceFileExtension } from '@/lib/utils';
 
-// #region Constants and types
-// =============================================================================
-
-/** Supported image formats to convert to. */
-export const IMAGE_FORMATS = ['png', 'jpeg', 'webp'] as const;
-
-/** Supported image format. */
-export type ImageFormat = (typeof IMAGE_FORMATS)[number];
-
-// #region Exported Functions
-// =============================================================================
+import { WorkerResponseSchema } from './convert-image-canvas-api.worker';
 
 /**
  * Converts an image file to a specified format with optional quality settings.
@@ -30,7 +19,62 @@ export type ImageFormat = (typeof IMAGE_FORMATS)[number];
  * @param options.quality - Quality setting for the output image (1-100, defaults to 85)
  * @returns A Promise that resolves with the converted image as a Blob
  */
-export function convertImage(
+export function convertImageCanvasAPI(
+  file: File,
+  options: {
+    format?: ImageFormat;
+    quality?: number;
+    width?: number;
+    height?: number;
+  } = {},
+): Promise<File> {
+  if (typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') {
+    console.warn(
+      'Web Workers or OffscreenCanvas not supported, falling back to main thread',
+    );
+    return convertImageFallback(file, options);
+  }
+
+  return new Promise((resolve, reject) => {
+    // Create a worker.
+    const worker = new Worker(
+      new URL('./convert-image-canvas-api.worker.ts', import.meta.url),
+    );
+
+    // Send the file and options to the worker.
+    worker.postMessage({ file, options });
+
+    // Handle the response from the worker.
+    worker.onmessage = (event) => {
+      const result = WorkerResponseSchema.safeParse(event.data);
+      if (!result.success) {
+        const errorMessage = `Failed to parse response from worker: ${result.error.message}`;
+        reject(new Error(errorMessage));
+        return;
+      }
+      const response = result.data;
+      if ('error' in response) {
+        reject(new Error(response.error));
+        return;
+      }
+      const file = new File([response.blob], response.filename, {
+        type: response.blob.type,
+      });
+      resolve(file);
+    };
+
+    // Handle errors from the worker.
+    worker.onerror = (event) => {
+      reject(new Error(`Unhandled worker error: ${event.message}`));
+    };
+  });
+}
+
+// #region Helper Functions
+// =============================================================================
+
+/** Fallback conversion function for when the web worker API is not supported. */
+export function convertImageFallback(
   file: File,
   options: {
     format?: ImageFormat;

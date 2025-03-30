@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/select';
 
 import {
-  convertImage,
+  convertImageCanvasAPI,
   type ImageFormat,
   IMAGE_FORMATS,
 } from '@/lib/client/image-tools';
@@ -39,7 +39,7 @@ const Page: NextPage = () => {
       return;
     }
     images.forEach((image) =>
-      convertImage(image.file, { format }).then(downloadFile),
+      convertImageCanvasAPI(image.file, { format }).then(downloadFile),
     );
   };
 
@@ -137,7 +137,7 @@ const ImageRow: React.FC<{
     if (!image.ready || !format) {
       return;
     }
-    convertImage(image.file, { format }).then(downloadFile);
+    convertImageCanvasAPI(image.file, { format }).then(downloadFile);
   };
   return (
     <div className='bg-accent relative flex flex-col items-center justify-between gap-4 p-2 shadow-md sm:flex-row'>

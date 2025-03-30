@@ -2,7 +2,7 @@
 
 import { z } from 'zod';
 import { useState, useEffect } from 'react';
-import { convertImage } from '@/lib/client/image-tools';
+import { convertImageCanvasAPI } from '@/lib/client/image-tools';
 import * as uuid from 'uuid';
 
 const ImageFileSchema = z.object({
@@ -72,7 +72,7 @@ export function usePersistentImages(): [
     // Convert any HEIC images to PNG and save to indexedDB.
     fileList.forEach(async ({ id, file: original, timestamp }) => {
       const file = await heic2png(original);
-      const preview = await convertImage(file, {
+      const preview = await convertImageCanvasAPI(file, {
         format: 'webp',
         quality: 50,
         width: 128,
