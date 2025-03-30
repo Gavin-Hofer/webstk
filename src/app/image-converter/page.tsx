@@ -1,10 +1,9 @@
 'use client';
 
 import type { NextPage } from 'next';
-import { useState, useEffect } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useState } from 'react';
 
-import { Loader2 } from 'lucide-react';
+import { Loader2, FileUpIcon, XIcon, FileDownIcon } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
 import {
   Select,
@@ -13,54 +12,99 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 
 import {
   convertImage,
   type ImageFormat,
   IMAGE_FORMATS,
 } from '@/lib/client/image-tools';
-import { replaceFileExtension } from '@/lib/utils';
-import { useMutex } from '@/hooks/use-mutex';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { downloadFile } from '@/lib/client/download-file';
+import {
+  usePersistentImages,
+  type ImageFile,
+} from '@/hooks/use-persistent-files';
 
 // #region Page
 // =============================================================================
 
 const Page: NextPage = () => {
-  const [files, setFiles] = useState<File[]>([]);
+  const [images, addFiles, removeImage] = usePersistentImages();
+  const [format, setFormat] = useState<ImageFormat | undefined>('png');
 
-  const handleInputChange: React.ChangeEventHandler<HTMLInputElement> = (
-    event,
-  ) => {
-    if (!event.target.files) {
+  const allReady = images.every((image) => image.ready);
+  const handleDownload = () => {
+    if (!allReady) {
       return;
     }
-    const fileList = Array.from(event.target.files).filter((file) => file);
-    setFiles((curr) => [...curr, ...fileList]);
+    images.forEach((image) =>
+      convertImage(image.file, { format }).then(downloadFile),
+    );
   };
 
   return (
-    <div className='m-4 flex w-full flex-col gap-4'>
+    <div className='m-4 flex w-full max-w-7xl flex-col gap-4'>
       <h1 className='text-2xl font-bold'>Image Converter</h1>
-      <ImageList files={files} />
-      <div className='flex w-full justify-between'>
+      <ImageList images={images} removeImage={removeImage} />
+      <div
+        className={cn(
+          'flex w-full flex-col items-center justify-center gap-4 sm:flex-row',
+          images.length && 'justify-between',
+        )}
+      >
         <label
           className={cn(
             buttonVariants({ variant: 'default' }),
-            'cursor-pointer',
+            'h-12 w-full cursor-pointer px-8 text-lg sm:w-fit [&_svg]:size-6',
           )}
         >
-          Add Images
+          <FileUpIcon />
+          Add image files
           <input
             type='file'
             accept='image/*'
             className='hidden'
-            onChange={handleInputChange}
+            onChange={(event) => addFiles(event.target.files)}
             multiple
           />
         </label>
+
+        {images.length > 0 && (
+          <div
+            className={cn(
+              'text-primary-foreground relative flex h-12 w-full flex-row text-lg sm:w-72',
+            )}
+          >
+            <button
+              onClick={handleDownload}
+              disabled={!allReady || !format}
+              className='bg-primary flex h-full w-full cursor-pointer items-center justify-center gap-2 rounded-lg text-lg transition-colors duration-500 ease-out hover:bg-zinc-800 disabled:cursor-default sm:rounded-r-none [&_svg]:size-6'
+            >
+              <FileDownIcon />
+              Download All
+            </button>
+            <FormatSelect
+              format={format}
+              setFormat={setFormat}
+              className='bg-primary absolute top-0 right-0 mx-0 h-12 w-20 flex-shrink-0 rounded-none rounded-r-lg border-none transition-colors duration-500 ease-out hover:bg-zinc-800 focus:outline-none sm:hidden'
+            />
+            <FormatSelect
+              format={format}
+              setFormat={setFormat}
+              className='bg-primary mx-0 hidden h-12 w-20 flex-shrink-0 rounded-none rounded-r-lg border-none transition-colors duration-500 ease-out hover:bg-zinc-800 focus:outline-none sm:flex'
+            />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -71,105 +115,128 @@ export default Page;
 // #region Subcomponents
 // =============================================================================
 
-function isHeic(file: File) {
-  return file.type === 'image/heic' || file.type === 'image/heif';
-}
+const FormatSelect: React.FC<{
+  children?: React.ReactNode;
+  format: ImageFormat | undefined;
+  setFormat: (format: ImageFormat) => void;
+  className?: string;
+}> = ({ children, format, setFormat, className }) => {
+  return (
+    <Select value={format} onValueChange={(f: ImageFormat) => setFormat(f)}>
+      <SelectTrigger className={cn('h-10 w-24 cursor-pointer', className)}>
+        {children ?? <SelectValue placeholder='Format' />}
+      </SelectTrigger>
+      <SelectContent>
+        {IMAGE_FORMATS.map((fmt) => (
+          <SelectItem key={fmt} value={fmt}>
+            {fmt.toUpperCase()}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+};
+
+const ImageDialog: React.FC<{
+  children: React.ReactNode;
+  image: ImageFile;
+  removeImage: () => void;
+  className?: string;
+}> = ({ children, image, removeImage, className }) => {
+  return (
+    <Dialog>
+      <DialogTrigger className={className}>{children}</DialogTrigger>
+      <DialogContent className='sm:max-w-[425px]'>
+        <DialogHeader>
+          <DialogTitle>Edit profile</DialogTitle>
+          <DialogDescription>
+            Make changes to your profile here. Click save when you're done.
+          </DialogDescription>
+        </DialogHeader>
+        <div className='grid gap-4 py-4'>
+          <div className='grid grid-cols-4 items-center gap-4'>Test</div>
+        </div>
+        <DialogFooter>
+          <Button type='submit'>Save changes</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
 
 const ImageRow: React.FC<{
-  file: File;
-  mutex: ReturnType<typeof useMutex>;
-}> = ({ file, mutex }) => {
-  const [loadedFile, setLoadedFile] = useState(() =>
-    isHeic(file) ? null : file,
-  );
-  useEffect(() => {
-    if (isHeic(file)) {
-      setLoadedFile(null);
-      loadImage(file, mutex).then(setLoadedFile);
-    } else {
-      setLoadedFile(file);
+  image: ImageFile;
+  removeImage: () => void;
+}> = ({ image, removeImage }) => {
+  const [format, setFormat] = useState<ImageFormat | undefined>('png');
+  const handleDownload = () => {
+    if (!image.ready || !format) {
+      return;
     }
-  }, [file]);
-
-  const [format, setFormat] = useState<ImageFormat | undefined>();
-  const { mutate: handleDownload, isPending } = useMutation({
-    async mutationFn() {
-      if (!loadedFile || !format) {
-        return;
-      }
-      const convertedFile = await convertImage(loadedFile, { format });
-      downloadFile(convertedFile);
-    },
-  });
-
+    convertImage(image.file, { format }).then(downloadFile);
+  };
   return (
-    <div className='flex flex-row items-center justify-evenly bg-accent p-2 shadow-md'>
-      {!loadedFile && <Loader2 className='animate-spin' />}
-      {loadedFile && (
-        <img
-          src={URL.createObjectURL(loadedFile)}
-          alt={file.name}
-          className='aspect-square h-8 w-8 object-cover'
-        />
-      )}
-      <Select value={format} onValueChange={(f: ImageFormat) => setFormat(f)}>
-        <SelectTrigger className='w-[180px]'>
-          <SelectValue placeholder='Convert to?' />
-        </SelectTrigger>
-        <SelectContent>
-          {IMAGE_FORMATS.map((fmt) => (
-            <SelectItem key={fmt} value={fmt}>
-              {fmt.toUpperCase()}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Button
-        disabled={!loadedFile || !format || isPending}
-        onClick={() => handleDownload()}
-      >
-        Download
-      </Button>
+    <div className='bg-accent relative flex flex-col items-center justify-between gap-4 p-2 shadow-md sm:flex-row'>
+      <div className='flex w-full flex-row items-center justify-between gap-4'>
+        <div className='flex items-center gap-4 sm:flex-row'>
+          {!image.ready && (
+            <div className='flex h-8 w-8 items-center justify-center rounded-md bg-gray-200'>
+              <Loader2 className='text-accent-foreground animate-spin' />
+            </div>
+          )}
+          {image.ready && (
+            <img
+              src={URL.createObjectURL(image.preview)}
+              alt={image.file.name}
+              className='aspect-square h-8 w-8 rounded-md object-cover'
+            />
+          )}
+          <span className='max-w-[200px] truncate text-nowrap md:max-w-[300px] lg:max-w-[400px] xl:max-w-full'>
+            {image.file.name}
+          </span>
+        </div>
+        <Button
+          variant='ghost'
+          className='text-red-500 sm:hidden [&_svg]:size-6'
+          onClick={() => removeImage()}
+        >
+          <XIcon strokeWidth={2} />
+        </Button>
+      </div>
+      <div className='flex w-full items-center justify-end gap-4'>
+        <FormatSelect format={format} setFormat={setFormat} />
+        <Button
+          disabled={!image.ready || !format}
+          onClick={() => handleDownload()}
+        >
+          <FileDownIcon />
+          Download
+        </Button>
+        <Button
+          variant='ghost'
+          className='hidden text-red-500 sm:inline [&_svg]:size-6'
+          onClick={() => removeImage()}
+        >
+          <XIcon strokeWidth={2} />
+        </Button>
+      </div>
     </div>
   );
 };
 
-const ImageList: React.FC<{ files: File[] }> = ({ files }) => {
-  const mutex = useMutex(30);
+const ImageList: React.FC<{
+  images: ImageFile[];
+  removeImage: (id: string) => void;
+}> = ({ images, removeImage }) => {
   return (
-    <div className='flex h-64 flex-col gap-4 overflow-auto'>
-      {files.map((file, i) => (
-        <ImageRow key={`${i}:${file.name}`} file={file} mutex={mutex} />
+    <div className='my-8 flex max-h-[calc(100vh-25rem)] flex-col gap-4 overflow-auto shadow-md'>
+      {images.map((image, i) => (
+        <ImageRow
+          key={image.id}
+          image={image}
+          removeImage={() => removeImage(image.id)}
+        />
       ))}
     </div>
   );
 };
-
-// #region Helper Functions
-// =============================================================================
-
-/** Converts the image to a supported type if necessary. */
-async function loadImage(
-  file: File,
-  mutex: ReturnType<typeof useMutex>,
-): Promise<File | null> {
-  if (!file.type.startsWith('image/')) {
-    return null;
-  }
-  if (file.type.endsWith('heic') || file.type.endsWith('heif')) {
-    // Need to convert to a type supported by native browser APIs
-    // This is a heavy import, so avoid loading it more than once concurrently.
-    const { default: heic2any } = await mutex.runExclusive(
-      () => import('heic2any'),
-    );
-    const blob: Blob | Blob[] = await heic2any({
-      blob: file,
-      toType: 'image/png',
-    });
-    const blobs: Blob[] = Array.isArray(blob) ? blob : [blob];
-    return new File(blobs, replaceFileExtension(file.name, 'png'), {
-      type: 'image/png',
-    });
-  }
-  return file;
-}
