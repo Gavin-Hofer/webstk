@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { FileDownIcon } from 'lucide-react';
 
@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
 import { convertImageCanvasAPI } from '@/lib/client/image-tools';
 import { downloadFile } from '@/lib/client/download-file';
+import { promisePool } from '@/lib/promises/promise-pool';
 
 import { FormatSelect } from './format-select';
 
@@ -26,10 +27,15 @@ export const DownloadAllButton: React.FC<{ images: ImageFile[] }> = ({
         console.warn('Images not ready');
         return;
       }
-      for (const image of images) {
-        await convertImageCanvasAPI(image.file, { format }).then(downloadFile);
-        setDownloadProgress((prev) => prev + 1);
-      }
+      // Limit to processing up to 10 images concurrently.
+      const tasks = images.map((image) => {
+        return async () => {
+          const file = await convertImageCanvasAPI(image.file, { format });
+          downloadFile(file);
+          setDownloadProgress((prev) => prev + 1);
+        };
+      });
+      await promisePool(tasks, 10);
     },
     onSettled() {
       setDownloadProgress(0);
@@ -38,6 +44,7 @@ export const DownloadAllButton: React.FC<{ images: ImageFile[] }> = ({
 
   const allReady = images.every((image) => image.ready);
   const disabled = !allReady || !format || mutation.isPending;
+  const numImages = images.length;
 
   return (
     <div className='text-primary-foreground relative flex h-12 w-full flex-row text-lg sm:w-72'>
@@ -51,13 +58,22 @@ export const DownloadAllButton: React.FC<{ images: ImageFile[] }> = ({
       >
         <div
           className={cn(
-            'absolute flex h-full w-full items-center justify-center gap-2',
+            'absolute flex w-32 items-center justify-center gap-2',
             'absolute right-1/2 left-1/2 -translate-x-1/2',
             'sm:static sm:translate-x-0',
           )}
         >
-          <FileDownIcon />
-          Download All
+          {!mutation.isPending && (
+            <>
+              <FileDownIcon />
+              Download All
+            </>
+          )}
+          {mutation.isPending && (
+            <>
+              Converting ({downloadProgress} / {numImages})
+            </>
+          )}
         </div>
       </button>
       <FormatSelect
@@ -65,7 +81,9 @@ export const DownloadAllButton: React.FC<{ images: ImageFile[] }> = ({
         setFormat={setFormat}
         className={cn(
           buttonVariants(),
-          'h-full rounded-l-none border-none focus-visible:ring-0 focus-visible:ring-offset-0',
+          'h-full rounded-l-none',
+          'border-none outline-none',
+          'focus-visible:ring-0 focus-visible:ring-offset-0',
         )}
         disabled={disabled}
       />

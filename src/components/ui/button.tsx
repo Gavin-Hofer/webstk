@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
   cn(
-    'transition-colors cursor-pointer duration-500 ease-out inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+    'transition-all cursor-pointer duration-500 ease-out inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
     'disabled:cursor-default disabled:pointer-events-none disabled:opacity-50',
     'data-[disabled=true]:cursor-default data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50',
   ),
