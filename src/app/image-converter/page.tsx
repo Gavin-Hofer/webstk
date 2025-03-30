@@ -1,6 +1,6 @@
 'use client';
 
-import type { NextPage } from 'next';
+import type { NextPage, Metadata } from 'next';
 import { useState } from 'react';
 
 import { Loader2, FileUpIcon, XIcon, FileDownIcon } from 'lucide-react';
@@ -28,6 +28,11 @@ import {
 
 // #region Page
 // =============================================================================
+
+export const metadata: Metadata = {
+  title: 'Image Converter | WebSTK',
+  description: 'Fully client-side image converter.',
+};
 
 const Page: NextPage = () => {
   const [images, addFiles, removeImage] = usePersistentImages();
