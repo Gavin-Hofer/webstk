@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { Loader2, XIcon, FileDownIcon } from 'lucide-react';
+import { useMutation } from '@tanstack/react-query';
 
-import type { ImageFile } from '@/hooks/use-persistent-files';
+import type { ManagedImage } from '@/hooks/use-persistent-images';
 import type { ImageFormat } from '@/lib/client/image-tools';
 
 import { Button } from '@/components/ui/button';
@@ -17,9 +18,8 @@ import { FormatSelect } from './format-select';
 // =============================================================================
 
 export const ImageCardList: React.FC<{
-  images: ImageFile[];
-  removeImage: (id: string) => void;
-}> = ({ images, removeImage }) => {
+  images: ManagedImage[];
+}> = ({ images }) => {
   return (
     <div
       className={cn(
@@ -31,11 +31,7 @@ export const ImageCardList: React.FC<{
       )}
     >
       {images.map((image) => (
-        <ImageRow
-          key={image.id}
-          image={image}
-          removeImage={() => removeImage(image.id)}
-        />
+        <ImageRow key={image.id} image={image} />
       ))}
     </div>
   );
@@ -45,16 +41,17 @@ export const ImageCardList: React.FC<{
 // =============================================================================
 
 const ImageRow: React.FC<{
-  image: ImageFile;
-  removeImage: () => void;
-}> = ({ image, removeImage }) => {
-  const [format, setFormat] = useState<ImageFormat | undefined>('png');
-  const handleDownload = () => {
-    if (!image.ready || !format) {
-      return;
-    }
-    convertImageCanvasAPI(image.file, { format }).then(downloadFile);
-  };
+  image: ManagedImage;
+}> = ({ image }) => {
+  const mutation = useMutation({
+    async mutationFn(image: ManagedImage) {
+      const file = await convertImageCanvasAPI(image.file, {
+        format: image.format,
+      });
+      downloadFile(file);
+    },
+  });
+
   return (
     <div className='bg-accent relative flex flex-col items-center justify-between gap-4 p-2 shadow-md sm:flex-row'>
       <div className='flex w-full flex-row items-center justify-between gap-4'>
@@ -78,24 +75,30 @@ const ImageRow: React.FC<{
         <Button
           variant='ghost'
           className='text-red-500 sm:hidden [&_svg]:size-6'
-          onClick={() => removeImage()}
+          onClick={() => image.remove()}
         >
           <XIcon strokeWidth={2} />
         </Button>
       </div>
       <div className='flex w-full items-center justify-end gap-4'>
-        <FormatSelect format={format} setFormat={setFormat} />
+        <FormatSelect format={image.format} setFormat={image.setFormat} />
         <Button
-          disabled={!image.ready || !format}
-          onClick={() => handleDownload()}
+          disabled={!image.ready || mutation.isPending}
+          onClick={() => mutation.mutate(image)}
+          className='w-36'
         >
-          <FileDownIcon />
-          Download
+          {!mutation.isPending && (
+            <>
+              <FileDownIcon />
+              Download
+            </>
+          )}
+          {mutation.isPending && <Loader2 className='animate-spin' />}
         </Button>
         <Button
           variant='ghost'
           className='hidden text-red-500 sm:inline [&_svg]:size-6'
-          onClick={() => removeImage()}
+          onClick={() => image.remove()}
         >
           <XIcon strokeWidth={2} />
         </Button>

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { FileDownIcon } from 'lucide-react';
 
-import type { ImageFile } from '@/hooks/use-persistent-files';
+import type { ManagedImage } from '@/hooks/use-persistent-images';
 import type { ImageFormat } from '@/lib/client/image-tools';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
@@ -14,13 +14,13 @@ import { promisePool } from '@/lib/promises/promise-pool';
 
 import { FormatSelect } from './format-select';
 
-export const DownloadAllButton: React.FC<{ images: ImageFile[] }> = ({
+export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
   images,
 }) => {
   const [format, setFormat] = useState<ImageFormat | undefined>('png');
   const [downloadProgress, setDownloadProgress] = useState(0);
   const mutation = useMutation({
-    async mutationFn(images: ImageFile[]) {
+    async mutationFn(images: ManagedImage[]) {
       // Convert images one at a time to avoid locking up the browser.
       setDownloadProgress(0);
       if (!images.every((image) => image.ready)) {
@@ -83,6 +83,7 @@ export const DownloadAllButton: React.FC<{ images: ImageFile[] }> = ({
           buttonVariants(),
           'h-full rounded-l-none',
           'border-none outline-none',
+          'focus:ring-0 focus:ring-offset-0',
           'focus-visible:ring-0 focus-visible:ring-offset-0',
         )}
         disabled={disabled}
