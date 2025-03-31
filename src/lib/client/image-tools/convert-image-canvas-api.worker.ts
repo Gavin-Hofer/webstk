@@ -65,7 +65,6 @@ async function convertImageOffscreen({
     type: `image/${format}`,
     quality: 0.01 * quality,
   });
-  const newFormat = blob.type.split('/')[1];
   return { blob };
 }
 

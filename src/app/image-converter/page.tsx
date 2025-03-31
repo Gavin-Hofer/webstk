@@ -2,8 +2,6 @@
 
 import type { NextPage } from 'next';
 
-import { FileUpIcon, ScanLineIcon } from 'lucide-react';
-
 import { cn } from '@/lib/utils';
 import { usePersistentImages } from '@/hooks/use-persistent-images';
 

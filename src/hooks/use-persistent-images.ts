@@ -1,7 +1,7 @@
 import 'client-only';
 
 import { z } from 'zod';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import * as uuid from 'uuid';
 import { useLocalStorage } from 'usehooks-ts';
 
@@ -67,37 +67,43 @@ export function usePersistentImages(): [
   );
 
   /** Renames an image and reflects change in IndexedDB. */
-  const updateImageById = (id: UUID, data: Partial<ImageType>): void => {
-    updateIndexedDB(id, data);
-    setImages((prevState) => {
-      const nextState = { ...prevState };
-      if (!(id in nextState)) {
+  const updateImageById = useCallback(
+    (id: UUID, data: Partial<ImageType>): void => {
+      updateIndexedDB(id, data);
+      setImages((prevState) => {
+        const nextState = { ...prevState };
+        if (!(id in nextState)) {
+          return nextState;
+        }
+        nextState[id] = { ...nextState[id], ...data };
         return nextState;
-      }
-      nextState[id] = { ...nextState[id], ...data };
-      return nextState;
-    });
-  };
+      });
+    },
+    [],
+  );
 
   /** Removes an image from state and IndexedDB. */
-  const removeImageById = (id: UUID): void => {
+  const removeImageById = useCallback((id: UUID): void => {
     removeFromIndexedDB(id);
     setImages((prevState) => {
       const nextState = { ...prevState };
       delete nextState[id];
       return nextState;
     });
-  };
+  }, []);
 
   /** Adds remove and rename functions to the ImageFile object. */
-  const resolve = (image: ImageType): ManagedImage => {
-    return {
-      ...image,
-      remove: () => removeImageById(image.id),
-      setFilename: (filename) => updateImageById(image.id, { filename }),
-      setFormat: (format) => updateImageById(image.id, { format }),
-    };
-  };
+  const resolve = useCallback(
+    (image: ImageType): ManagedImage => {
+      return {
+        ...image,
+        remove: () => removeImageById(image.id),
+        setFilename: (filename) => updateImageById(image.id, { filename }),
+        setFormat: (format) => updateImageById(image.id, { format }),
+      };
+    },
+    [removeImageById, updateImageById],
+  );
 
   // Retrieve files from storage on load.
   useEffect(() => {
@@ -111,7 +117,7 @@ export function usePersistentImages(): [
         return nextState;
       });
     });
-  }, []);
+  }, [resolve]);
 
   /** Adds uploaded image files to state and IndexedDB. */
   const addFiles = (files: FileList | null) => {

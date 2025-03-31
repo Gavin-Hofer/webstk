@@ -147,7 +147,7 @@ const ImageRow: React.FC<{
             </div>
           )}
           {image.ready && (
-            <img
+            <img  // @eslint-disable  @next/next/no-img-element
               src={URL.createObjectURL(image.preview)}
               alt={image.file.name}
               className='aspect-square h-8 w-8 min-w-8 rounded-md object-cover'
