@@ -219,19 +219,19 @@ const PasswordDisplay: React.FC<{
   return (
     <div className='flex flex-col gap-2'>
       <FormLabel className='text-lg'>Generated Password</FormLabel>
-      <div className='flex min-h-10 w-full cursor-text select-none rounded-md border border-input bg-background text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 md:text-sm'>
+      <div className='border-input bg-background ring-offset-background file:text-foreground placeholder:text-muted-foreground focus-within:ring-ring flex min-h-10 w-full cursor-text rounded-md border text-base select-none file:border-0 file:bg-transparent file:text-sm file:font-medium focus-within:ring-2 focus-within:ring-offset-2 md:text-sm'>
         <input
           type={showPassword ? 'text' : 'password'}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           autoComplete='off'
-          className='w-full cursor-text select-text overflow-x-auto text-nowrap rounded-md border-none px-3 py-2 focus:outline-hidden focus:ring-0 focus-visible:outline-hidden focus-visible:ring-0'
+          className='w-full cursor-text overflow-x-auto rounded-md border-none px-3 py-2 text-nowrap select-text focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:outline-hidden'
         />
         {/* show/hide and copy button */}
         <div className='flex items-center justify-evenly gap-2 rounded-r-md border-l px-2'>
           <button
             type='button'
-            className='flex items-center justify-evenly gap-2 rounded-md border border-input bg-transparent px-2 py-1 transition-colors duration-500 ease-out hover:bg-secondary disabled:opacity-50 md:w-20'
+            className='border-input hover:bg-secondary flex w-26 cursor-pointer items-center justify-evenly gap-2 rounded-md border bg-transparent px-2 py-1 transition-colors duration-500 ease-out disabled:cursor-default disabled:opacity-50'
             onPointerDown={() => setShowPassword((prev) => !prev)}
           >
             {showPassword ?
@@ -242,7 +242,7 @@ const PasswordDisplay: React.FC<{
           <button
             type='button'
             disabled={password.length === 0}
-            className='flex items-center justify-evenly gap-2 rounded-md border border-input bg-transparent px-2 py-1 transition-colors duration-500 ease-out hover:bg-secondary disabled:opacity-50 md:w-20'
+            className='border-input hover:bg-secondary flex w-26 cursor-pointer items-center justify-evenly gap-2 rounded-md border bg-transparent px-2 py-1 transition-colors duration-500 ease-out disabled:cursor-default disabled:opacity-50'
             onPointerDown={handleCopyPassword}
           >
             <CopyIcon className='h-4 w-4' />

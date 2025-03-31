@@ -1,12 +1,14 @@
+import { EmptyError } from '@/lib/errors';
+
 export class Deque<T> {
   private readonly frontElements: T[];
   private readonly backElements: T[];
   private frontOffset;
   private backOffset;
 
-  constructor() {
+  constructor(array: T[] = []) {
     this.frontElements = [];
-    this.backElements = [];
+    this.backElements = [...array];
     this.frontOffset = 0;
     this.backOffset = 0;
   }
@@ -78,6 +80,13 @@ export class Deque<T> {
     return null;
   }
 
+  public popFrontOrThrow(): T {
+    if (this.empty) {
+      throw new Error('Attempted to pop from empty Deque');
+    }
+    return this.popFront() as T;
+  }
+
   public popBack(): T | null {
     this.rebalance();
     if (this.backElements.length > this.backOffset) {
@@ -103,6 +112,13 @@ export class Deque<T> {
       return value;
     }
     return null;
+  }
+
+  public popBackOrThrow(): T {
+    if (this.empty) {
+      throw new EmptyError('Attempted to pop from empty Deque');
+    }
+    return this.popBack() as T;
   }
 
   private rebalance(): void {
