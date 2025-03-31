@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { FileDownIcon } from 'lucide-react';
+import { useLocalStorage } from 'usehooks-ts';
 
 import type { ManagedImage } from '@/hooks/use-persistent-images';
 import type { ImageFormat } from '@/lib/client/image-tools';
@@ -17,7 +18,11 @@ import { FormatSelect } from './format-select';
 export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
   images,
 }) => {
-  const [format, setFormat] = useState<ImageFormat | undefined>('png');
+  const [format, setFormat] = useLocalStorage<ImageFormat | undefined>(
+    'preferred-image-format',
+    'png',
+  );
+
   const [downloadProgress, setDownloadProgress] = useState(0);
   const mutation = useMutation({
     async mutationFn(images: ManagedImage[]) {
@@ -30,7 +35,10 @@ export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
       // Limit to processing up to 10 images concurrently.
       const tasks = images.map((image) => {
         return async () => {
-          const file = await convertImageCanvasAPI(image.file, { format });
+          const file = await convertImageCanvasAPI(image.file, {
+            format,
+            filename: image.filename,
+          });
           downloadFile(file);
           setDownloadProgress((prev) => prev + 1);
         };
@@ -81,7 +89,7 @@ export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
         setFormat={setFormat}
         className={cn(
           buttonVariants(),
-          'h-full rounded-l-none',
+          'h-full min-w-24 rounded-l-none',
           'border-none outline-none',
           'focus:ring-0 focus:ring-offset-0',
           'focus-visible:ring-0 focus-visible:ring-offset-0',

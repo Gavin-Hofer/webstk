@@ -1,6 +1,5 @@
 /// <reference lib="webworker" />
 
-import { replaceFileExtension } from '@/lib/utils';
 import { z } from 'zod';
 
 import { IMAGE_FORMATS } from './image-formats';
@@ -21,7 +20,6 @@ export const WorkerEventDataSchema = z.object({
 export const WorkerResponseSchema = z.union([
   z.object({
     blob: z.instanceof(Blob),
-    filename: z.string(),
   }),
   z.object({ error: z.string() }),
 ]);
@@ -68,8 +66,7 @@ async function convertImageOffscreen({
     quality: 0.01 * quality,
   });
   const newFormat = blob.type.split('/')[1];
-  const filename: string = replaceFileExtension(file.name, newFormat);
-  return { blob, filename };
+  return { blob };
 }
 
 /** Gets the dimensions for the new image, preserving the aspect ratio if only one is specified. */

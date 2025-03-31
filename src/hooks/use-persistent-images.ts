@@ -1,8 +1,9 @@
-'use client';
+import 'client-only';
 
 import { z } from 'zod';
 import { useState, useEffect } from 'react';
 import * as uuid from 'uuid';
+import { useLocalStorage } from 'usehooks-ts';
 
 import { convertImageCanvasAPI } from '@/lib/client/image-tools';
 import { IMAGE_FORMATS, type ImageFormat } from '@/lib/client/image-tools';
@@ -60,6 +61,10 @@ export function usePersistentImages(): [
   (files: FileList | null) => void,
 ] {
   const [images, setImages] = useState<Record<string, ManagedImage>>({});
+  const [preferredFormat] = useLocalStorage<ImageFormat>(
+    'preferred-image-format',
+    'png',
+  );
 
   /** Renames an image and reflects change in IndexedDB. */
   const updateImageById = (id: UUID, data: Partial<ImageType>): void => {
@@ -116,7 +121,7 @@ export function usePersistentImages(): [
 
     const newImages = Array.from(files)
       .filter((file) => file !== null)
-      .map((file) => fileToImageType(file))
+      .map((file) => fileToImageType(file, preferredFormat))
       .map(resolve);
 
     // Add files to the state.
@@ -354,7 +359,7 @@ function randomUUID(): UUID {
 }
 
 /** Creates a ImageType object from a file. */
-function fileToImageType(file: File): ImageType {
+function fileToImageType(file: File, preferredFormat: ImageFormat): ImageType {
   return {
     id: randomUUID(),
     file,
@@ -362,6 +367,6 @@ function fileToImageType(file: File): ImageType {
     timestamp: new Date(),
     ready: false,
     filename: file.name,
-    format: 'png',
+    format: preferredFormat,
   };
 }

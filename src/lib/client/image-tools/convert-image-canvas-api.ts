@@ -7,7 +7,6 @@ import { z } from 'zod';
 const WorkerResponseSchema = z.union([
   z.object({
     blob: z.instanceof(Blob),
-    filename: z.string(),
   }),
   z.object({ error: z.string() }),
 ]);
@@ -35,8 +34,10 @@ export function convertImageCanvasAPI(
     quality?: number;
     width?: number;
     height?: number;
+    filename?: string;
   } = {},
 ): Promise<File> {
+  const originalFilename = file.name;
   if (typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') {
     console.warn(
       'Web Workers or OffscreenCanvas not supported, falling back to main thread',
@@ -66,7 +67,14 @@ export function convertImageCanvasAPI(
         reject(new Error(response.error));
         return;
       }
-      const file = new File([response.blob], response.filename, {
+      const blob = response.blob;
+      const format = blob.type.split('/')[1];
+      const filename = replaceFileExtension(
+        options.filename ?? originalFilename,
+        format,
+      );
+
+      const file = new File([response.blob], filename, {
         type: response.blob.type,
       });
       resolve(file);
@@ -90,10 +98,11 @@ export function convertImageFallback(
     quality?: number;
     width?: number;
     height?: number;
+    filename?: string;
   } = {},
 ): Promise<File> {
   const { format = 'webp', quality = 85, width, height } = options;
-  const filename = replaceFileExtension(file.name, format);
+  const filename = replaceFileExtension(options.filename ?? file.name, format);
 
   return new Promise((resolve, reject) => {
     const canvas = document.createElement('canvas');

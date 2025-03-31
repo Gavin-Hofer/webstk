@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
-import { Loader2, XIcon, FileDownIcon } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Loader2, XIcon, FileDownIcon, PencilIcon } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 
 import type { ManagedImage } from '@/hooks/use-persistent-images';
-import type { ImageFormat } from '@/lib/client/image-tools';
+import { Input } from '@/components/ui/input';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -40,6 +40,90 @@ export const ImageCardList: React.FC<{
 // #region Subcomponents
 // =============================================================================
 
+const DownloadImageButton: React.FC<{
+  disabled: boolean;
+  onClick: () => void;
+  isPending: boolean;
+}> = ({ disabled, onClick, isPending }) => {
+  return (
+    <Button disabled={disabled} onClick={onClick} className='w-36'>
+      {!isPending && (
+        <>
+          <FileDownIcon />
+          Download
+        </>
+      )}
+      {isPending && <Loader2 className='animate-spin' />}
+    </Button>
+  );
+};
+
+const RemoveImageButton: React.FC<{
+  onClick: () => void;
+  className?: string;
+}> = ({ onClick, className }) => {
+  return (
+    <Button
+      variant='ghost'
+      className={cn('text-red-500 [&_svg]:size-6', className)}
+      onClick={onClick}
+    >
+      <XIcon strokeWidth={2} />
+    </Button>
+  );
+};
+
+const ImageFilenameEditor: React.FC<{
+  filename: string;
+  setFilename: (name: string) => void;
+}> = ({ filename, setFilename }) => {
+  const ref = useRef<HTMLFormElement>(null);
+  const [editing, setEditing] = useState<boolean>(false);
+
+  const handleSubmit: React.FormEventHandler = (event) => {
+    event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
+    const formData = new FormData(form);
+    const newFilename = formData.get('filename') as string | null;
+    if (newFilename) {
+      setFilename(newFilename);
+    }
+    setEditing(false);
+  };
+
+  if (!editing) {
+    return (
+      <button
+        className='hover:bg-primary/10 flex min-w-0 cursor-pointer flex-row items-center justify-center gap-2 rounded-md px-4 py-2 transition-colors duration-500 ease-out'
+        type='button'
+        onClick={() => setEditing(true)}
+      >
+        <span className='truncate'>{filename}</span>
+        <PencilIcon className='size-4 flex-shrink-0' />
+      </button>
+    );
+  }
+  return (
+    <form
+      ref={ref}
+      onSubmit={handleSubmit}
+      onBlur={handleSubmit}
+      className='flex w-full flex-row items-center gap-2'
+    >
+      <Input
+        name='filename'
+        className='w-full flex-grow'
+        value={filename}
+        onChange={(event) => setFilename(event.target.value)}
+        autoFocus
+      />
+      <Button variant='secondary' type='submit'>
+        Save
+      </Button>
+    </form>
+  );
+};
+
 const ImageRow: React.FC<{
   image: ManagedImage;
 }> = ({ image }) => {
@@ -47,6 +131,7 @@ const ImageRow: React.FC<{
     async mutationFn(image: ManagedImage) {
       const file = await convertImageCanvasAPI(image.file, {
         format: image.format,
+        filename: image.filename,
       });
       downloadFile(file);
     },
@@ -55,7 +140,7 @@ const ImageRow: React.FC<{
   return (
     <div className='bg-accent relative flex flex-col items-center justify-between gap-4 p-2 shadow-md sm:flex-row'>
       <div className='flex w-full flex-row items-center justify-between gap-4'>
-        <div className='flex items-center gap-4 sm:flex-row'>
+        <div className='flex flex-1 items-center gap-4 sm:flex-row'>
           {!image.ready && (
             <div className='flex h-8 w-8 items-center justify-center rounded-md bg-gray-200'>
               <Loader2 className='text-accent-foreground animate-spin' />
@@ -65,43 +150,30 @@ const ImageRow: React.FC<{
             <img
               src={URL.createObjectURL(image.preview)}
               alt={image.file.name}
-              className='aspect-square h-8 w-8 rounded-md object-cover'
+              className='aspect-square h-8 w-8 min-w-8 rounded-md object-cover'
             />
           )}
-          <span className='max-w-[200px] truncate text-nowrap md:max-w-[300px] lg:max-w-[400px] xl:max-w-full'>
-            {image.file.name}
-          </span>
+          <ImageFilenameEditor
+            filename={image.filename}
+            setFilename={image.setFilename}
+          />
         </div>
-        <Button
-          variant='ghost'
-          className='text-red-500 sm:hidden [&_svg]:size-6'
+        <RemoveImageButton
           onClick={() => image.remove()}
-        >
-          <XIcon strokeWidth={2} />
-        </Button>
+          className='inline sm:hidden'
+        />
       </div>
       <div className='flex w-full items-center justify-end gap-4'>
         <FormatSelect format={image.format} setFormat={image.setFormat} />
-        <Button
+        <DownloadImageButton
           disabled={!image.ready || mutation.isPending}
+          isPending={mutation.isPending}
           onClick={() => mutation.mutate(image)}
-          className='w-36'
-        >
-          {!mutation.isPending && (
-            <>
-              <FileDownIcon />
-              Download
-            </>
-          )}
-          {mutation.isPending && <Loader2 className='animate-spin' />}
-        </Button>
-        <Button
-          variant='ghost'
-          className='hidden text-red-500 sm:inline [&_svg]:size-6'
+        />
+        <RemoveImageButton
           onClick={() => image.remove()}
-        >
-          <XIcon strokeWidth={2} />
-        </Button>
+          className='hidden sm:inline'
+        />
       </div>
     </div>
   );
