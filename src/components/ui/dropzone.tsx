@@ -1,5 +1,6 @@
 'use client';
 
+import { FileUpIcon } from 'lucide-react';
 import { useState, useRef } from 'react';
 
 import { cn } from '@/lib/utils';
@@ -71,14 +72,27 @@ export const Dropzone: React.FC<
       {showOverlay && (
         <div
           className={cn(
-            'absolute inset-0 flex h-full w-full items-center justify-center bg-black/20 text-4xl text-white',
+            'fixed inset-0 z-20 flex h-screen w-screen items-center justify-center gap-4 bg-black/80 text-4xl text-white',
             'animate-in fade-in-0',
             'transition-opacity duration-500 ease-out',
             !isDragging && 'opacity-0',
             overlayClassName,
           )}
         >
-          {overlayContent}
+          {overlayContent ?? (
+            <>
+              <FileUpIcon className='size-8' />
+              Drop to add files
+              <div className='absolute top-5 left-5 h-1 w-32 bg-white/80' />
+              <div className='absolute top-5 left-5 h-32 w-1 bg-white/80' />
+              <div className='absolute top-5 right-5 h-1 w-32 bg-white/80' />
+              <div className='absolute top-5 right-5 h-32 w-1 bg-white/80' />
+              <div className='absolute bottom-5 left-5 h-1 w-32 bg-white/80' />
+              <div className='absolute bottom-5 left-5 h-32 w-1 bg-white/80' />
+              <div className='absolute right-5 bottom-5 h-1 w-32 bg-white/80' />
+              <div className='absolute right-5 bottom-5 h-32 w-1 bg-white/80' />
+            </>
+          )}
         </div>
       )}
     </div>

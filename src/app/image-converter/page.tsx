@@ -2,7 +2,7 @@
 
 import type { NextPage } from 'next';
 
-import { FileUpIcon } from 'lucide-react';
+import { FileUpIcon, ScanLineIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { usePersistentImages } from '@/hooks/use-persistent-images';
@@ -20,15 +20,8 @@ const Page: NextPage = () => {
   const [images, addFiles] = usePersistentImages();
   return (
     <Dropzone
-      className='m-4 flex w-full max-w-7xl flex-col gap-4'
+      className='m-4 flex min-h-[calc(100vh-10rem)] w-full max-w-7xl flex-col gap-4'
       onChange={addFiles}
-      overlayClassName='fixed top-0 left-0 h-screen w-screen z-20 bg-black/80 gap-4'
-      overlayContent={
-        <>
-          <FileUpIcon className='size-8' />
-          Drop to add files
-        </>
-      }
     >
       <h1 className='text-2xl font-bold'>Image Converter</h1>
       <ImageCardList images={images} />
