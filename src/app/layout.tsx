@@ -2,7 +2,7 @@ import './globals.css';
 
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
-import { Analytics } from '@vercel/analytics';
+import { Analytics } from '@vercel/analytics/next';
 
 import { ReactQueryClientProvider } from '@/components/providers/react-query-client-provider';
 import { Header } from '@/components/layout/header/header';
