@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, type UseFormReturn } from 'react-hook-form';
 import { z } from 'zod';
@@ -55,6 +55,8 @@ const formSchema = z.object({
   includeNumbers: z.boolean(),
   includeSymbols: z.boolean(),
 });
+
+type PasswordFormData = z.infer<typeof formSchema>;
 
 // #endregion
 
@@ -171,6 +173,36 @@ const CheckboxField: React.FC<{
   );
 };
 
+type GeneratePasswordButtonProps = {
+  form: UseFormReturn<PasswordFormData>;
+  loading: boolean;
+};
+
+const GeneratePasswordButton: React.FC<GeneratePasswordButtonProps> = ({
+  form,
+  loading,
+}) => {
+  return (
+    <Button
+      type='submit'
+      className='w-full'
+      disabled={
+        loading ||
+        !form.formState.isValid ||
+        !(
+          form.getValues('includeLowercase') ||
+          form.getValues('includeUppercase') ||
+          form.getValues('includeNumbers') ||
+          form.getValues('includeSymbols')
+        )
+      }
+    >
+      <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+      Generate Password
+    </Button>
+  );
+};
+
 const PasswordDisplay: React.FC<{
   password: string;
   notification: Notification;
@@ -253,6 +285,10 @@ const PasswordCopiedNotification: React.FC<{ notification: Notification }> = ({
 export const PasswordGenerator: React.FC = () => {
   const copyNotification = useNotification();
   const [password, setPassword] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+  const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -265,7 +301,10 @@ export const PasswordGenerator: React.FC = () => {
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  const finishLoading = (values: PasswordFormData) => {
+    clearTimeout(loadingTimeoutRef.current);
+    setLoading(false);
+
     const password = generateRandomPassword(values.length, values);
     setPassword(password);
     if (!navigator.clipboard) {
@@ -275,7 +314,13 @@ export const PasswordGenerator: React.FC = () => {
       () => copyNotification.trigger(),
       (error) => console.error('Failed to copy password:', error),
     );
-  }
+  };
+
+  const onSubmit = (values: PasswordFormData) => {
+    clearTimeout(loadingTimeoutRef.current);
+    setLoading(true);
+    loadingTimeoutRef.current = setTimeout(() => finishLoading(values), 500);
+  };
 
   return (
     <Form {...form}>
@@ -309,24 +354,7 @@ export const PasswordGenerator: React.FC = () => {
             <CheckboxField form={form} name='includeSymbols' label='Symbols' />
           </div>
         </div>
-
-        {/* Generate button */}
-        <Button
-          type='submit'
-          className='w-full'
-          disabled={
-            !form.formState.isValid ||
-            !(
-              form.getValues('includeLowercase') ||
-              form.getValues('includeUppercase') ||
-              form.getValues('includeNumbers') ||
-              form.getValues('includeSymbols')
-            )
-          }
-        >
-          <RefreshCw className='h-4 w-4' />
-          Generate Password
-        </Button>
+        <GeneratePasswordButton form={form} loading={loading} />
       </form>
 
       {/* Output section */}

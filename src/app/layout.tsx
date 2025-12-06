@@ -61,7 +61,7 @@ const RootLayout: React.FC<{
             'relative h-full w-full antialiased',
           )}
         >
-          <ParallaxBackgroundGrid className='min-h-screen' />
+          <ParallaxBackgroundGrid className='min-h-screen opacity-50' />
           <Header />
           <main className='flex h-full w-full items-center justify-center'>
             <ReactQueryClientProvider>{children}</ReactQueryClientProvider>

@@ -16,7 +16,7 @@ const robotoMono = Roboto_Mono({
 export const Header: React.FC = () => {
   return (
     <header className='bg-card/80 border-border/50 sticky top-0 z-10 h-14 w-full border-b backdrop-blur-md'>
-      <nav className='mx-auto flex h-full w-full max-w-7xl items-center justify-between px-4 sm:px-6'>
+      <nav className='mx-auto flex h-full w-full items-center justify-between px-4 sm:px-6'>
         <Link
           className={cn(
             'group flex items-center gap-2 text-lg font-medium tracking-[0.3em] transition-colors duration-300',
