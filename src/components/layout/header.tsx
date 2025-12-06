@@ -36,8 +36,8 @@ export const Header: React.FC = () => {
             target='_blank'
             rel='noopener noreferrer'
             className={cn(
-              'flex h-9 w-9 items-center justify-center rounded-md transition-colors duration-300',
-              'text-muted-foreground hover:bg-secondary hover:text-foreground',
+              'flex h-9 w-9 items-center justify-center rounded-full transition-colors duration-300',
+              'text-foreground hover:bg-secondary',
             )}
             aria-label='View source on GitHub'
           >

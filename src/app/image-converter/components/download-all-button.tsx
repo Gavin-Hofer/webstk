@@ -15,7 +15,6 @@ import { promisePool } from '@/lib/promises/promise-pool';
 
 import { FormatSelect } from './format-select';
 
-
 export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
   images,
 }) => {
@@ -56,10 +55,23 @@ export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
   const numImages = images.length;
 
   return (
-    <div className='flex w-full flex-row sm:w-auto'>
+    <div
+      className={cn(
+        'flex w-full flex-row sm:w-auto',
+        'border-primary/50 bg-primary/10 rounded-full border',
+        'shadow-primary/10 shadow-sm',
+        'transition-all duration-300 ease-out',
+        !disabled && 'hover:border-primary/70 hover:bg-primary/15',
+        disabled && 'opacity-50',
+      )}
+    >
       <Button
         onClick={() => mutation.mutate(images)}
-        className='h-11 flex-1 rounded-r-none sm:w-40'
+        className={cn(
+          'h-11 flex-1 rounded-l-full rounded-r-none sm:w-40',
+          'border-none bg-transparent shadow-none',
+          'hover:bg-transparent',
+        )}
         disabled={disabled}
         size='lg'
       >
@@ -78,12 +90,13 @@ export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
           </>
         )}
       </Button>
+      <div className='bg-primary/30 my-2 w-px' />
       <FormatSelect
         format={format}
         setFormat={setFormat}
         className={cn(
-          'h-11 min-w-20 rounded-l-none border-l-0',
-          'bg-primary text-primary-foreground hover:bg-primary/90',
+          'h-11 w-fit min-w-20 rounded-l-none rounded-r-full',
+          'text-primary border-none bg-transparent shadow-none',
           'focus:ring-0 focus:ring-offset-0',
           'focus-visible:ring-0 focus-visible:ring-offset-0',
         )}

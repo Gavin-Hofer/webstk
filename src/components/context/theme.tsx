@@ -92,9 +92,9 @@ export const ThemeToggle: React.FC<{ className?: string }> = ({
     <button
       onClick={toggleTheme}
       className={cn(
-        'relative flex h-9 w-9 cursor-pointer items-center justify-center rounded-md',
-        'text-muted-foreground transition-colors duration-300',
-        'hover:bg-secondary hover:text-foreground',
+        'relative flex h-9 w-9 cursor-pointer items-center justify-center rounded-full',
+        'text-foreground transition-colors duration-300',
+        'hover:bg-secondary',
         'focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none',
         className,
       )}
