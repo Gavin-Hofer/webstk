@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, type UseFormReturn } from 'react-hook-form';
 import { z } from 'zod';
@@ -179,19 +179,18 @@ const CheckboxField: React.FC<{
 
 type GeneratePasswordButtonProps = {
   form: UseFormReturn<PasswordFormData>;
-  loading: boolean;
+  animationKey: number;
 };
 
 const GeneratePasswordButton: React.FC<GeneratePasswordButtonProps> = ({
   form,
-  loading,
+  animationKey,
 }) => {
   return (
     <Button
       type='submit'
       className='w-full'
       disabled={
-        loading ||
         !form.formState.isValid ||
         !(
           form.getValues('includeLowercase') ||
@@ -201,7 +200,13 @@ const GeneratePasswordButton: React.FC<GeneratePasswordButtonProps> = ({
         )
       }
     >
-      <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+      <RefreshCw
+        key={animationKey}
+        className={cn(
+          'h-4 w-4',
+          animationKey > 0 && 'animate-[spin-once_500ms_ease-out]',
+        )}
+      />
       Generate Password
     </Button>
   );
@@ -211,7 +216,8 @@ const PasswordDisplay: React.FC<{
   password: string;
   notification: Notification;
   setPassword: (password: string) => void;
-}> = ({ password, notification, setPassword }) => {
+  animationKey: number;
+}> = ({ password, notification, setPassword, animationKey }) => {
   const [showPassword, setShowPassword] = useState<boolean>(false);
 
   function handleCopyPassword() {
@@ -225,7 +231,10 @@ const PasswordDisplay: React.FC<{
     <div className='flex flex-col gap-2'>
       <span className='text-sm font-medium'>Generated Password</span>
       <div className='flex items-center gap-2'>
-        <div className='bg-background border-input flex min-h-10 flex-1 items-center overflow-hidden rounded-md border'>
+        <div
+          key={animationKey}
+          className='bg-background border-input flex min-h-10 flex-1 animate-[border-flash_600ms_ease-out] items-center overflow-hidden rounded-md border'
+        >
           <input
             type={showPassword ? 'text' : 'password'}
             value={password}
@@ -269,10 +278,7 @@ const PasswordDisplay: React.FC<{
 export const PasswordGenerator: React.FC = () => {
   const copyNotification = useNotification();
   const [password, setPassword] = useState<string>('');
-  const [loading, setLoading] = useState(false);
-  const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined,
-  );
+  const [animationKey, setAnimationKey] = useState(0);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -285,25 +291,18 @@ export const PasswordGenerator: React.FC = () => {
     },
   });
 
-  const finishLoading = (values: PasswordFormData) => {
-    clearTimeout(loadingTimeoutRef.current);
-    setLoading(false);
+  const onSubmit = (values: PasswordFormData) => {
+    const newPassword = generateRandomPassword(values.length, values);
+    setPassword(newPassword);
+    setAnimationKey((prev) => prev + 1);
 
-    const password = generateRandomPassword(values.length, values);
-    setPassword(password);
     if (!navigator.clipboard) {
       return;
     }
-    navigator.clipboard.writeText(password).then(
+    navigator.clipboard.writeText(newPassword).then(
       () => copyNotification.trigger(),
       (error) => console.error('Failed to copy password:', error),
     );
-  };
-
-  const onSubmit = (values: PasswordFormData) => {
-    clearTimeout(loadingTimeoutRef.current);
-    setLoading(true);
-    loadingTimeoutRef.current = setTimeout(() => finishLoading(values), 500);
   };
 
   return (
@@ -338,7 +337,7 @@ export const PasswordGenerator: React.FC = () => {
             <CheckboxField form={form} name='includeSymbols' label='Symbols' />
           </div>
         </div>
-        <GeneratePasswordButton form={form} loading={loading} />
+        <GeneratePasswordButton form={form} animationKey={animationKey} />
       </form>
 
       {/* Output section */}
@@ -349,6 +348,7 @@ export const PasswordGenerator: React.FC = () => {
               password={password}
               notification={copyNotification}
               setPassword={setPassword}
+              animationKey={animationKey}
             />
           </PopoverAnchor>
           <PopoverContent
