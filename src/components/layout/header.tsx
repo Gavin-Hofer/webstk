@@ -10,30 +10,38 @@ const robotoMono = Roboto_Mono({
   variable: '--font-roboto-mono',
 });
 
+/**
+ * Site header with navigation and theme controls.
+ */
 export const Header: React.FC = () => {
   return (
-    <header className='bg-primary-foreground sticky top-0 z-10 h-10 w-full shadow-md'>
-      <nav className='flex h-full w-full justify-between gap-6 px-4'>
-        <div className='flex h-full items-center gap-4'>
-          <Link
-            className={cn(
-              'text-lg tracking-widest',
-              robotoMono.variable,
-              robotoMono.className,
-            )}
-            href='/'
-          >
-            WEBSTK
-          </Link>
-        </div>
-        <div className='flex h-full items-center gap-4'>
+    <header className='bg-card/80 border-border/50 sticky top-0 z-10 h-14 w-full border-b backdrop-blur-md'>
+      <nav className='mx-auto flex h-full w-full max-w-7xl items-center justify-between px-4 sm:px-6'>
+        <Link
+          className={cn(
+            'group flex items-center gap-2 text-lg font-medium tracking-[0.3em] transition-colors duration-300',
+            'text-foreground hover:text-primary',
+            robotoMono.variable,
+            robotoMono.className,
+          )}
+          href='/'
+        >
+          <span className='bg-primary inline-block h-2 w-2 rounded-full transition-shadow duration-300 group-hover:shadow-[0_0_8px_var(--glow)]' />
+          WEBSTK
+        </Link>
+        <div className='flex items-center gap-2'>
           <ThemeToggle />
           <a
             href='https://github.com/Gavin-Hofer/webstk'
             target='_blank'
             rel='noopener noreferrer'
+            className={cn(
+              'flex h-9 w-9 items-center justify-center rounded-md transition-colors duration-300',
+              'text-muted-foreground hover:bg-secondary hover:text-foreground',
+            )}
+            aria-label='View source on GitHub'
           >
-            <GithubIcon size={24} />
+            <GithubIcon size={20} />
           </a>
         </div>
       </nav>

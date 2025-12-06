@@ -23,11 +23,8 @@ export const ImageCardList: React.FC<{
   return (
     <div
       className={cn(
-        'my-8 flex max-h-[calc(100vh-25rem)] flex-col gap-4 overflow-auto shadow-md',
-        images.length > 0 && 'min-h-14',
-        images.length > 1 && 'min-h-32',
-        images.length > 2 && 'min-h-50',
-        images.length > 3 && 'min-h-64',
+        'flex flex-col gap-3 overflow-auto rounded-lg',
+        images.length > 3 && 'max-h-[50vh]',
       )}
     >
       {images.map((image) => (
@@ -46,14 +43,15 @@ const DownloadImageButton: React.FC<{
   isPending: boolean;
 }> = ({ disabled, onClick, isPending }) => {
   return (
-    <Button disabled={disabled} onClick={onClick} className='w-36'>
+    <Button disabled={disabled} onClick={onClick} className='w-32 sm:w-36'>
       {!isPending && (
         <>
-          <FileDownIcon />
-          Download
+          <FileDownIcon className='h-4 w-4' />
+          <span className='hidden sm:inline'>Download</span>
+          <span className='sm:hidden'>Save</span>
         </>
       )}
-      {isPending && <Loader2 className='animate-spin' />}
+      {isPending && <Loader2 className='h-4 w-4 animate-spin' />}
     </Button>
   );
 };
@@ -65,10 +63,15 @@ const RemoveImageButton: React.FC<{
   return (
     <Button
       variant='ghost'
-      className={cn('text-destructive [&_svg]:size-6', className)}
+      size='icon'
+      className={cn(
+        'text-muted-foreground hover:text-destructive h-9 w-9',
+        className,
+      )}
       onClick={onClick}
+      aria-label='Remove image'
     >
-      <XIcon strokeWidth={2} />
+      <XIcon className='h-5 w-5' />
     </Button>
   );
 };
@@ -94,12 +97,16 @@ const ImageFilenameEditor: React.FC<{
   if (!editing) {
     return (
       <button
-        className='hover:bg-primary/10 flex min-w-0 cursor-pointer flex-row items-center justify-center gap-2 rounded-md px-4 py-2 transition-colors duration-500 ease-out'
+        className={cn(
+          'flex min-w-0 cursor-pointer flex-row items-center gap-2 rounded-md px-2 py-1',
+          'text-left transition-colors duration-200',
+          'hover:bg-secondary',
+        )}
         type='button'
         onClick={() => setEditing(true)}
       >
-        <span className='truncate'>{filename}</span>
-        <PencilIcon className='size-4 flex-shrink-0' />
+        <span className='truncate text-sm'>{filename}</span>
+        <PencilIcon className='text-muted-foreground h-3 w-3 flex-shrink-0' />
       </button>
     );
   }
@@ -112,12 +119,12 @@ const ImageFilenameEditor: React.FC<{
     >
       <Input
         name='filename'
-        className='w-full flex-grow'
+        className='h-8 w-full flex-grow text-sm'
         value={filename}
         onChange={(event) => setFilename(event.target.value)}
         autoFocus
       />
-      <Button variant='secondary' type='submit'>
+      <Button variant='secondary' type='submit' size='sm'>
         Save
       </Button>
     </form>
@@ -138,32 +145,44 @@ const ImageRow: React.FC<{
   });
 
   return (
-    <div className='bg-accent relative flex flex-col items-center justify-between gap-4 p-2 shadow-md sm:flex-row'>
-      <div className='flex w-full flex-row items-center justify-between gap-4'>
-        <div className='flex flex-1 items-center gap-4 sm:flex-row'>
-          {!image.ready && (
-            <div className='bg-muted flex h-8 w-8 items-center justify-center rounded-md'>
-              <Loader2 className='text-accent-foreground animate-spin' />
-            </div>
-          )}
-          {image.ready && (
-            <img // @eslint-disable  @next/next/no-img-element
-              src={URL.createObjectURL(image.preview)}
-              alt={image.file.name}
-              className='aspect-square h-8 w-8 min-w-8 rounded-md object-cover'
-            />
-          )}
+    <div
+      className={cn(
+        'relative flex flex-col items-center justify-between gap-3 p-3 sm:flex-row',
+        'border-border bg-card/50 rounded-lg border',
+        'hover:bg-card transition-colors duration-200',
+      )}
+    >
+      {/* Left side: thumbnail + filename */}
+      <div className='flex w-full flex-row items-center gap-3 sm:w-auto sm:flex-1'>
+        {/* Thumbnail */}
+        {!image.ready && (
+          <div className='bg-secondary flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md'>
+            <Loader2 className='text-muted-foreground h-4 w-4 animate-spin' />
+          </div>
+        )}
+        {image.ready && (
+          <img // @eslint-disable  @next/next/no-img-element
+            src={URL.createObjectURL(image.preview)}
+            alt={image.file.name}
+            className='h-10 w-10 flex-shrink-0 rounded-md object-cover'
+          />
+        )}
+        {/* Filename */}
+        <div className='min-w-0 flex-1'>
           <ImageFilenameEditor
             filename={image.filename}
             setFilename={image.setFilename}
           />
         </div>
+        {/* Mobile remove button */}
         <RemoveImageButton
           onClick={() => image.remove()}
-          className='inline sm:hidden'
+          className='sm:hidden'
         />
       </div>
-      <div className='flex w-full items-center justify-end gap-4'>
+
+      {/* Right side: format select + download + remove */}
+      <div className='flex w-full items-center justify-end gap-2 sm:w-auto'>
         <FormatSelect format={image.format} setFormat={image.setFormat} />
         <DownloadImageButton
           disabled={!image.ready || mutation.isPending}
@@ -172,7 +191,7 @@ const ImageRow: React.FC<{
         />
         <RemoveImageButton
           onClick={() => image.remove()}
-          className='hidden sm:inline'
+          className='hidden sm:flex'
         />
       </div>
     </div>

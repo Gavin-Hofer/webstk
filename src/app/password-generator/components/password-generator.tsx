@@ -4,7 +4,13 @@ import { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, type UseFormReturn } from 'react-hook-form';
 import { z } from 'zod';
-import { CheckIcon, CopyIcon, EyeIcon, EyeOffIcon } from 'lucide-react';
+import {
+  CheckIcon,
+  CopyIcon,
+  EyeIcon,
+  EyeOffIcon,
+  RefreshCw,
+} from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -74,56 +80,56 @@ export const PasswordGenerator: React.FC = () => {
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(onSubmit)}
-        className='flex flex-col gap-8'
+        className='flex flex-col gap-6'
       >
-        <div className='flex flex-col gap-4'>
-          <NumericInputField
-            form={form}
-            name='length'
-            label='Password Length'
-            description='The number of characters in the password.'
-          />
-          <div className='flex flex-row flex-wrap gap-4'>
+        {/* Length input */}
+        <NumericInputField
+          form={form}
+          name='length'
+          label='Password Length'
+          description='Number of characters (1-65536)'
+        />
+
+        {/* Character options */}
+        <div className='flex flex-col gap-3'>
+          <span className='text-sm font-medium'>Character Types</span>
+          <div className='grid grid-cols-2 gap-3 sm:flex sm:flex-wrap'>
             <CheckboxField
               form={form}
               name='includeLowercase'
-              label='Include Lowercase'
+              label='Lowercase'
             />
             <CheckboxField
               form={form}
               name='includeUppercase'
-              label='Include Uppercase'
+              label='Uppercase'
             />
-            <CheckboxField
-              form={form}
-              name='includeNumbers'
-              label='Include Numbers'
-            />
-            <CheckboxField
-              form={form}
-              name='includeSymbols'
-              label='Include Symbols'
-            />
+            <CheckboxField form={form} name='includeNumbers' label='Numbers' />
+            <CheckboxField form={form} name='includeSymbols' label='Symbols' />
           </div>
         </div>
-        <div className='flex justify-end'>
-          <Button
-            type='submit'
-            disabled={
-              !form.formState.isValid ||
-              !(
-                form.getValues('includeLowercase') ||
-                form.getValues('includeUppercase') ||
-                form.getValues('includeNumbers') ||
-                form.getValues('includeSymbols')
-              )
-            }
-          >
-            Generate Password
-          </Button>
-        </div>
+
+        {/* Generate button */}
+        <Button
+          type='submit'
+          className='w-full'
+          disabled={
+            !form.formState.isValid ||
+            !(
+              form.getValues('includeLowercase') ||
+              form.getValues('includeUppercase') ||
+              form.getValues('includeNumbers') ||
+              form.getValues('includeSymbols')
+            )
+          }
+        >
+          <RefreshCw className='h-4 w-4' />
+          Generate Password
+        </Button>
       </form>
-      <div className='flex flex-col gap-2'>
+
+      {/* Output section */}
+      <div className='border-border mt-6 border-t pt-6'>
         <PasswordDisplay
           password={password}
           notification={copyNotification}
@@ -151,7 +157,7 @@ const NumericInputField: React.FC<{
       render={({ field }) => (
         <FormItem>
           <FormLabel>{label}</FormLabel>
-          <FormControl className='flex items-center justify-center'>
+          <FormControl>
             <Input
               type='number'
               min={1}
@@ -163,6 +169,7 @@ const NumericInputField: React.FC<{
               value={field.value as number}
               onChange={field.onChange}
               onBlur={field.onBlur}
+              className='font-mono'
             />
           </FormControl>
           {description && <FormDescription>{description}</FormDescription>}
@@ -177,29 +184,26 @@ const CheckboxField: React.FC<{
   form: UseFormReturn<z.infer<typeof formSchema>>;
   name: keyof z.infer<typeof formSchema>;
   label: string;
-  description?: string;
-}> = ({ form, name, label, description }) => {
+}> = ({ form, name, label }) => {
   return (
     <FormField
       control={form.control}
       name={name}
       render={({ field }) => (
-        <FormItem>
-          <div className='flex items-end gap-2'>
-            <FormControl className='flex items-center justify-center'>
-              <Checkbox
-                ref={field.ref}
-                name={field.name}
-                disabled={field.disabled}
-                checked={field.value as boolean}
-                onCheckedChange={field.onChange}
-                onBlur={field.onBlur}
-              />
-            </FormControl>
-            <FormLabel className='cursor-pointer'>{label}</FormLabel>
-          </div>
-          {description && <FormDescription>{description}</FormDescription>}
-          <FormMessage />
+        <FormItem className='flex items-center gap-2 space-y-0'>
+          <FormControl>
+            <Checkbox
+              ref={field.ref}
+              name={field.name}
+              disabled={field.disabled}
+              checked={field.value as boolean}
+              onCheckedChange={field.onChange}
+              onBlur={field.onBlur}
+            />
+          </FormControl>
+          <FormLabel className='cursor-pointer text-sm font-normal'>
+            {label}
+          </FormLabel>
         </FormItem>
       )}
     />
@@ -225,39 +229,39 @@ const PasswordDisplay: React.FC<{
 
   return (
     <div className='flex flex-col gap-2'>
-      <FormLabel className='text-lg'>Generated Password</FormLabel>
-      <div className='border-input bg-background ring-offset-background file:text-foreground placeholder:text-muted-foreground focus-within:ring-ring flex min-h-10 w-full cursor-text rounded-md border text-base select-none file:border-0 file:bg-transparent file:text-sm file:font-medium focus-within:ring-2 focus-within:ring-offset-2 md:text-sm'>
-        <input
-          type={showPassword ? 'text' : 'password'}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete='off'
-          className='w-full cursor-text overflow-x-auto rounded-md border-none px-3 py-2 text-nowrap select-text focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:outline-hidden'
-        />
-        {/* show/hide and copy button */}
-        <div className='flex items-center justify-evenly gap-2 rounded-r-md border-l px-2'>
-          <button
-            type='button'
-            className='border-input hover:bg-secondary flex w-26 cursor-pointer items-center justify-evenly gap-2 rounded-md border bg-transparent px-2 py-1 transition-colors duration-500 ease-out disabled:cursor-default disabled:opacity-50'
-            onClick={() => setShowPassword((prev) => !prev)}
-          >
-            {showPassword ?
-              <EyeOffIcon className='h-4 w-4' />
-            : <EyeIcon className='h-4 w-4' />}
-            <span className='hidden sm:block'>
-              {showPassword ? 'Hide' : 'Show'}
-            </span>
-          </button>
-          <button
-            type='button'
-            disabled={password.length === 0 || !navigator.clipboard}
-            className='border-input hover:bg-secondary flex w-26 cursor-pointer items-center justify-evenly gap-2 rounded-md border bg-transparent px-2 py-1 transition-colors duration-500 ease-out disabled:cursor-default disabled:opacity-50'
-            onClick={handleCopyPassword}
-          >
-            <CopyIcon className='h-4 w-4' />
-            <span className='hidden sm:block'>Copy</span>
-          </button>
+      <span className='text-sm font-medium'>Generated Password</span>
+      <div className='flex items-center gap-2'>
+        <div className='bg-background border-input flex min-h-10 flex-1 items-center overflow-hidden rounded-md border'>
+          <input
+            type={showPassword ? 'text' : 'password'}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete='off'
+            placeholder='Click generate to create a password'
+            className='placeholder:text-muted-foreground w-full flex-1 bg-transparent px-3 py-2 font-mono text-sm outline-none placeholder:font-sans'
+          />
         </div>
+        <Button
+          type='button'
+          variant='outline'
+          size='icon'
+          onClick={() => setShowPassword((prev) => !prev)}
+          aria-label={showPassword ? 'Hide password' : 'Show password'}
+        >
+          {showPassword ?
+            <EyeOffIcon className='h-4 w-4' />
+          : <EyeIcon className='h-4 w-4' />}
+        </Button>
+        <Button
+          type='button'
+          variant='outline'
+          size='icon'
+          disabled={password.length === 0 || !navigator.clipboard}
+          onClick={handleCopyPassword}
+          aria-label='Copy password'
+        >
+          <CopyIcon className='h-4 w-4' />
+        </Button>
       </div>
     </div>
   );
@@ -268,16 +272,16 @@ const PasswordCopiedNotification: React.FC<{ notification: Notification }> = ({
 }) => {
   if (!notification.show) return null;
   return (
-    <div className='flex w-full items-center justify-center'>
+    <div className='mt-4 flex w-full items-center justify-center'>
       <div
         className={cn(
-          'border-border bg-muted flex items-center justify-evenly gap-2 rounded-lg border px-4 py-2',
+          'bg-primary/10 text-primary inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm',
           'transition-opacity duration-500 ease-out',
           notification.transparent && 'opacity-0',
         )}
       >
         <CheckIcon className='h-4 w-4' />
-        <p>Password copied to clipboard!</p>
+        Password copied to clipboard
       </div>
     </div>
   );

@@ -21,14 +21,14 @@ export const FormatSelect: React.FC<{
   return (
     <Select value={format} onValueChange={(f: ImageFormat) => setFormat(f)}>
       <SelectTrigger
-        className={cn('h-10 w-24 cursor-pointer', className)}
+        className={cn('h-10 w-24 cursor-pointer font-mono text-xs', className)}
         disabled={disabled}
       >
         {children ?? <SelectValue placeholder='Format' />}
       </SelectTrigger>
       <SelectContent>
         {IMAGE_FORMATS.map((fmt) => (
-          <SelectItem key={fmt} value={fmt}>
+          <SelectItem key={fmt} value={fmt} className='font-mono text-xs'>
             {fmt.toUpperCase()}
           </SelectItem>
         ))}

@@ -72,7 +72,8 @@ export const Dropzone: React.FC<
       {showOverlay && (
         <div
           className={cn(
-            'bg-primary/80 text-primary-foreground fixed inset-0 z-20 flex h-screen w-screen items-center justify-center gap-4 text-4xl',
+            'fixed inset-0 z-20 flex h-screen w-screen flex-col items-center justify-center gap-4',
+            'bg-background/95 backdrop-blur-sm',
             'animate-in fade-in-0',
             'transition-opacity duration-500 ease-out',
             !isDragging && 'opacity-0',
@@ -81,16 +82,18 @@ export const Dropzone: React.FC<
         >
           {overlayContent ?? (
             <>
-              <FileUpIcon className='size-8' />
-              Drop to add files
-              <div className='bg-background/80 absolute top-5 left-5 h-1 w-32' />
-              <div className='bg-background/80 absolute top-5 left-5 h-32 w-1' />
-              <div className='bg-background/80 absolute top-5 right-5 h-1 w-32' />
-              <div className='bg-background/80 absolute top-5 right-5 h-32 w-1' />
-              <div className='bg-background/80 absolute bottom-5 left-5 h-1 w-32' />
-              <div className='bg-background/80 absolute bottom-5 left-5 h-32 w-1' />
-              <div className='bg-background/80 absolute right-5 bottom-5 h-1 w-32' />
-              <div className='bg-background/80 absolute right-5 bottom-5 h-32 w-1' />
+              <div className='bg-primary/10 flex h-24 w-24 items-center justify-center rounded-full'>
+                <FileUpIcon className='text-primary h-12 w-12' />
+              </div>
+              <p className='text-2xl font-medium'>Drop files to add</p>
+              <p className='text-muted-foreground'>
+                Release to upload your images
+              </p>
+              {/* Corner decorations */}
+              <div className='border-primary/50 absolute top-8 left-8 h-16 w-16 border-t-2 border-l-2' />
+              <div className='border-primary/50 absolute top-8 right-8 h-16 w-16 border-t-2 border-r-2' />
+              <div className='border-primary/50 absolute bottom-8 left-8 h-16 w-16 border-b-2 border-l-2' />
+              <div className='border-primary/50 absolute right-8 bottom-8 h-16 w-16 border-r-2 border-b-2' />
             </>
           )}
         </div>

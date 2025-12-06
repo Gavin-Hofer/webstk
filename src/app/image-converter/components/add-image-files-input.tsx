@@ -18,12 +18,12 @@ export const AddImageFilesInput: React.FC<{
   return (
     <label
       className={cn(
-        buttonVariants({ variant: 'default' }),
-        'h-12 w-full cursor-pointer px-8 text-lg sm:w-fit [&_svg]:size-6',
+        buttonVariants({ variant: 'default', size: 'lg' }),
+        'w-full cursor-pointer sm:w-auto',
       )}
     >
-      <FileUpIcon />
-      Add image files
+      <FileUpIcon className='h-5 w-5' />
+      Add images
       <input
         type='file'
         accept='image/*'
