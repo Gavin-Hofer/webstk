@@ -233,7 +233,10 @@ const PasswordDisplay: React.FC<{
       <div className='flex items-center gap-2'>
         <div
           key={animationKey}
-          className='bg-background border-input flex min-h-10 flex-1 animate-[border-flash_600ms_ease-out] items-center overflow-hidden rounded-md border'
+          className={cn(
+            'bg-background border-input flex min-h-10 flex-1 items-center overflow-hidden rounded-md border',
+            animationKey > 0 && 'animate-[border-flash_600ms_ease-out]',
+          )}
         >
           <input
             type={showPassword ? 'text' : 'password'}
