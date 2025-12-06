@@ -72,7 +72,7 @@ export const Dropzone: React.FC<
       {showOverlay && (
         <div
           className={cn(
-            'fixed inset-0 z-20 flex h-screen w-screen items-center justify-center gap-4 bg-black/80 text-4xl text-white',
+            'bg-primary/80 text-primary-foreground fixed inset-0 z-20 flex h-screen w-screen items-center justify-center gap-4 text-4xl',
             'animate-in fade-in-0',
             'transition-opacity duration-500 ease-out',
             !isDragging && 'opacity-0',
@@ -83,14 +83,14 @@ export const Dropzone: React.FC<
             <>
               <FileUpIcon className='size-8' />
               Drop to add files
-              <div className='absolute top-5 left-5 h-1 w-32 bg-white/80' />
-              <div className='absolute top-5 left-5 h-32 w-1 bg-white/80' />
-              <div className='absolute top-5 right-5 h-1 w-32 bg-white/80' />
-              <div className='absolute top-5 right-5 h-32 w-1 bg-white/80' />
-              <div className='absolute bottom-5 left-5 h-1 w-32 bg-white/80' />
-              <div className='absolute bottom-5 left-5 h-32 w-1 bg-white/80' />
-              <div className='absolute right-5 bottom-5 h-1 w-32 bg-white/80' />
-              <div className='absolute right-5 bottom-5 h-32 w-1 bg-white/80' />
+              <div className='bg-background/80 absolute top-5 left-5 h-1 w-32' />
+              <div className='bg-background/80 absolute top-5 left-5 h-32 w-1' />
+              <div className='bg-background/80 absolute top-5 right-5 h-1 w-32' />
+              <div className='bg-background/80 absolute top-5 right-5 h-32 w-1' />
+              <div className='bg-background/80 absolute bottom-5 left-5 h-1 w-32' />
+              <div className='bg-background/80 absolute bottom-5 left-5 h-32 w-1' />
+              <div className='bg-background/80 absolute right-5 bottom-5 h-1 w-32' />
+              <div className='bg-background/80 absolute right-5 bottom-5 h-32 w-1' />
             </>
           )}
         </div>

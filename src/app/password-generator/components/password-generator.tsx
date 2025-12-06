@@ -271,7 +271,7 @@ const PasswordCopiedNotification: React.FC<{ notification: Notification }> = ({
     <div className='flex w-full items-center justify-center'>
       <div
         className={cn(
-          'flex items-center justify-evenly gap-2 rounded-lg border border-green-800 bg-green-50 px-4 py-2',
+          'border-border bg-muted flex items-center justify-evenly gap-2 rounded-lg border px-4 py-2',
           'transition-opacity duration-500 ease-out',
           notification.transparent && 'opacity-0',
         )}

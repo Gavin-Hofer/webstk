@@ -19,8 +19,8 @@
   "files.autoSave": "afterDelay",
   "prettier.experimentalTernaries": true,
   "editor.defaultFormatter": "esbenp.prettier-vscode",
-  "typescript.suggest.autoImports": false,
-  "javascript.suggest.autoImports": false,
+  "typescript.suggest.autoImports": true,
+  "javascript.suggest.autoImports": true,
   "tailwindCSS.classAttributes": [
     "class",
     "className",

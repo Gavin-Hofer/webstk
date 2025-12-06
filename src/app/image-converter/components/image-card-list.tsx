@@ -65,7 +65,7 @@ const RemoveImageButton: React.FC<{
   return (
     <Button
       variant='ghost'
-      className={cn('text-red-500 [&_svg]:size-6', className)}
+      className={cn('text-destructive [&_svg]:size-6', className)}
       onClick={onClick}
     >
       <XIcon strokeWidth={2} />
@@ -142,12 +142,12 @@ const ImageRow: React.FC<{
       <div className='flex w-full flex-row items-center justify-between gap-4'>
         <div className='flex flex-1 items-center gap-4 sm:flex-row'>
           {!image.ready && (
-            <div className='flex h-8 w-8 items-center justify-center rounded-md bg-gray-200'>
+            <div className='bg-muted flex h-8 w-8 items-center justify-center rounded-md'>
               <Loader2 className='text-accent-foreground animate-spin' />
             </div>
           )}
           {image.ready && (
-            <img  // @eslint-disable  @next/next/no-img-element
+            <img // @eslint-disable  @next/next/no-img-element
               src={URL.createObjectURL(image.preview)}
               alt={image.file.name}
               className='aspect-square h-8 w-8 min-w-8 rounded-md object-cover'
