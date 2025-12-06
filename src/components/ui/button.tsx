@@ -19,6 +19,7 @@ const buttonVariants = cva(
         default: cn(
           'bg-primary/10 text-primary border border-primary/50',
           'hover:bg-primary/15 hover:border-primary/70',
+          'active:bg-primary/10 active:border-primary/50',
         ),
         destructive: cn(
           'bg-destructive/15 text-destructive border border-destructive/60',
