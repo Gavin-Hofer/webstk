@@ -6,7 +6,9 @@ import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 
 import { ReactQueryClientProvider } from '@/components/providers/react-query-client-provider';
-import { Header } from '@/components/layout/header/header';
+import { Header } from '@/components/layout/header';
+import { ParallaxBackgroundGrid } from '@/components/layout/paralax-background-grid';
+import { cn } from '@/lib/utils';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -53,10 +55,15 @@ const RootLayout: React.FC<{
         <link rel='manifest' href='/site.webmanifest' />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={cn(
+          geistSans.variable,
+          geistMono.variable,
+          'relative h-full w-full antialiased',
+        )}
       >
+        <ParallaxBackgroundGrid className='min-h-screen' />
         <Header />
-        <main className='flex w-full items-center justify-center'>
+        <main className='flex h-full w-full items-center justify-center'>
           <ReactQueryClientProvider>{children}</ReactQueryClientProvider>
           <Analytics />
           <SpeedInsights />
