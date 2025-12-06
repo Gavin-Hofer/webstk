@@ -1,6 +1,8 @@
+import './globals.css';
+
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
-import './globals.css';
+import { Analytics } from '@vercel/analytics';
 
 import { ReactQueryClientProvider } from '@/components/providers/react-query-client-provider';
 import { Header } from '@/components/layout/header/header';
@@ -55,6 +57,7 @@ const RootLayout: React.FC<{
         <Header />
         <main className='flex w-full items-center justify-center'>
           <ReactQueryClientProvider>{children}</ReactQueryClientProvider>
+          <Analytics />
         </main>
       </body>
     </html>
