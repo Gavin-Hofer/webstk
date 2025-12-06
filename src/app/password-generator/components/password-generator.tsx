@@ -341,33 +341,33 @@ export const PasswordGenerator: React.FC = () => {
           </div>
         </div>
         <GeneratePasswordButton form={form} animationKey={animationKey} />
-      </form>
 
-      {/* Output section */}
-      <div className='border-border mt-6 border-t pt-6'>
-        <Popover open={copyNotification.show}>
-          <PopoverAnchor>
-            <PasswordDisplay
-              password={password}
-              notification={copyNotification}
-              setPassword={setPassword}
-              animationKey={animationKey}
-            />
-          </PopoverAnchor>
-          <PopoverContent
-            className={cn(
-              'bg-background/60 w-fit rounded-md border-none p-0 shadow-none',
-              'transition-opacity duration-500 ease-out',
-              copyNotification.transparent && 'opacity-0',
-            )}
-          >
-            <div className='bg-primary/10 text-primary inline-flex w-full items-center gap-2 rounded-md border px-4 py-2 text-sm shadow-md outline-hidden'>
-              <CheckIcon className='h-4 w-4' />
-              Password copied to clipboard
-            </div>
-          </PopoverContent>
-        </Popover>
-      </div>
+        {/* Output section */}
+        <div className='border-border border-t pt-6'>
+          <Popover open={copyNotification.show}>
+            <PopoverAnchor>
+              <PasswordDisplay
+                password={password}
+                notification={copyNotification}
+                setPassword={setPassword}
+                animationKey={animationKey}
+              />
+            </PopoverAnchor>
+            <PopoverContent
+              className={cn(
+                'bg-background/60 w-fit rounded-md border-none p-0 shadow-none',
+                'transition-opacity duration-500 ease-out',
+                copyNotification.transparent && 'opacity-0',
+              )}
+            >
+              <div className='bg-primary/10 text-primary inline-flex w-full items-center gap-2 rounded-md border px-4 py-2 text-sm shadow-md outline-hidden'>
+                <CheckIcon className='h-4 w-4' />
+                Password copied to clipboard
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+      </form>
     </Form>
   );
 };
