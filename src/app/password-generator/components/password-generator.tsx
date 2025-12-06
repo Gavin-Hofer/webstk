@@ -27,6 +27,11 @@ import {
 import { Input } from '@/components/ui/input';
 
 import { useNotification, type Notification } from '@/hooks/use-notification';
+import {
+  Popover,
+  PopoverContent,
+  PopoverAnchor,
+} from '@/components/ui/popover';
 
 // #region Constants
 // =============================================================================
@@ -257,22 +262,19 @@ const PasswordDisplay: React.FC<{
   );
 };
 
-const PasswordCopiedNotification: React.FC<{ notification: Notification }> = ({
-  notification,
+const PasswordCopiedNotification: React.FC<{ className?: string }> = ({
+  className,
 }) => {
-  if (!notification.show) return null;
   return (
-    <div className='mt-4 flex w-full items-center justify-center'>
-      <div
-        className={cn(
-          'bg-primary/10 text-primary inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm',
-          'transition-opacity duration-500 ease-out',
-          notification.transparent && 'opacity-0',
-        )}
-      >
-        <CheckIcon className='h-4 w-4' />
-        Password copied to clipboard
-      </div>
+    <div
+      className={cn(
+        'bg-primary/10 text-primary inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm',
+        'transition-opacity duration-500 ease-out',
+        className,
+      )}
+    >
+      <CheckIcon className='h-4 w-4' />
+      Password copied to clipboard
     </div>
   );
 };
@@ -359,12 +361,27 @@ export const PasswordGenerator: React.FC = () => {
 
       {/* Output section */}
       <div className='border-border mt-6 border-t pt-6'>
-        <PasswordDisplay
-          password={password}
-          notification={copyNotification}
-          setPassword={setPassword}
-        />
-        <PasswordCopiedNotification notification={copyNotification} />
+        <Popover open={copyNotification.show}>
+          <PopoverAnchor>
+            <PasswordDisplay
+              password={password}
+              notification={copyNotification}
+              setPassword={setPassword}
+            />
+          </PopoverAnchor>
+          <PopoverContent
+            className={cn(
+              'bg-background/60 w-fit rounded-md border-none p-0 shadow-none',
+              'transition-opacity duration-500 ease-out',
+              copyNotification.transparent && 'opacity-0',
+            )}
+          >
+            <div className='bg-primary/10 text-primary inline-flex w-full items-center gap-2 rounded-md border px-4 py-2 text-sm shadow-md outline-hidden'>
+              <CheckIcon className='h-4 w-4' />
+              Password copied to clipboard
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
     </Form>
   );
