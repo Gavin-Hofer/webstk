@@ -1,5 +1,8 @@
 import 'client-only';
 
+// #region Main Function
+// =============================================================================
+
 /**
  * Downloads a file to the user's device.
  *
@@ -27,3 +30,5 @@ export function downloadFile(file: File): void {
   document.body.removeChild(link);
   URL.revokeObjectURL(objectUrl);
 }
+
+// #endregion

@@ -1,3 +1,6 @@
+// #region Main Component
+// =============================================================================
+
 /** Github SVG Icon. */
 export const GithubIcon: React.FC<{ size?: number }> = ({ size = 24 }) => {
   return (
@@ -16,3 +19,5 @@ export const GithubIcon: React.FC<{ size?: number }> = ({ size = 24 }) => {
     </svg>
   );
 };
+
+// #endregion

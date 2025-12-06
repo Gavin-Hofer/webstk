@@ -1,6 +1,9 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
+// #region Helper Functions
+// =============================================================================
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -20,3 +23,5 @@ export function replaceFileExtension(
   }
   return parts.join('.');
 }
+
+// #endregion

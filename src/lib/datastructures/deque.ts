@@ -1,5 +1,8 @@
 import { EmptyError } from '@/lib/errors';
 
+// #region Main Class
+// =============================================================================
+
 export class Deque<T> {
   private readonly frontElements: T[];
   private readonly backElements: T[];
@@ -157,3 +160,5 @@ export class Deque<T> {
     }
   }
 }
+
+// #endregion

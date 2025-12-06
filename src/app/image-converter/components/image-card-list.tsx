@@ -14,26 +14,6 @@ import { downloadFile } from '@/lib/client/download-file';
 
 import { FormatSelect } from './format-select';
 
-// #region Component
-// =============================================================================
-
-export const ImageCardList: React.FC<{
-  images: ManagedImage[];
-}> = ({ images }) => {
-  return (
-    <div
-      className={cn(
-        'flex flex-col gap-3 overflow-auto rounded-lg',
-        images.length > 3 && 'max-h-[50vh]',
-      )}
-    >
-      {images.map((image) => (
-        <ImageRow key={image.id} image={image} />
-      ))}
-    </div>
-  );
-};
-
 // #region Subcomponents
 // =============================================================================
 
@@ -197,3 +177,27 @@ const ImageRow: React.FC<{
     </div>
   );
 };
+
+// #endregion
+
+// #region Main Component
+// =============================================================================
+
+export const ImageCardList: React.FC<{
+  images: ManagedImage[];
+}> = ({ images }) => {
+  return (
+    <div
+      className={cn(
+        'flex flex-col gap-3 overflow-auto rounded-lg',
+        images.length > 3 && 'max-h-[50vh]',
+      )}
+    >
+      {images.map((image) => (
+        <ImageRow key={image.id} image={image} />
+      ))}
+    </div>
+  );
+};
+
+// #endregion

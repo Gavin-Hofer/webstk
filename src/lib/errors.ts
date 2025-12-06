@@ -1,3 +1,6 @@
+// #region Error Classes
+// =============================================================================
+
 /** Error for invalid input values. */
 export class ValueError extends Error {
   constructor(message: string) {
@@ -13,3 +16,5 @@ export class EmptyError extends Error {
     this.name = this.constructor.name;
   }
 }
+
+// #endregion

@@ -6,6 +6,9 @@ import { Moon, Sun } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeContext } from '@/components/providers/theme-context-provider';
 
+// #region Main Component
+// =============================================================================
+
 export const ThemeToggle: React.FC<{ className?: string }> = ({
   className,
 }) => {
@@ -36,3 +39,5 @@ export const ThemeToggle: React.FC<{ className?: string }> = ({
     </button>
   );
 };
+
+// #endregion

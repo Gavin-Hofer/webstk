@@ -5,6 +5,9 @@ import { useState, useRef } from 'react';
 
 import { cn } from '@/lib/utils';
 
+// #region Main Component
+// =============================================================================
+
 export const Dropzone: React.FC<
   Omit<React.HTMLAttributes<HTMLDivElement>, 'onChange'> & {
     overlayContent?: React.ReactNode;
@@ -101,3 +104,5 @@ export const Dropzone: React.FC<
     </div>
   );
 };
+
+// #endregion

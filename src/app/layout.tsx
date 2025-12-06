@@ -12,6 +12,9 @@ import { ParallaxBackgroundGrid } from '@/components/layout/paralax-background-g
 import { cn } from '@/lib/utils';
 import { ThemeContextProvider } from '@/components/providers/theme-context-provider';
 
+// #region Constants
+// =============================================================================
+
 const geistSans = Geist({
   variable: '--font-geist-sans',
   subsets: ['latin'],
@@ -27,7 +30,9 @@ export const metadata: Metadata = {
   description: 'A collection of common simple tools.',
 };
 
-// #region RootLayout
+// #endregion
+
+// #region Main Component
 // =============================================================================
 
 const RootLayout: React.FC<{
@@ -77,7 +82,11 @@ const RootLayout: React.FC<{
   );
 };
 
+// #endregion
+
 // #region Exports
 // =============================================================================
 
 export default RootLayout;
+
+// #endregion

@@ -3,12 +3,17 @@ import { Shield } from 'lucide-react';
 
 import { PasswordGenerator } from './components/password-generator';
 
+// #region Constants
+// =============================================================================
+
 export const metadata: Metadata = {
   title: 'Password Generator | WebSTK',
   description: 'A simple client-side random password generator.',
 };
 
-// #region Main component
+// #endregion
+
+// #region Main Component
 // =============================================================================
 
 const Page: NextPage = () => {
@@ -38,7 +43,11 @@ const Page: NextPage = () => {
   );
 };
 
+// #endregion
+
 // #region Exports
 // =============================================================================
 
 export default Page;
+
+// #endregion

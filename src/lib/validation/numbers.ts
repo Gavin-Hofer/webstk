@@ -1,3 +1,6 @@
+// #region Helper Functions
+// =============================================================================
+
 /** Returns true if the input is a valid integer between the safe bounds. */
 export function isValidInteger(x: number): boolean {
   return (
@@ -6,3 +9,5 @@ export function isValidInteger(x: number): boolean {
     x <= Number.MAX_SAFE_INTEGER
   );
 }
+
+// #endregion

@@ -4,12 +4,17 @@ import { KeyRound, ImageIcon, ArrowRight, Github } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
+// #region Constants
+// =============================================================================
+
 export const metadata: Metadata = {
   title: 'WebSTK',
   description: 'A collection of free client-side web tools.',
 };
 
-// #region Components
+// #endregion
+
+// #region Subcomponents
 // =============================================================================
 
 const ToolCard: React.FC<{
@@ -44,7 +49,7 @@ const ToolCard: React.FC<{
 
 // #endregion
 
-// #region Main component
+// #region Main Component
 // =============================================================================
 
 const Page: NextPage = () => {
@@ -102,6 +107,11 @@ const Page: NextPage = () => {
     </div>
   );
 };
+
+// #endregion
+
+// #region Exports
+// =============================================================================
 
 export default Page;
 

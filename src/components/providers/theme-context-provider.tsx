@@ -2,17 +2,30 @@
 
 import { createContext, useState, useMemo } from 'react';
 
+// #region Types
+// =============================================================================
+
 export type Theme = 'light' | 'dark';
 export type ThemeContext = {
   theme: 'light' | 'dark';
   setTheme: React.Dispatch<React.SetStateAction<Theme>>;
 };
 
-export const ThemeContext = createContext<ThemeContext | undefined>(undefined);
-
 export type ThemeContextProviderProps = React.PropsWithChildren<{
   storedTheme?: Theme;
 }>;
+
+// #endregion
+
+// #region Context
+// =============================================================================
+
+export const ThemeContext = createContext<ThemeContext | undefined>(undefined);
+
+// #endregion
+
+// #region Main Component
+// =============================================================================
 
 export const ThemeContextProvider: React.FC<ThemeContextProviderProps> = ({
   storedTheme,
@@ -28,3 +41,5 @@ export const ThemeContextProvider: React.FC<ThemeContextProviderProps> = ({
     </ThemeContext.Provider>
   );
 };
+
+// #endregion

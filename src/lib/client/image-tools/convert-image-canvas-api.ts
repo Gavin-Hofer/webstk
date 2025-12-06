@@ -1,8 +1,11 @@
-import type { ImageFormat } from './image-formats';
-import { replaceFileExtension } from '@/lib/utils';
 import { z } from 'zod';
 
-// import { WorkerResponseSchema } from './convert-image-canvas-api.worker';
+import { replaceFileExtension } from '@/lib/utils';
+
+import type { ImageFormat } from './image-formats';
+
+// #region Schema
+// =============================================================================
 
 const WorkerResponseSchema = z.union([
   z.object({
@@ -10,6 +13,74 @@ const WorkerResponseSchema = z.union([
   }),
   z.object({ error: z.string() }),
 ]);
+
+// #endregion
+
+// #region Helper Functions
+// =============================================================================
+
+/** Fallback conversion function for when the web worker API is not supported. */
+export function convertImageFallback(
+  file: File,
+  options: {
+    format?: ImageFormat;
+    quality?: number;
+    width?: number;
+    height?: number;
+    filename?: string;
+  } = {},
+): Promise<File> {
+  const { format = 'webp', quality = 85, width, height } = options;
+  const filename = replaceFileExtension(options.filename ?? file.name, format);
+
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      reject(new Error('Failed to get canvas context'));
+      return;
+    }
+    const img = new Image();
+    img.src = URL.createObjectURL(file);
+
+    img.onload = () => {
+      let newWidth = width || img.width;
+      let newHeight = height || img.height;
+
+      // Preserve aspect ratio
+      if (width && !height) {
+        newHeight = (width / img.width) * img.height;
+      } else if (height && !width) {
+        newWidth = (height / img.height) * img.width;
+      }
+      canvas.width = newWidth;
+      canvas.height = newHeight;
+
+      ctx.drawImage(img, 0, 0, newWidth, newHeight);
+
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            const file = new File([blob], filename, { type: blob.type });
+            resolve(file);
+          } else {
+            reject(new Error('Failed to convert to blob'));
+          }
+        },
+        `image/${format}`,
+        quality,
+      );
+    };
+    img.onerror = () => {
+      reject(new Error('Failed to load image'));
+    };
+  });
+}
+
+// #endregion
+
+// #region Main Function
+// =============================================================================
 
 /**
  * Converts an image file to a specified format with optional quality settings.
@@ -87,63 +158,4 @@ export function convertImageCanvasAPI(
   });
 }
 
-// #region Helper Functions
-// =============================================================================
-
-/** Fallback conversion function for when the web worker API is not supported. */
-export function convertImageFallback(
-  file: File,
-  options: {
-    format?: ImageFormat;
-    quality?: number;
-    width?: number;
-    height?: number;
-    filename?: string;
-  } = {},
-): Promise<File> {
-  const { format = 'webp', quality = 85, width, height } = options;
-  const filename = replaceFileExtension(options.filename ?? file.name, format);
-
-  return new Promise((resolve, reject) => {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      reject(new Error('Failed to get canvas context'));
-      return;
-    }
-    const img = new Image();
-    img.src = URL.createObjectURL(file);
-
-    img.onload = () => {
-      let newWidth = width || img.width;
-      let newHeight = height || img.height;
-
-      // Preserve aspect ratio
-      if (width && !height) {
-        newHeight = (width / img.width) * img.height;
-      } else if (height && !width) {
-        newWidth = (height / img.height) * img.width;
-      }
-      canvas.width = newWidth;
-      canvas.height = newHeight;
-
-      ctx.drawImage(img, 0, 0, newWidth, newHeight);
-
-      canvas.toBlob(
-        (blob) => {
-          if (blob) {
-            const file = new File([blob], filename, { type: blob.type });
-            resolve(file);
-          } else {
-            reject(new Error('Failed to convert to blob'));
-          }
-        },
-        `image/${format}`,
-        quality,
-      );
-    };
-    img.onerror = () => {
-      reject(new Error('Failed to load image'));
-    };
-  });
-}
+// #endregion
