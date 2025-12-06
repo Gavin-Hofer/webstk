@@ -17,12 +17,12 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: cn(
-          'bg-primary text-primary-foreground shadow-sm',
-          'hover:bg-primary/90 hover:shadow-md hover:shadow-primary/20',
+          'bg-primary/10 text-primary border border-primary/50',
+          'hover:bg-primary/15 hover:border-primary/70',
         ),
         destructive: cn(
-          'bg-destructive text-destructive-foreground shadow-sm',
-          'hover:bg-destructive/90',
+          'bg-destructive/15 text-destructive border border-destructive/60',
+          'hover:bg-destructive/25 hover:border-destructive/80',
         ),
         outline: cn(
           'border border-input bg-transparent shadow-sm',

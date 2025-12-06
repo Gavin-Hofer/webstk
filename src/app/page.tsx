@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 
 export const metadata: Metadata = {
   title: 'WebSTK',
-  description: 'A collection of free client-side web tools.',
+  description: 'A collection of simple, free web utilities.',
 };
 
 // #endregion
@@ -61,8 +61,7 @@ const Page: NextPage = () => {
           Web Simple Toolkit
         </h1>
         <p className='text-muted-foreground max-w-2xl text-lg'>
-          A collection of free, client-side utilities. All processing happens in
-          your browser—nothing is sent to any server.
+          A collection of simple, free web utilities.
         </p>
       </section>
 

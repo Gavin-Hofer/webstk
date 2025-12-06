@@ -25,7 +25,6 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-
 import { useNotification, type Notification } from '@/hooks/use-notification';
 import {
   Popover,
@@ -258,23 +257,6 @@ const PasswordDisplay: React.FC<{
           <CopyIcon className='h-4 w-4' />
         </Button>
       </div>
-    </div>
-  );
-};
-
-const PasswordCopiedNotification: React.FC<{ className?: string }> = ({
-  className,
-}) => {
-  return (
-    <div
-      className={cn(
-        'bg-primary/10 text-primary inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm',
-        'transition-opacity duration-500 ease-out',
-        className,
-      )}
-    >
-      <CheckIcon className='h-4 w-4' />
-      Password copied to clipboard
     </div>
   );
 };
