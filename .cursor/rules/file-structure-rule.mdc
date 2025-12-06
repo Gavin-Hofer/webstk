@@ -1,9 +1,14 @@
 ---
-description: 
-globs: 
+description:
+globs:
 alwaysApply: true
 ---
-#  TSX File Structure (for page files)
+
+In general try to define things before they are used.
+For example if there's two helper functions `a` and `b`, and `b` uses `a`, then
+`a` should come before `b`.
+
+# TSX File Structure (for page files)
 
 TSX generally have the following structure:
 
@@ -16,7 +21,31 @@ TSX generally have the following structure:
 // #region Types (if any types to define)
 // =============================================================================
 
-type PageProps  = {...};
+type MyType = {...};
+
+// #endregion
+
+// #region Helper functions (if any)
+// =============================================================================
+
+function myHelperFunction(): OutputType {
+    ...
+};
+
+// #endregion
+
+
+
+// #region Components (if any)
+// =============================================================================
+
+type MyComponentProps = { prop1: Prop1Type };
+
+const MyComponent: React.FC<MyComponentProps> = ({ prop1 }) => {
+    ...
+};
+
+// #endregion
 
 
 // #region Main component
@@ -28,34 +57,21 @@ const Page: NextPage = () => {
 
 // OR
 
+type PageProps  = {...};
+
 const Page: NextPage = async (props: PageProps) => {
     ...
 };
 
+export default Page;
 
-// #region Components (if any)
-// =============================================================================
-
-const MyComponent: React.FC<{prop1: Prop1Type}> = (props) => {
-    ...
-};
-
-
-// #region Helper functions (if any)
-// =============================================================================
-
-function myHelperFunction(): OutputType {
-    ...
-};
-
+// #endregion
 
 // #region Exports
 // =============================================================================
-
-export default Page;
 ```
 
-#  TSX File Structure (for component files)
+# TSX File Structure (for component files)
 
 TSX generally have the following structure:
 
@@ -69,24 +85,8 @@ import type { NextPage } from 'next';
 // #region Types (if any types to define)
 // =============================================================================
 
-type MyComponentProps  = {...};
 
-
-// #region Main component
-// =============================================================================
-
-const MyComponentName: React.FC<MyComponentProps> = (props) => {
-    ...
-};
-
-
-// #region Subcomponents (if any)
-// =============================================================================
-
-const MySubcomponent: React.FC<{prop1: Prop1Type}> = (props) => {
-    ...
-};
-
+// #endregion
 
 // #region Helper functions (if any)
 // =============================================================================
@@ -95,14 +95,33 @@ function myHelperFunction(): OutputType {
     ...
 };
 
+// #endregion
 
-// #region Exports
+// #region SubComponents (if any)
 // =============================================================================
 
-export default MyComponentName;
+type MySubComponentProps = { prop1: Prop1Type };
+
+const MySubComponent: React.FC<MySubComponentProps> = ({ prop1 }) => {
+    ...
+};
+
+// #endregion
+
+// #region Main component
+// =============================================================================
+
+type MyComponentProps  = {...};
+
+export const MyComponentName: React.FC<MyComponentProps> = (props) => {
+    ...
+};
+
+// #endregion
+
 ```
 
-#  TS File Structure
+# TS File Structure
 
 TS generally have the following structure:
 
@@ -112,26 +131,28 @@ TS generally have the following structure:
 {project imports}
 
 
-// #region Main function
-// =============================================================================
-
-export default myFunction(params: {input types}): {output types} {
-    ...
-};
-
 // #region Helper functions (if any)
 // =============================================================================
 
 function myHelperFunction() {
     ...
 };
-```
 
+// #endregion
+
+// #region Main function
+// =============================================================================
+
+export myFunction(params: {input types}): {output types} {
+    ...
+};
+
+// #endregion
+
+```
 
 # React Rules
 
 - Avoid ternaries in JSX, instead do one of the following:
   - Extract to a subcomponent and use if statements to return one version or the other
   - Use {condition && <Component/>} or {!condition && <OtherComponent/>}
-
-
