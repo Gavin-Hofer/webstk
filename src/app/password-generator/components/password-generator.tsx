@@ -61,8 +61,13 @@ export const PasswordGenerator: React.FC = () => {
   function onSubmit(values: z.infer<typeof formSchema>) {
     const password = generateRandomPassword(values.length, values);
     setPassword(password);
-    navigator.clipboard.writeText(password);
-    copyNotification.trigger();
+    if (!navigator.clipboard) {
+      return;
+    }
+    navigator.clipboard.writeText(password).then(
+      () => copyNotification.trigger(),
+      (error) => console.error('Failed to copy password:', error),
+    );
   }
 
   return (
@@ -234,7 +239,7 @@ const PasswordDisplay: React.FC<{
           <button
             type='button'
             className='border-input hover:bg-secondary flex w-26 cursor-pointer items-center justify-evenly gap-2 rounded-md border bg-transparent px-2 py-1 transition-colors duration-500 ease-out disabled:cursor-default disabled:opacity-50'
-            onPointerDown={() => setShowPassword((prev) => !prev)}
+            onClick={() => setShowPassword((prev) => !prev)}
           >
             {showPassword ?
               <EyeOffIcon className='h-4 w-4' />
@@ -245,9 +250,9 @@ const PasswordDisplay: React.FC<{
           </button>
           <button
             type='button'
-            disabled={password.length === 0}
+            disabled={password.length === 0 || !navigator.clipboard}
             className='border-input hover:bg-secondary flex w-26 cursor-pointer items-center justify-evenly gap-2 rounded-md border bg-transparent px-2 py-1 transition-colors duration-500 ease-out disabled:cursor-default disabled:opacity-50'
-            onPointerDown={handleCopyPassword}
+            onClick={handleCopyPassword}
           >
             <CopyIcon className='h-4 w-4' />
             <span className='hidden sm:block'>Copy</span>
