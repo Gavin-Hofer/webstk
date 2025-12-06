@@ -237,7 +237,9 @@ const PasswordDisplay: React.FC<{
             {showPassword ?
               <EyeOffIcon className='h-4 w-4' />
             : <EyeIcon className='h-4 w-4' />}
-            <span>{showPassword ? 'Hide' : 'Show'}</span>
+            <span className='hidden sm:block'>
+              {showPassword ? 'Hide' : 'Show'}
+            </span>
           </button>
           <button
             type='button'
@@ -246,7 +248,7 @@ const PasswordDisplay: React.FC<{
             onPointerDown={handleCopyPassword}
           >
             <CopyIcon className='h-4 w-4' />
-            <span>Copy</span>
+            <span className='hidden sm:block'>Copy</span>
           </button>
         </div>
       </div>
