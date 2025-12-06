@@ -3,7 +3,7 @@
 import { useContext } from 'react';
 
 import { cn } from '@/lib/utils';
-import { ThemeContext } from '../providers/theme-context-provider';
+import { ThemeContext } from '@/components/context/theme';
 
 export type BodyProps = React.HTMLAttributes<HTMLBodyElement>;
 

@@ -5,12 +5,12 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 
-import { ReactQueryClientProvider } from '@/components/providers/react-query-client-provider';
+import { ReactQueryClientProvider } from '@/components/context/react-query';
 import { Header } from '@/components/layout/header';
 import { BodyWithTheme } from '@/components/layout/body';
 import { ParallaxBackgroundGrid } from '@/components/layout/paralax-background-grid';
 import { cn } from '@/lib/utils';
-import { ThemeContextProvider } from '@/components/providers/theme-context-provider';
+import { ThemeContextProvider } from '@/components/context/theme';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
