@@ -212,8 +212,10 @@ const PasswordDisplay: React.FC<{
   const [showPassword, setShowPassword] = useState<boolean>(false);
 
   function handleCopyPassword() {
-    navigator.clipboard.writeText(password);
-    notification.trigger();
+    navigator.clipboard.writeText(password).then(
+      () => notification.trigger(),
+      (error) => console.error('Failed to copy password:', error),
+    );
   }
 
   return (
