@@ -8,6 +8,11 @@ In general try to define things before they are used.
 For example if there's two helper functions `a` and `b`, and `b` uses `a`, then
 `a` should come before `b`.
 
+If the file is relatively simple, then you can forego the #region comments.
+
+Types only used in one place (e.g., component props) should be defined right
+before they're used. Shared types should be defined at the top of the file.
+
 # TSX File Structure (for page files)
 
 TSX generally have the following structure:
@@ -34,6 +39,15 @@ function myHelperFunction(): OutputType {
 
 // #endregion
 
+
+// #region Hooks (if any)
+// =============================================================================
+
+function useMyHook(): HookOutputType {
+    ...
+};
+
+// #endregion
 
 
 // #region Components (if any)

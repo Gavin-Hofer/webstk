@@ -11,8 +11,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-// #region Main Component
-// =============================================================================
 
 export const FormatSelect: React.FC<{
   children?: React.ReactNode;
@@ -39,5 +37,3 @@ export const FormatSelect: React.FC<{
     </Select>
   );
 };
-
-// #endregion

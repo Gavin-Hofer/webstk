@@ -12,9 +12,6 @@ import { ParallaxBackgroundGrid } from '@/components/layout/paralax-background-g
 import { cn } from '@/lib/utils';
 import { ThemeContextProvider } from '@/components/providers/theme-context-provider';
 
-// #region Constants
-// =============================================================================
-
 const geistSans = Geist({
   variable: '--font-geist-sans',
   subsets: ['latin'],
@@ -29,11 +26,6 @@ export const metadata: Metadata = {
   title: 'WebSTK',
   description: 'A collection of common simple tools.',
 };
-
-// #endregion
-
-// #region Main Component
-// =============================================================================
 
 const RootLayout: React.FC<{
   children: React.ReactNode;
@@ -82,11 +74,4 @@ const RootLayout: React.FC<{
   );
 };
 
-// #endregion
-
-// #region Exports
-// =============================================================================
-
 export default RootLayout;
-
-// #endregion

@@ -15,8 +15,6 @@ import { promisePool } from '@/lib/promises/promise-pool';
 
 import { FormatSelect } from './format-select';
 
-// #region Main Component
-// =============================================================================
 
 export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
   images,
@@ -94,5 +92,3 @@ export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
     </div>
   );
 };
-
-// #endregion

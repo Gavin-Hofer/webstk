@@ -4,18 +4,6 @@ import { useEffect, useState } from 'react';
 
 import { cn } from '@/lib/utils';
 
-// #region Types
-// =============================================================================
-
-export type ParallaxBackgroundGridProps = {
-  className?: string;
-};
-
-// #endregion
-
-// #region Helper Functions
-// =============================================================================
-
 function useScrollPosition(): number {
   const [scrollPosition, setScrollPosition] = useState(0);
   useEffect(() => {
@@ -33,10 +21,9 @@ function useScrollPosition(): number {
   return scrollPosition;
 }
 
-// #endregion
-
-// #region Main Component
-// =============================================================================
+export type ParallaxBackgroundGridProps = {
+  className?: string;
+};
 
 /**
  * A parallax background grid with Forerunner-style cyan tinting.
@@ -69,5 +56,3 @@ export const ParallaxBackgroundGrid: React.FC<ParallaxBackgroundGridProps> = ({
     </div>
   );
 };
-
-// #endregion

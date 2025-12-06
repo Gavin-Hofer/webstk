@@ -2,19 +2,12 @@ import 'client-only';
 
 import { useState, useRef } from 'react';
 
-// #region Types
-// =============================================================================
 
 export type Notification = {
   show: boolean;
   transparent: boolean;
   trigger: () => void;
 };
-
-// #endregion
-
-// #region Main Function
-// =============================================================================
 
 /**
  * @description A hook to manage state for showing a notification.
@@ -41,5 +34,3 @@ export function useNotification(delay: number = 1000): Notification {
   };
   return { show, transparent, trigger };
 }
-
-// #endregion

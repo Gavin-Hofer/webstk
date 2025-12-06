@@ -254,7 +254,7 @@ function enablePersistentStorage() {
 
 // #endregion
 
-// #region Main Function
+// #region Main Hook
 // =============================================================================
 
 /**

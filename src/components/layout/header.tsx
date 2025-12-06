@@ -5,18 +5,10 @@ import { GithubIcon } from '@/components/icons/github-icon';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 
-// #region Constants
-// =============================================================================
-
 const robotoMono = Roboto_Mono({
   subsets: ['latin'],
   variable: '--font-roboto-mono',
 });
-
-// #endregion
-
-// #region Main Component
-// =============================================================================
 
 /**
  * Site header with navigation and theme controls.
@@ -56,5 +48,3 @@ export const Header: React.FC = () => {
     </header>
   );
 };
-
-// #endregion

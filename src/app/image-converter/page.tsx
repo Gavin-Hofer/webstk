@@ -32,7 +32,7 @@ const EmptyState: React.FC = () => {
 
 // #endregion
 
-// #region Main Component
+// #region Page
 // =============================================================================
 
 const Page: NextPage = () => {
@@ -79,11 +79,6 @@ const Page: NextPage = () => {
     </div>
   );
 };
-
-// #endregion
-
-// #region Exports
-// =============================================================================
 
 export default Page;
 

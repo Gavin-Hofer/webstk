@@ -38,7 +38,7 @@ const SYMBOLS = '!@#$%^&*()_+-=[]{}|;:,.<>?';
 
 // #endregion
 
-// #region Schema
+// #region Form Schema
 // =============================================================================
 
 const formSchema = z.object({
