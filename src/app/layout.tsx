@@ -10,7 +10,7 @@ import { Header } from '@/components/layout/header';
 import { BodyWithTheme } from '@/components/layout/body';
 import { ParallaxBackgroundGrid } from '@/components/layout/paralax-background-grid';
 import { cn } from '@/lib/utils';
-import { ThemeContextProvider } from '@/components/context/theme';
+import { ThemeContextProvider, ThemeScript } from '@/components/context/theme';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -31,8 +31,9 @@ const RootLayout: React.FC<{
   children: React.ReactNode;
 }> = ({ children }) => {
   return (
-    <html lang='en'>
+    <html lang='en' suppressHydrationWarning>
       <head>
+        <ThemeScript />
         <link
           rel='apple-touch-icon'
           sizes='180x180'

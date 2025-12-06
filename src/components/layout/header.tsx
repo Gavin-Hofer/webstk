@@ -3,7 +3,7 @@ import { Roboto_Mono } from 'next/font/google';
 
 import { GithubIcon } from '@/components/icons/github-icon';
 import { cn } from '@/lib/utils';
-import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { ThemeToggle } from '@/components/context/theme';
 
 const robotoMono = Roboto_Mono({
   subsets: ['latin'],

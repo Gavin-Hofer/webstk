@@ -1,21 +1,19 @@
 'use client';
 
-import { useContext } from 'react';
-
 import { cn } from '@/lib/utils';
-import { ThemeContext } from '@/components/context/theme';
 
 export type BodyProps = React.HTMLAttributes<HTMLBodyElement>;
 
+/**
+ * Body component wrapper. Theme class is applied to html element by blocking script.
+ */
 export const BodyWithTheme: React.FC<BodyProps> = ({
   children,
   className,
   ...props
 }) => {
-  const themeContext = useContext(ThemeContext);
-  const darkMode = themeContext?.theme === 'dark';
   return (
-    <body className={cn(darkMode && 'dark', className)} {...props}>
+    <body className={cn(className)} {...props}>
       {children}
     </body>
   );
