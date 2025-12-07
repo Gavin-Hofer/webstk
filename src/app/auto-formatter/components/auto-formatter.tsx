@@ -181,13 +181,14 @@ const LanguageSelector: React.FC<LanguageSelectorProps> = ({
           variant='outline'
           role='combobox'
           aria-expanded={open}
-          className='w-full justify-between sm:w-[240px]'
+          size='sm'
+          className='bg-background h-7 justify-between rounded-none rounded-bl-2xl text-xs'
         >
           {displayLabel}
-          <ChevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
+          <ChevronsUpDown className='ml-1 h-3 w-3 shrink-0 opacity-50' />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className='w-full p-0 sm:w-[240px]'>
+      <PopoverContent className='w-[180px] p-0' align='end'>
         <Command>
           <CommandInput placeholder='Search language...' />
           <CommandList>
@@ -225,6 +226,8 @@ type CodeEditorProps = {
   className?: string;
   /** Monaco Editor language identifier */
   language: string;
+  selectedLanguageId: SupportedLanguageId;
+  onLanguageSelect: (languageId: SupportedLanguageId) => void;
 };
 
 const CodeEditor: React.FC<CodeEditorProps> = ({
@@ -232,6 +235,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   onChange,
   className,
   language,
+  selectedLanguageId,
+  onLanguageSelect,
 }) => {
   const themeContext = useContext(ThemeContext);
   const monacoTheme = themeContext?.theme === 'dark' ? 'vs-dark' : 'light';
@@ -245,6 +250,13 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         className,
       )}
     >
+      {/* Language selector overlay */}
+      <div className='absolute top-0 right-0 z-10'>
+        <LanguageSelector
+          value={selectedLanguageId}
+          onSelect={onLanguageSelect}
+        />
+      </div>
       <div className='absolute inset-0'>
         <Editor
           height='100%'
@@ -307,24 +319,15 @@ export const AutoFormatter: React.FC = () => {
 
   return (
     <div className='flex flex-1 flex-col gap-6'>
-      {/* Language selector */}
-      <div className='flex flex-col gap-2'>
-        <label className='text-sm font-medium'>Language</label>
-        <LanguageSelector
-          value={selectedLanguageId}
-          onSelect={setSelectedLanguageId}
-        />
-      </div>
-
-      {/* Input */}
-      <div className='grid min-h-0 flex-1 grid-rows-[auto_1fr] gap-2'>
-        <label className='text-sm font-medium'>Code</label>
-        <CodeEditor
-          value={code}
-          onChange={setCode}
-          language={selectedLanguage.monacoLanguage}
-        />
-      </div>
+      {/* Editor with integrated language selector */}
+      <CodeEditor
+        value={code}
+        onChange={setCode}
+        language={selectedLanguage.monacoLanguage}
+        selectedLanguageId={selectedLanguageId}
+        onLanguageSelect={setSelectedLanguageId}
+        className='min-h-0 flex-1'
+      />
 
       {/* Format button */}
       <Button
