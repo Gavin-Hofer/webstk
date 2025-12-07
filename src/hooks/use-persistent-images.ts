@@ -224,9 +224,9 @@ async function retrieveFilesFromIndexedDB(): Promise<ImageType[]> {
             }
             return data;
           })
-          .filter((image) => image !== undefined);
-        result.sort((a, b) => a.timestamp.valueOf() - b.timestamp.valueOf());
-        resolve(result);
+          .filter((image): image is ImageType => image !== undefined);
+        result.sort((a, b) => a.timestamp.valueOf() - b.timestamp?.valueOf());
+        resolve(result.filter((item) => item != null));
       };
 
       getAllRequest.onerror = (e) => reject(e);

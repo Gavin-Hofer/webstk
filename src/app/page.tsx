@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { NextPage, Metadata } from 'next';
-import { KeyRound, ImageIcon, ArrowRight, Github } from 'lucide-react';
+import { KeyRound, ImageIcon, Code2, ArrowRight, Github } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
@@ -20,8 +20,8 @@ export const metadata: Metadata = {
 const ToolCard: React.FC<{
   href: string;
   icon: React.ReactNode;
-  title: string;
-  description: string;
+  title: React.ReactNode;
+  description: React.ReactNode;
 }> = ({ href, icon, title, description }) => {
   return (
     <Link
@@ -82,6 +82,12 @@ const Page: NextPage = () => {
             icon={<ImageIcon className='h-6 w-6' />}
             title='Image Converter'
             description='Convert images between formats like PNG, JPEG, and WebP directly in your browser.'
+          />
+          <ToolCard
+            href='/auto-formatter'
+            icon={<Code2 className='h-6 w-6' />}
+            title='Auto Formatter'
+            description='Format code with Prettier. Supported languages: JS, TS, JSX, TSX, JSON, HTML, CSS, Markdown, YAML, and GraphQL.'
           />
         </div>
       </section>

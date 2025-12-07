@@ -8,7 +8,6 @@ export const metadata: Metadata = {
   description: 'A simple client-side random password generator.',
 };
 
-
 const Page: NextPage = () => {
   return (
     <div className='flex w-full flex-col items-center px-4 py-12 sm:px-6 sm:py-16'>
@@ -37,4 +36,3 @@ const Page: NextPage = () => {
 };
 
 export default Page;
-

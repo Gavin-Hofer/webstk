@@ -31,6 +31,7 @@ import {
   PopoverContent,
   PopoverAnchor,
 } from '@/components/ui/popover';
+import { NotificationPopover } from '@/components/ui/notification-popover';
 
 // #region Constants
 // =============================================================================
@@ -220,12 +221,12 @@ const PasswordDisplay: React.FC<{
 }> = ({ password, notification, setPassword, animationKey }) => {
   const [showPassword, setShowPassword] = useState<boolean>(false);
 
-  function handleCopyPassword() {
+  const handleCopyPassword = () => {
     navigator.clipboard.writeText(password).then(
       () => notification.trigger(),
       (error) => console.error('Failed to copy password:', error),
     );
-  }
+  };
 
   return (
     <div className='flex flex-col gap-2'>
@@ -244,7 +245,7 @@ const PasswordDisplay: React.FC<{
             onChange={(e) => setPassword(e.target.value)}
             autoComplete='off'
             placeholder='Click generate to create a password'
-            className='placeholder:text-muted-foreground w-full flex-1 bg-transparent px-3 py-2 font-mono text-sm outline-none placeholder:font-sans'
+            className='placeholder:text-muted-foreground text-md w-full flex-1 bg-transparent px-3 py-2 font-mono outline-none placeholder:font-sans'
           />
         </div>
         <Button
@@ -344,28 +345,18 @@ export const PasswordGenerator: React.FC = () => {
 
         {/* Output section */}
         <div className='border-border border-t pt-6'>
-          <Popover open={copyNotification.show}>
-            <PopoverAnchor>
-              <PasswordDisplay
-                password={password}
-                notification={copyNotification}
-                setPassword={setPassword}
-                animationKey={animationKey}
-              />
-            </PopoverAnchor>
-            <PopoverContent
-              className={cn(
-                'bg-background/60 w-fit rounded-md border-none p-0 shadow-none',
-                'transition-opacity duration-500 ease-out',
-                copyNotification.transparent && 'opacity-0',
-              )}
-            >
-              <div className='bg-primary/10 text-primary inline-flex w-full items-center gap-2 rounded-md border px-4 py-2 text-sm shadow-md outline-hidden'>
-                <CheckIcon className='h-4 w-4' />
-                Password copied to clipboard
-              </div>
-            </PopoverContent>
-          </Popover>
+          <NotificationPopover
+            notification={copyNotification}
+            message='Password copied to clipboard'
+            icon={<CheckIcon className='h-4 w-4' />}
+          >
+            <PasswordDisplay
+              password={password}
+              notification={copyNotification}
+              setPassword={setPassword}
+              animationKey={animationKey}
+            />
+          </NotificationPopover>
         </div>
       </form>
     </Form>
