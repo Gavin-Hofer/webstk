@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import hljs from 'highlight.js';
+import { useState, useContext, useRef } from 'react';
+import Editor from '@monaco-editor/react';
 import type { BuiltInParserName, Plugin } from 'prettier';
 import * as prettier from 'prettier/standalone';
 import * as prettierPluginBabel from 'prettier/plugins/babel';
@@ -20,7 +20,6 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-  PopoverAnchor,
 } from '@/components/ui/popover';
 import {
   Command,
@@ -30,6 +29,7 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
+import { ThemeContext } from '@/components/context/theme';
 
 // #region Types
 // =============================================================================
@@ -37,7 +37,8 @@ import {
 type SupportedLanguage = {
   label: string;
   prettierParser: BuiltInParserName | null;
-  hljsLanguages: readonly string[];
+  /** Monaco Editor language identifier */
+  monacoLanguage: string;
 };
 
 // #endregion
@@ -63,60 +64,55 @@ const ALL_PLUGINS: Plugin[] = [
 // =============================================================================
 
 const SupportedLanguages = {
-  auto: {
-    label: 'Auto-detect',
-    prettierParser: null,
-    hljsLanguages: [],
-  },
-  javascript: {
-    label: 'JavaScript',
-    prettierParser: 'babel',
-    hljsLanguages: ['javascript', 'js'],
-  },
-  typescript: {
-    label: 'TypeScript',
-    prettierParser: 'typescript',
-    hljsLanguages: ['typescript', 'ts'],
+  json: {
+    label: 'JSON',
+    prettierParser: 'json',
+    monacoLanguage: 'json',
   },
   jsx: {
     label: 'JSX',
     prettierParser: 'babel',
-    hljsLanguages: ['jsx'],
+    monacoLanguage: 'javascript',
+  },
+  javascript: {
+    label: 'JavaScript',
+    prettierParser: 'babel',
+    monacoLanguage: 'javascript',
   },
   tsx: {
     label: 'TSX',
     prettierParser: 'typescript',
-    hljsLanguages: ['tsx'],
+    monacoLanguage: 'typescript',
   },
-  json: {
-    label: 'JSON',
-    prettierParser: 'json',
-    hljsLanguages: ['json'],
+  typescript: {
+    label: 'TypeScript',
+    prettierParser: 'typescript',
+    monacoLanguage: 'typescript',
   },
   html: {
     label: 'HTML',
     prettierParser: 'html',
-    hljsLanguages: ['html', 'xml'],
+    monacoLanguage: 'html',
   },
   css: {
     label: 'CSS',
     prettierParser: 'css',
-    hljsLanguages: ['css'],
+    monacoLanguage: 'css',
   },
   markdown: {
     label: 'Markdown',
     prettierParser: 'markdown',
-    hljsLanguages: ['markdown', 'md'],
+    monacoLanguage: 'markdown',
   },
   yaml: {
     label: 'YAML',
     prettierParser: 'yaml',
-    hljsLanguages: ['yaml', 'yml'],
+    monacoLanguage: 'yaml',
   },
   graphql: {
     label: 'GraphQL',
     prettierParser: 'graphql',
-    hljsLanguages: ['graphql'],
+    monacoLanguage: 'graphql',
   },
 } as const satisfies Record<string, SupportedLanguage>;
 
@@ -126,36 +122,10 @@ const SupportedLanguagesEntries = Array.from(
   Object.entries(SupportedLanguages),
 ) as [SupportedLanguageId, SupportedLanguage][];
 
-const HljsToSupportedLanguage = new Map<string, SupportedLanguage>(
-  Object.entries(SupportedLanguages).flatMap(([id, lang]) => {
-    return lang.hljsLanguages.map(
-      (name) => [name, lang] as [string, SupportedLanguage],
-    );
-  }),
-);
-
 // #endregion
 
 // #region Helper Functions
 // =============================================================================
-
-/**
- * Detects the programming language of the given code using highlight.js.
- */
-function detectLanguage(code: string): SupportedLanguage | null {
-  if (!code.trim()) {
-    return null;
-  }
-
-  const result = hljs.highlightAuto(code);
-  const detectedLang = result.language;
-
-  if (!detectedLang) {
-    return null;
-  }
-
-  return HljsToSupportedLanguage.get(detectedLang) ?? null;
-}
 
 type FormatCodeResult =
   | { success: true; formatted: string }
@@ -192,22 +162,17 @@ async function formatCode(
 
 type LanguageSelectorProps = {
   value: SupportedLanguageId;
-  detectedLanguage: SupportedLanguage | null;
   onSelect: (languageId: SupportedLanguageId) => void;
 };
 
 const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   value,
-  detectedLanguage,
   onSelect,
 }) => {
   const [open, setOpen] = useState(false);
 
   const selectedLanguage = SupportedLanguages[value];
-  const displayLabel =
-    value === 'auto' && detectedLanguage ?
-      `Auto-detect (${detectedLanguage.label})`
-    : (selectedLanguage?.label ?? 'Select language');
+  const displayLabel = selectedLanguage?.label ?? 'Select language';
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -254,35 +219,54 @@ const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   );
 };
 
-type CodeTextAreaProps = {
+type CodeEditorProps = {
   value: string;
   onChange: (value: string) => void;
-  placeholder?: string;
-  readOnly?: boolean;
   className?: string;
+  /** Monaco Editor language identifier */
+  language: string;
 };
 
-const CodeTextArea: React.FC<CodeTextAreaProps> = ({
+const CodeEditor: React.FC<CodeEditorProps> = ({
   value,
   onChange,
-  placeholder,
-  readOnly = false,
   className,
+  language,
 }) => {
+  const themeContext = useContext(ThemeContext);
+  const monacoTheme = themeContext?.theme === 'dark' ? 'vs-dark' : 'light';
+  const containerRef = useRef<HTMLDivElement>(null);
+
   return (
-    <textarea
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      readOnly={readOnly}
-      spellCheck={false}
+    <div
+      ref={containerRef}
       className={cn(
-        'bg-background border-input placeholder:text-muted-foreground text:md min-h-10 w-full rounded-md border px-3 py-2 font-mono sm:text-sm',
-        'focus:border-ring focus:ring-ring focus:ring-1 focus:outline-none',
-        readOnly && 'bg-muted/50',
+        'border-input relative overflow-hidden rounded-md border',
         className,
       )}
-    />
+    >
+      <div className='absolute inset-0'>
+        <Editor
+          height='100%'
+          value={value}
+          onChange={(val) => onChange(val ?? '')}
+          language={language}
+          theme={monacoTheme}
+          options={{
+            minimap: { enabled: false },
+            fontSize: 14,
+            fontFamily:
+              'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
+            lineNumbers: 'on',
+            scrollBeyondLastLine: false,
+            automaticLayout: true,
+            tabSize: 2,
+            wordWrap: 'on',
+            padding: { top: 12, bottom: 12 },
+          }}
+        />
+      </div>
+    </div>
   );
 };
 
@@ -294,31 +278,23 @@ const CodeTextArea: React.FC<CodeTextAreaProps> = ({
 export const AutoFormatter: React.FC = () => {
   const [code, setCode] = useState<string>('');
   const [selectedLanguageId, setSelectedLanguageId] =
-    useState<SupportedLanguageId>('auto');
+    useState<SupportedLanguageId>('javascript');
   const [isFormatting, setIsFormatting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-
-  const detectedLanguage = useMemo(() => {
-    return detectLanguage(code);
-  }, [code]);
+  const selectedLanguage = SupportedLanguages[selectedLanguageId];
 
   const handleFormat = async () => {
     setError(null);
     setIsFormatting(true);
 
-    const languageToUse =
-      selectedLanguageId === 'auto' ? detectedLanguage : (
-        SupportedLanguages[selectedLanguageId]
-      );
-
-    if (!languageToUse?.prettierParser) {
-      setError('Could not detect language. Please select a language manually.');
+    if (!selectedLanguage.prettierParser) {
+      setError('Selected language does not support formatting.');
       setIsFormatting(false);
       return;
     }
 
-    const result = await formatCode(code, languageToUse.prettierParser);
+    const result = await formatCode(code, selectedLanguage.prettierParser);
 
     if (result.success) {
       setCode(result.formatted);
@@ -336,19 +312,17 @@ export const AutoFormatter: React.FC = () => {
         <label className='text-sm font-medium'>Language</label>
         <LanguageSelector
           value={selectedLanguageId}
-          detectedLanguage={detectedLanguage}
           onSelect={setSelectedLanguageId}
         />
       </div>
 
       {/* Input */}
-      <div className='flex min-h-0 flex-1 flex-col gap-2'>
-        <label className='text-sm font-medium'>Input Code</label>
-        <CodeTextArea
+      <div className='grid min-h-0 flex-1 grid-rows-[auto_1fr] gap-2'>
+        <label className='text-sm font-medium'>Code</label>
+        <CodeEditor
           value={code}
           onChange={setCode}
-          placeholder='Paste your code here...'
-          className='flex-1'
+          language={selectedLanguage.monacoLanguage}
         />
       </div>
 
