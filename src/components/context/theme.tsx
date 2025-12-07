@@ -141,7 +141,7 @@ export const ThemeContextProvider: React.FC<React.PropsWithChildren> = ({
   // Sync class on mount in case hydration state differs from blocking script
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
-  }, []);
+  }, [theme]);
 
   const contextValue = useMemo(
     () => ({ theme, setTheme }) satisfies ThemeContextValue,
