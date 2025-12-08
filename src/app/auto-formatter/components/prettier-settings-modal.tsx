@@ -343,7 +343,6 @@ export const PrettierSettingsModal: React.FC<PrettierSettingsModalProps> = ({
             Configure formatting options. Changes are saved automatically and
             used for all code formatting.
           </DialogDescription>
-          ∂
         </DialogHeader>
 
         {/* Import error */}
