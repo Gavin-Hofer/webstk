@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useContext, useRef } from 'react';
+import { useState, useContext, useRef, useEffect, useMemo } from 'react';
 import Editor from '@monaco-editor/react';
 import type { BuiltInParserName, Plugin } from 'prettier';
 import * as prettier from 'prettier/standalone';
@@ -12,6 +12,7 @@ import * as prettierPluginMarkdown from 'prettier/plugins/markdown';
 import * as prettierPluginTypescript from 'prettier/plugins/typescript';
 import * as prettierPluginYaml from 'prettier/plugins/yaml';
 import * as prettierPluginGraphql from 'prettier/plugins/graphql';
+import hljs from 'highlight.js';
 import { CheckIcon, WandSparkles, ChevronsUpDown, Loader2 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -37,8 +38,7 @@ import { ThemeContext } from '@/components/context/theme';
 type SupportedLanguage = {
   label: string;
   prettierParser: BuiltInParserName | null;
-  /** Monaco Editor language identifier */
-  monacoLanguage: string;
+  monacoLanguage: string | null;
 };
 
 // #endregion
@@ -64,25 +64,20 @@ const ALL_PLUGINS: Plugin[] = [
 // =============================================================================
 
 const SupportedLanguages = {
+  auto: {
+    label: 'Auto',
+    prettierParser: null,
+    monacoLanguage: null,
+  },
   json: {
     label: 'JSON',
     prettierParser: 'json',
     monacoLanguage: 'json',
   },
-  jsx: {
-    label: 'JSX',
-    prettierParser: 'babel',
-    monacoLanguage: 'javascript',
-  },
   javascript: {
     label: 'JavaScript',
     prettierParser: 'babel',
     monacoLanguage: 'javascript',
-  },
-  tsx: {
-    label: 'TSX',
-    prettierParser: 'typescript',
-    monacoLanguage: 'typescript',
   },
   typescript: {
     label: 'TypeScript',
@@ -122,6 +117,19 @@ const SupportedLanguagesEntries = Array.from(
   Object.entries(SupportedLanguages),
 ) as [SupportedLanguageId, SupportedLanguage][];
 
+const HljsToSupportedLanguageId = {
+  auto: 'auto',
+  json: 'json',
+  javascript: 'javascript',
+  typescript: 'typescript',
+  xml: 'html',
+  css: 'css',
+  scss: 'css',
+  markdown: 'markdown',
+  yaml: 'yaml',
+  graphql: 'graphql',
+} as const satisfies Record<string, SupportedLanguageId>;
+
 // #endregion
 
 // #region Helper Functions
@@ -155,24 +163,38 @@ async function formatCode(
   }
 }
 
+function detectLanguage(code: string): SupportedLanguageId {
+  const languageSubset = Array.from(Object.keys(HljsToSupportedLanguageId));
+  const result = hljs.highlightAuto(code, languageSubset);
+  const language = result.language ?? 'auto';
+  // @ts-expect-error
+  return HljsToSupportedLanguageId[language] ?? 'audo';
+}
+
 // #endregion
 
 // #region Subcomponents
 // =============================================================================
 
 type LanguageSelectorProps = {
-  value: SupportedLanguageId;
+  selectedLanguageId: SupportedLanguageId;
+  detectedLanguageId: SupportedLanguageId;
   onSelect: (languageId: SupportedLanguageId) => void;
 };
 
 const LanguageSelector: React.FC<LanguageSelectorProps> = ({
-  value,
+  selectedLanguageId,
+  detectedLanguageId,
   onSelect,
 }) => {
   const [open, setOpen] = useState(false);
 
-  const selectedLanguage = SupportedLanguages[value];
-  const displayLabel = selectedLanguage?.label ?? 'Select language';
+  const selectedLanguage = SupportedLanguages[selectedLanguageId];
+  const detectedLanguage = SupportedLanguages[detectedLanguageId];
+  const displayLabel =
+    selectedLanguageId !== 'auto' ? selectedLanguage.label
+    : detectedLanguageId !== 'auto' ? `Auto (${detectedLanguage.label})`
+    : 'Select Language';
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -206,7 +228,7 @@ const LanguageSelector: React.FC<LanguageSelectorProps> = ({
                   <CheckIcon
                     className={cn(
                       'mr-2 h-4 w-4',
-                      value === id ? 'opacity-100' : 'opacity-0',
+                      selectedLanguageId === id ? 'opacity-100' : 'opacity-0',
                     )}
                   />
                   {language.label}
@@ -224,9 +246,8 @@ type CodeEditorProps = {
   value: string;
   onChange: (value: string) => void;
   className?: string;
-  /** Monaco Editor language identifier */
-  language: string;
   selectedLanguageId: SupportedLanguageId;
+  detectedLanguageId: SupportedLanguageId;
   onLanguageSelect: (languageId: SupportedLanguageId) => void;
 };
 
@@ -234,13 +255,19 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   value,
   onChange,
   className,
-  language,
   selectedLanguageId,
+  detectedLanguageId,
   onLanguageSelect,
 }) => {
   const themeContext = useContext(ThemeContext);
   const monacoTheme = themeContext?.theme === 'dark' ? 'vs-dark' : 'light';
   const containerRef = useRef<HTMLDivElement>(null);
+  const monacoEditorLanguage =
+    selectedLanguageId !== 'auto' ?
+      SupportedLanguages[selectedLanguageId].monacoLanguage
+    : detectedLanguageId !== 'auto' ?
+      SupportedLanguages[detectedLanguageId].monacoLanguage
+    : undefined;
 
   return (
     <div
@@ -253,7 +280,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       {/* Language selector overlay */}
       <div className='absolute top-0 right-0 z-10'>
         <LanguageSelector
-          value={selectedLanguageId}
+          selectedLanguageId={selectedLanguageId}
+          detectedLanguageId={detectedLanguageId}
           onSelect={onLanguageSelect}
         />
       </div>
@@ -262,7 +290,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           height='100%'
           value={value}
           onChange={(val) => onChange(val ?? '')}
-          language={language}
+          language={monacoEditorLanguage}
           theme={monacoTheme}
           options={{
             minimap: { enabled: false },
@@ -289,24 +317,34 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
 export const AutoFormatter: React.FC = () => {
   const [code, setCode] = useState<string>('');
-  const [selectedLanguageId, setSelectedLanguageId] =
-    useState<SupportedLanguageId>('javascript');
+  const [selectedLanguageId, setSelectedLanguageId] = useState<
+    SupportedLanguageId | 'auto'
+  >('auto');
   const [isFormatting, setIsFormatting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const selectedLanguage = SupportedLanguages[selectedLanguageId];
+  const detectedLanguageId = useMemo(() => {
+    return detectLanguage(code);
+  }, [code]);
+
+  const prettierParser =
+    selectedLanguageId !== 'auto' ?
+      SupportedLanguages[selectedLanguageId].prettierParser
+    : detectedLanguageId !== 'auto' ?
+      SupportedLanguages[detectedLanguageId].prettierParser
+    : null;
 
   const handleFormat = async () => {
     setError(null);
     setIsFormatting(true);
 
-    if (!selectedLanguage.prettierParser) {
+    if (!prettierParser) {
       setError('Selected language does not support formatting.');
       setIsFormatting(false);
       return;
     }
 
-    const result = await formatCode(code, selectedLanguage.prettierParser);
+    const result = await formatCode(code, prettierParser);
 
     if (result.success) {
       setCode(result.formatted);
@@ -323,8 +361,8 @@ export const AutoFormatter: React.FC = () => {
       <CodeEditor
         value={code}
         onChange={setCode}
-        language={selectedLanguage.monacoLanguage}
         selectedLanguageId={selectedLanguageId}
+        detectedLanguageId={detectedLanguageId}
         onLanguageSelect={setSelectedLanguageId}
         className='min-h-0 flex-1'
       />
@@ -332,7 +370,7 @@ export const AutoFormatter: React.FC = () => {
       {/* Format button */}
       <Button
         onClick={handleFormat}
-        disabled={!code.trim() || isFormatting}
+        disabled={!code.trim() || isFormatting || !prettierParser}
         className='w-full'
       >
         {isFormatting ?
