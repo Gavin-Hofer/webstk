@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useContext, useRef, useEffect, useMemo } from 'react';
+import { useState, useContext, useRef, useMemo } from 'react';
 import Editor from '@monaco-editor/react';
 import type { BuiltInParserName, Plugin } from 'prettier';
 import * as prettier from 'prettier/standalone';
@@ -177,7 +177,7 @@ function detectLanguage(code: string): SupportedLanguageId {
   const languageSubset = Array.from(Object.keys(HljsToSupportedLanguageId));
   const result = hljs.highlightAuto(code, languageSubset);
   const language = result.language ?? 'auto';
-  // @ts-expect-error
+  // @ts-expect-error: language may not be in the mapping
   return HljsToSupportedLanguageId[language] ?? 'audo';
 }
 

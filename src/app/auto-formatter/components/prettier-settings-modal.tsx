@@ -99,11 +99,6 @@ export const prettierConfigSchema = z.object({
 
 export type PrettierConfig = z.infer<typeof prettierConfigSchema>;
 
-/**
- * Partial schema that allows missing fields - used for parsing imported configs.
- * Missing fields will be filled with defaults.
- */
-const partialPrettierConfigSchema = prettierConfigSchema.partial();
 
 const DEFAULT_CONFIG: PrettierConfig = {
   printWidth: 80,
