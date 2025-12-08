@@ -206,7 +206,7 @@ const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   const displayLabel =
     selectedLanguageId !== 'auto' ? selectedLanguage.label
     : detectedLanguageId !== 'auto' ? `Auto (${detectedLanguage.label})`
-    : 'Select Language';
+    : 'Auto';
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -236,6 +236,7 @@ const LanguageSelector: React.FC<LanguageSelectorProps> = ({
                     onSelect(id);
                     setOpen(false);
                   }}
+                  className={cn(selectedLanguageId !== id && 'cursor-pointer')}
                 >
                   <CheckIcon
                     className={cn(
