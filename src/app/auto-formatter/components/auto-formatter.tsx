@@ -290,8 +290,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         className,
       )}
     >
-      {/* Language selector overlay */}
-      <div className='absolute top-0 right-0 z-10 flex'>
+      {/* Toolbar overlay */}
+      <div className='bg-monaco-editor/50 absolute top-0 right-0 z-10 flex w-full justify-end border-b'>
         <LanguageSelector
           selectedLanguageId={selectedLanguageId}
           detectedLanguageId={detectedLanguageId}
@@ -300,7 +300,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         />
         <PrettierSettingsModal className='bg-background h-8 w-8 rounded-none rounded-tr-md border-t-0 border-r-0 border-l-0' />
       </div>
-      <div className='absolute inset-0'>
+      <div className='absolute inset-0 pt-8'>
         <Editor
           height='100%'
           value={value}
@@ -308,7 +308,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           language={monacoEditorLanguage}
           theme={monacoTheme}
           options={{
-            minimap: { enabled: false },
+            minimap: { enabled: true },
             fontSize: 14,
             fontFamily:
               'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
