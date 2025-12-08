@@ -29,7 +29,7 @@ const Page: NextPage = () => {
         </div>
 
         {/* Formatter */}
-        <div className='border-border bg-card/50 flex min-h-[calc(100vh-16rem)] flex-col overflow-hidden rounded-lg border p-6'>
+        <div className='border-border bg-card/50 flex min-h-[max(calc(100vh-16rem),16rem)] flex-col overflow-hidden rounded-lg border p-6'>
           <AutoFormatter />
         </div>
       </div>

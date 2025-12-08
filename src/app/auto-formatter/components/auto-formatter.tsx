@@ -164,6 +164,14 @@ async function formatCode(
 }
 
 function detectLanguage(code: string): SupportedLanguageId {
+  // First check if the code is valid JSON to prevent it from being
+  // misinterpreted as something else.
+  try {
+    JSON.parse(code);
+    return 'json';
+  } catch {
+    // Not valid JSON.
+  }
   const languageSubset = Array.from(Object.keys(HljsToSupportedLanguageId));
   const result = hljs.highlightAuto(code, languageSubset);
   const language = result.language ?? 'auto';
@@ -303,6 +311,50 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
             tabSize: 2,
             wordWrap: 'on',
             padding: { top: 12, bottom: 12 },
+          }}
+          beforeMount={(monaco) => {
+            // Enable JSX support in the TypeScript compiler
+            monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+              jsx: monaco.languages.typescript.JsxEmit.React,
+              jsxFactory: 'React.createElement',
+              reactNamespace: 'React',
+              allowNonTsExtensions: true,
+              allowJs: true,
+              target: monaco.languages.typescript.ScriptTarget.Latest,
+            });
+            monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+              jsx: monaco.languages.typescript.JsxEmit.React,
+              jsxFactory: 'React.createElement',
+              reactNamespace: 'React',
+              allowNonTsExtensions: true,
+              allowJs: true,
+              target: monaco.languages.typescript.ScriptTarget.Latest,
+            });
+
+            // Disable semantic validation, keep syntax errors
+            // Ignore 80xx codes (TypeScript-only feature errors when in JS mode)
+            const diagnosticCodesToIgnore = [
+              8006, // 'import type' can only be used in TypeScript files
+              8008, // 'type aliases' can only be used in TypeScript files
+              8010, // 'export type' can only be used in TypeScript files
+              8011, // Property access modifiers can only be used in TypeScript files
+              8016, // Type annotation can only be used in TypeScript files
+              8017, // 'interface' can only be used in TypeScript files
+            ];
+            monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions(
+              {
+                noSemanticValidation: true,
+                noSyntaxValidation: false,
+                diagnosticCodesToIgnore,
+              },
+            );
+            monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions(
+              {
+                noSemanticValidation: true,
+                noSyntaxValidation: false,
+                diagnosticCodesToIgnore,
+              },
+            );
           }}
         />
       </div>
