@@ -31,6 +31,11 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { ThemeContext } from '@/components/context/theme';
+import {
+  PrettierSettingsModal,
+  usePrettierConfig,
+  type PrettierConfig,
+} from './prettier-settings-modal';
 
 // #region Types
 // =============================================================================
@@ -140,21 +145,18 @@ type FormatCodeResult =
   | { success: false; error: string };
 
 /**
- * Formats code using Prettier with the specified parser.
+ * Formats code using Prettier with the specified parser and config.
  */
 async function formatCode(
   code: string,
   parser: BuiltInParserName,
+  config: PrettierConfig,
 ): Promise<FormatCodeResult> {
   try {
     const formatted = await prettier.format(code, {
       parser,
       plugins: ALL_PLUGINS,
-      semi: true,
-      singleQuote: true,
-      tabWidth: 2,
-      trailingComma: 'all',
-      printWidth: 80,
+      ...config,
     });
     return { success: true, formatted };
   } catch (err) {
@@ -188,12 +190,14 @@ type LanguageSelectorProps = {
   selectedLanguageId: SupportedLanguageId;
   detectedLanguageId: SupportedLanguageId;
   onSelect: (languageId: SupportedLanguageId) => void;
+  className?: string;
 };
 
 const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   selectedLanguageId,
   detectedLanguageId,
   onSelect,
+  className,
 }) => {
   const [open, setOpen] = useState(false);
 
@@ -212,7 +216,7 @@ const LanguageSelector: React.FC<LanguageSelectorProps> = ({
           role='combobox'
           aria-expanded={open}
           size='sm'
-          className='bg-background h-7 justify-between rounded-none rounded-bl-2xl text-xs'
+          className={className}
         >
           {displayLabel}
           <ChevronsUpDown className='ml-1 h-3 w-3 shrink-0 opacity-50' />
@@ -286,12 +290,14 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       )}
     >
       {/* Language selector overlay */}
-      <div className='absolute top-0 right-0 z-10'>
+      <div className='absolute top-0 right-0 z-10 flex'>
         <LanguageSelector
           selectedLanguageId={selectedLanguageId}
           detectedLanguageId={detectedLanguageId}
           onSelect={onLanguageSelect}
+          className='bg-background h-8 justify-between rounded-none rounded-bl-2xl border-t-0 border-r-0 text-xs'
         />
+        <PrettierSettingsModal className='bg-background h-8 w-8 rounded-none rounded-tr-md border-t-0 border-r-0 border-l-0' />
       </div>
       <div className='absolute inset-0'>
         <Editor
@@ -374,6 +380,7 @@ export const AutoFormatter: React.FC = () => {
   >('auto');
   const [isFormatting, setIsFormatting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const prettierConfig = usePrettierConfig();
 
   const detectedLanguageId = useMemo(() => {
     return detectLanguage(code);
@@ -396,7 +403,7 @@ export const AutoFormatter: React.FC = () => {
       return;
     }
 
-    const result = await formatCode(code, prettierParser);
+    const result = await formatCode(code, prettierParser, prettierConfig);
 
     if (result.success) {
       setCode(result.formatted);
@@ -419,17 +426,19 @@ export const AutoFormatter: React.FC = () => {
         className='min-h-0 flex-1'
       />
 
-      {/* Format button */}
-      <Button
-        onClick={handleFormat}
-        disabled={!code.trim() || isFormatting || !prettierParser}
-        className='w-full'
-      >
-        {isFormatting ?
-          <Loader2 className='h-4 w-4 animate-spin' />
-        : <WandSparkles className='h-4 w-4' />}
-        {isFormatting ? 'Formatting...' : 'Format Code'}
-      </Button>
+      {/* Format button and settings */}
+      <div className='flex gap-2'>
+        <Button
+          onClick={handleFormat}
+          disabled={!code.trim() || isFormatting || !prettierParser}
+          className='flex-1'
+        >
+          {isFormatting ?
+            <Loader2 className='h-4 w-4 animate-spin' />
+          : <WandSparkles className='h-4 w-4' />}
+          {isFormatting ? 'Formatting...' : 'Format Code'}
+        </Button>
+      </div>
 
       {/* Error message */}
       {error && (
