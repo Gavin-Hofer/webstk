@@ -11,6 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
     "@hookform/resolvers": "^5.0.0",
     "@monaco-editor/react": "^4.7.0",
     "@radix-ui/react-accordion": "^1.2.12",
@@ -45,6 +47,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
+    "@ffmpeg/types": "^0.12.4",
     "@tailwindcss/postcss": "^4.0.17",
     "@types/node": "^22.13.16",
     "@types/react": "^19.0.12",

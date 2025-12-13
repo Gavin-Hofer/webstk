@@ -10,12 +10,21 @@ const robotoMono = Roboto_Mono({
   variable: '--font-roboto-mono',
 });
 
+export type HeaderProps = {
+  className?: string;
+};
+
 /**
  * Site header with navigation and theme controls.
  */
-export const Header: React.FC = () => {
+export const Header: React.FC<HeaderProps> = ({ className }) => {
   return (
-    <header className='bg-card/80 border-border/50 sticky top-0 z-10 h-14 w-full border-b backdrop-blur-md'>
+    <header
+      className={cn(
+        'bg-card/80 border-border/50 sticky top-0 z-10 h-14 w-full border-b backdrop-blur-md',
+        className,
+      )}
+    >
       <nav className='mx-auto flex h-full w-full items-center justify-between px-4 sm:px-6'>
         <Link
           className={cn(
