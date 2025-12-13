@@ -1,2 +1,7 @@
 export { convertImageCanvasAPI } from './convert-image-canvas-api';
-export { IMAGE_FORMATS, type ImageFormat } from './image-formats';
+export { convertImageFFmpeg } from './convert-image-ffmpeg';
+export {
+  IMAGE_FORMATS,
+  IMAGE_FORMAT_MIME_TYPES,
+  type ImageFormat,
+} from './image-formats';

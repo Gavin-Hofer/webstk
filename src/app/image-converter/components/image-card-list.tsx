@@ -9,8 +9,10 @@ import { Input } from '@/components/ui/input';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { convertImageCanvasAPI } from '@/lib/client/image-tools';
+import { convertImageFFmpeg } from '@/lib/client/image-tools';
 import { downloadFile } from '@/lib/client/download-file';
+import { useContextRequired } from '@/hooks/use-context-required';
+import { FFmpegContext } from '@/components/context/ffmpeg';
 
 import { FormatSelect } from './format-select';
 
@@ -114,12 +116,17 @@ const ImageFilenameEditor: React.FC<{
 const ImageRow: React.FC<{
   image: ManagedImage;
 }> = ({ image }) => {
+  const { loadFFmpeg } = useContextRequired(FFmpegContext);
   const mutation = useMutation({
     async mutationFn(image: ManagedImage) {
-      const file = await convertImageCanvasAPI(image.file, {
+      console.debug('Waiting for ffmpeg');
+      const ffmpeg = await loadFFmpeg();
+      console.debug('Converting image');
+      const file = await convertImageFFmpeg(ffmpeg, image.file, {
         format: image.format,
         filename: image.filename,
       });
+      console.debug('Downloading image');
       downloadFile(file);
     },
   });

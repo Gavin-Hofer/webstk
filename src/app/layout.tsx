@@ -12,7 +12,6 @@ import { ParallaxBackgroundGrid } from '@/components/layout/paralax-background-g
 import { cn } from '@/lib/utils';
 import { ThemeContextProvider, ThemeScript } from '@/components/context/theme';
 import { Suspense } from 'react';
-import { Loader2 } from 'lucide-react';
 import { Loader } from '@/components/ui/loader';
 
 const geistSans = Geist({

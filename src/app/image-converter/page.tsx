@@ -1,16 +1,20 @@
 'use client';
 
 import type { NextPage } from 'next';
+import { Suspense } from 'react';
+import dynamic from 'next/dynamic';
 import { ImageIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { usePersistentImages } from '@/hooks/use-persistent-images';
 
 import { Dropzone } from '@/components/ui/dropzone';
+import { Loader } from '@/components/ui/loader';
 
 import { ImageCardList } from './components/image-card-list';
 import { AddImageFilesInput } from './components/add-image-files-input';
 import { DownloadAllButton } from './components/download-all-button';
+import { FFmpegProvider } from '@/components/context/ffmpeg';
 
 // #region Subcomponents
 // =============================================================================
@@ -27,6 +31,53 @@ const EmptyState: React.FC = () => {
         from your device.
       </p>
     </div>
+  );
+};
+
+const FFmpegLoadingFallback: React.FC = () => {
+  return (
+    <div className='border-border bg-card/30 flex flex-1 flex-col items-center justify-center rounded-lg border-2 border-dashed p-12 text-center'>
+      <Loader className='text-primary mb-4 h-10 w-10' />
+      <h3 className='mb-2 text-lg font-medium'>Loading FFmpeg</h3>
+      <p className='text-muted-foreground max-w-sm text-sm'>
+        Please wait while FFmpeg is being loaded. This may take a moment on
+        first visit.
+      </p>
+    </div>
+  );
+};
+
+type ImageConverterContentProps = {
+  images: ReturnType<typeof usePersistentImages>[0];
+  addFiles: ReturnType<typeof usePersistentImages>[1];
+};
+
+const ImageConverterContent: React.FC<ImageConverterContentProps> = ({
+  images,
+  addFiles,
+}) => {
+  return (
+    <FFmpegProvider>
+      <Dropzone
+        className='flex min-h-[50vh] flex-col gap-4'
+        onChange={addFiles}
+      >
+        {/* Empty state or image list */}
+        {images.length === 0 && <EmptyState />}
+        {images.length > 0 && <ImageCardList images={images} />}
+
+        {/* Actions */}
+        <div
+          className={cn(
+            'flex w-full flex-col items-center justify-center gap-4 sm:flex-row',
+            images.length > 0 && 'justify-between',
+          )}
+        >
+          <AddImageFilesInput onChange={addFiles} />
+          {images.length > 0 && <DownloadAllButton images={images} />}
+        </div>
+      </Dropzone>
+    </FFmpegProvider>
   );
 };
 
@@ -50,31 +101,15 @@ const Page: NextPage = () => {
           </div>
           <p className='text-muted-foreground text-sm'>
             Convert images between formats directly in your browser. Supports
-            PNG, JPEG, WebP, and more. Drag and drop files anywhere on this
-            page.
+            PNG, JPEG, WebP, GIF, BMP, TIFF, AVIF, ICO, and more. Drag and drop
+            files anywhere on this page.
           </p>
         </div>
 
-        {/* Main content */}
-        <Dropzone
-          className='flex min-h-[50vh] flex-col gap-4'
-          onChange={addFiles}
-        >
-          {/* Empty state or image list */}
-          {images.length === 0 && <EmptyState />}
-          {images.length > 0 && <ImageCardList images={images} />}
-
-          {/* Actions */}
-          <div
-            className={cn(
-              'flex w-full flex-col items-center justify-center gap-4 sm:flex-row',
-              images.length > 0 && 'justify-between',
-            )}
-          >
-            <AddImageFilesInput onChange={addFiles} />
-            {images.length > 0 && <DownloadAllButton images={images} />}
-          </div>
-        </Dropzone>
+        {/* Main content wrapped in Suspense for FFmpeg loading */}
+        <Suspense fallback={<FFmpegLoadingFallback />}>
+          <ImageConverterContent images={images} addFiles={addFiles} />
+        </Suspense>
       </div>
     </div>
   );
