@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import {
   Loader2,
   XIcon,
@@ -103,6 +103,10 @@ const ImageRow: React.FC<{
   const { conversion, download, formattedFileSize, lastFormattedFileSize } =
     useConvertImage(image);
 
+  const previewUrl = useMemo(() => {
+    return URL.createObjectURL(image.preview);
+  }, [image.preview]);
+
   return (
     <div
       className={cn(
@@ -121,7 +125,7 @@ const ImageRow: React.FC<{
         )}
         {image.ready && (
           <img // @eslint-disable  @next/next/no-img-element
-            src={URL.createObjectURL(image.preview)}
+            src={previewUrl}
             alt={image.file.name}
             className='h-10 w-10 flex-shrink-0 rounded-md object-cover'
           />

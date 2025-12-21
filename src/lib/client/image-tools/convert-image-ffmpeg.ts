@@ -1,4 +1,5 @@
-import type { FFmpeg } from '@ffmpeg/ffmpeg';
+import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { toBlobURL } from '@ffmpeg/util';
 import { fetchFile } from '@ffmpeg/util';
 
 import { replaceFileExtension } from '@/lib/utils';
@@ -20,6 +21,18 @@ type ConvertImageOptions = {
 
 // #region Helper Functions
 // =============================================================================
+
+const BASE_URL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd';
+
+async function loadFFmpeg() {
+  const ffmpeg = new FFmpeg();
+  const [coreURL, wasmURL] = await Promise.all([
+    toBlobURL(`${BASE_URL}/ffmpeg-core.js`, 'text/javascript'),
+    toBlobURL(`${BASE_URL}/ffmpeg-core.wasm`, 'application/wasm'),
+  ]);
+  await ffmpeg.load({ coreURL, wasmURL });
+  return ffmpeg;
+}
 
 /**
  * Generates FFmpeg arguments for image conversion.
@@ -93,11 +106,6 @@ function generateTempFilename(extension: string): string {
  * Takes an input image file and converts it to the desired format using FFmpeg WASM.
  * Supports all major image formats including PNG, JPEG, WebP, GIF, BMP, TIFF, AVIF, and ICO.
  *
- * Assumptions:
- *  - FFmpeg instance must be loaded and ready
- *  - Input file must be a valid image format
- *
- * @param ffmpeg - The loaded FFmpeg instance
  * @param file - The input image file to convert
  * @param options - Conversion options
  * @param options.format - Target format to convert to (defaults to 'webp')
@@ -108,11 +116,20 @@ function generateTempFilename(extension: string): string {
  * @returns A Promise that resolves with the converted image as a File
  */
 export async function convertImageFFmpeg(
-  ffmpeg: FFmpeg,
   file: File,
   options: ConvertImageOptions = {},
+  { signal }: { signal?: AbortSignal } = {},
 ): Promise<File> {
   const { format = 'webp' } = options;
+  // Use a fresh ffmpeg instance for each conversion.
+  const ffmpeg = await loadFFmpeg();
+  let isTerminated: boolean = false;
+  const terminate = () => {
+    if (!isTerminated) {
+      ffmpeg.terminate();
+    }
+    isTerminated = true;
+  };
   const outputFilename = replaceFileExtension(
     options.filename ?? file.name,
     format,
@@ -123,6 +140,7 @@ export async function convertImageFFmpeg(
   const inputFilename = generateTempFilename(inputExtension);
   const tempOutputFilename = generateTempFilename(format);
 
+  signal?.addEventListener('abort', terminate);
   try {
     // Write input file to FFmpeg's virtual filesystem
     const inputData = await fetchFile(file);
@@ -169,6 +187,11 @@ export async function convertImageFFmpeg(
       // Ignore cleanup errors
     }
     throw error;
+  } finally {
+    signal?.removeEventListener('abort', terminate);
+    if (!isTerminated) {
+      ffmpeg.terminate();
+    }
   }
 }
 

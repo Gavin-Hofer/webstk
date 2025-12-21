@@ -1,14 +1,12 @@
 'use client';
 
 import type { NextPage } from 'next';
-import { Suspense } from 'react';
 import { ImageIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { usePersistentImages } from '@/hooks/use-persistent-images';
 
 import { Dropzone } from '@/components/ui/dropzone';
-import { Loader } from '@/components/ui/loader';
 
 import { ImageCardList } from './components/image-card-list';
 import { AddImageFilesInput } from './components/add-image-files-input';

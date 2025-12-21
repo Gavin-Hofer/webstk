@@ -5,10 +5,9 @@ import { useState, useEffect, useCallback } from 'react';
 import * as uuid from 'uuid';
 import { useLocalStorage } from 'usehooks-ts';
 
-import { convertImageFFmpeg } from '@/lib/client/image-tools';
+import { convertImage } from '@/lib/client/image-tools';
 import { IMAGE_FORMATS, type ImageFormat } from '@/lib/client/image-tools';
 import { promisePool } from '@/lib/promises/promise-pool';
-import { useFFmpeg } from './use-ffmpeg';
 
 const DEFAULT_IMAGE_QUALITY = 85;
 
@@ -289,7 +288,6 @@ export function usePersistentImages(): [
   ManagedImage[],
   (files: FileList | null) => void,
 ] {
-  const { load } = useFFmpeg();
   const [images, setImages] = useState<Record<string, ManagedImage>>({});
   const [preferredFormat] = useLocalStorage<ImageFormat>(
     'preferred-image-format',
@@ -373,16 +371,14 @@ export function usePersistentImages(): [
     // Convert any HEIC images to JPEG and save to indexedDB.
     const tasks = newImages.map((image) => {
       return async () => {
-        const [file, ffmpeg] = await Promise.all([
-          heic2jpeg(image.file),
-          load(),
-        ]);
-        const preview = await convertImageFFmpeg(ffmpeg, file, {
+        const file = await heic2jpeg(image.file);
+        const preview = await convertImage(file, {
           format: 'webp',
           quality: 50,
           width: 128,
           height: 128,
         });
+        console.debug('Created preview', image.id);
         const updatedImage = { ...image, file, preview, ready: true };
         saveToIndexedDB(updatedImage);
         setImages((prevState) => ({ ...prevState, [image.id]: updatedImage }));

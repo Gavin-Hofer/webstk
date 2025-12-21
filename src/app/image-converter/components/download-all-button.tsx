@@ -1,7 +1,5 @@
 'use client';
 
-import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
 import { FileDownIcon, Loader2 } from 'lucide-react';
 import { useLocalStorage } from 'usehooks-ts';
 
@@ -9,48 +7,21 @@ import type { ManagedImage } from '@/hooks/use-persistent-images';
 import type { ImageFormat } from '@/lib/client/image-tools';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { convertImageFFmpeg } from '@/lib/client/image-tools';
-import { downloadFile } from '@/lib/client/download-file';
 
 import { FormatSelect } from './format-select';
-import { useFFmpeg } from '@/hooks/use-ffmpeg';
+import { useDownloadAll } from './hooks';
 
 export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
   images,
 }) => {
-  const { load } = useFFmpeg();
   const [format, setFormat] = useLocalStorage<ImageFormat | undefined>(
     'preferred-image-format',
     'png',
   );
-
-  const [downloadProgress, setDownloadProgress] = useState(0);
-  const mutation = useMutation({
-    async mutationFn(images: ManagedImage[]) {
-      // Convert images one at a time to avoid locking up the browser.
-      setDownloadProgress(0);
-      if (!images.every((image) => image.ready)) {
-        console.warn('Images not ready');
-        return;
-      }
-      const ffmpeg = await load();
-      // Process each image sequentially since FFmpeg WASM doesn't support concurrent operations
-      for (const image of images) {
-        const file = await convertImageFFmpeg(ffmpeg, image.file, {
-          format,
-          filename: image.filename,
-        });
-        downloadFile(file);
-        setDownloadProgress((prev) => prev + 1);
-      }
-    },
-    onSettled() {
-      setDownloadProgress(0);
-    },
-  });
+  const download = useDownloadAll(format ?? 'png');
 
   const allReady = images.every((image) => image.ready);
-  const disabled = !allReady || !format || mutation.isPending;
+  const disabled = !allReady || !format || download.isPending;
   const numImages = images.length;
 
   return (
@@ -65,7 +36,7 @@ export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
       )}
     >
       <Button
-        onClick={() => mutation.mutate(images)}
+        onClick={() => download.mutate(images)}
         className={cn(
           'h-11 flex-1 rounded-l-full rounded-r-none sm:w-40',
           'border-none bg-transparent shadow-none',
@@ -74,17 +45,17 @@ export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
         disabled={disabled}
         size='lg'
       >
-        {!mutation.isPending && (
+        {!download.isPending && (
           <>
             <FileDownIcon className='h-5 w-5' />
             Download All
           </>
         )}
-        {mutation.isPending && (
+        {download.isPending && (
           <>
             <Loader2 className='h-4 w-4 animate-spin' />
             <span className='tabular-nums'>
-              {downloadProgress}/{numImages}
+              {download.progress}/{numImages}
             </span>
           </>
         )}
