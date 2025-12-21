@@ -42,6 +42,7 @@ export const FFmpegProvider: React.FC<React.PropsWithChildren> = ({
   }, []);
 
   useEffect(() => {
+    // Begin loading ffmpeg immediately.
     loadFFmpeg();
   }, [loadFFmpeg]);
 

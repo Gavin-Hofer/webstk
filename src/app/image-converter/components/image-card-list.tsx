@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Loader2, XIcon, FileDownIcon, PencilIcon } from 'lucide-react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type { ManagedImage } from '@/hooks/use-persistent-images';
 import { Input } from '@/components/ui/input';
@@ -117,13 +117,24 @@ const ImageRow: React.FC<{
   image: ManagedImage;
 }> = ({ image }) => {
   const { loadFFmpeg } = useContextRequired(FFmpegContext);
-  const mutation = useMutation({
-    async mutationFn(image: ManagedImage) {
-      const ffmpeg = await loadFFmpeg();
-      const file = await convertImageFFmpeg(ffmpeg, image.file, {
-        format: image.format,
-        filename: image.filename,
-      });
+  const queryClient = useQueryClient();
+
+  const queryKey = [image.id, image.format];
+  const queryFn = async () => {
+    const ffmpeg = await loadFFmpeg();
+    const file = await convertImageFFmpeg(ffmpeg, image.file, {
+      format: image.format,
+      filename: image.filename,
+    });
+    return file;
+  };
+
+  // Optimistically start converting as soon as the image is ready
+  useQuery({ queryKey, queryFn, enabled: image.ready });
+
+  const downloadMutation = useMutation({
+    async mutationFn() {
+      const file = await queryClient.ensureQueryData({ queryKey, queryFn });
       downloadFile(file);
     },
   });
@@ -169,9 +180,9 @@ const ImageRow: React.FC<{
       <div className='flex w-full items-center justify-end gap-2 sm:w-auto'>
         <FormatSelect format={image.format} setFormat={image.setFormat} />
         <DownloadImageButton
-          disabled={!image.ready || mutation.isPending}
-          isPending={mutation.isPending}
-          onClick={() => mutation.mutate(image)}
+          disabled={!image.ready || downloadMutation.isPending}
+          isPending={downloadMutation.isPending}
+          onClick={() => downloadMutation.mutate()}
         />
         <RemoveImageButton
           onClick={() => image.remove()}
