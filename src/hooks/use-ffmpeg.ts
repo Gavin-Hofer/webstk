@@ -17,18 +17,37 @@ async function fetchFFmpeg() {
 }
 
 export function useFFmpeg() {
+  const ffmpegRef = useRef<FFmpeg | undefined>(undefined);
   const promiseRef = useRef<Promise<FFmpeg> | undefined>(undefined);
 
-  const loadFFmpeg = useCallback(() => {
-    if (!promiseRef.current) {
-      promiseRef.current = fetchFFmpeg();
+  const load = useCallback(async () => {
+    if (ffmpegRef.current) {
+      return ffmpegRef.current;
     }
-    return promiseRef.current;
+    if (promiseRef.current) {
+      ffmpegRef.current = await promiseRef.current;
+      promiseRef.current = undefined;
+      return ffmpegRef.current;
+    }
+    promiseRef.current = fetchFFmpeg();
+    ffmpegRef.current = await promiseRef.current;
+    promiseRef.current = undefined;
+    return ffmpegRef.current;
   }, []);
 
-  useEffect(() => {
-    loadFFmpeg();
-  }, [loadFFmpeg]);
+  const terminate = useCallback(() => {
+    const ffmpeg = ffmpegRef.current;
+    ffmpegRef.current = undefined;
+    promiseRef.current = undefined;
+    if (ffmpeg) {
+      ffmpeg.terminate();
+    }
+    load();
+  }, [load]);
 
-  return { loadFFmpeg };
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  return { load, terminate };
 }

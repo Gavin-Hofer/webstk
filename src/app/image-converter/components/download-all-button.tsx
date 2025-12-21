@@ -18,7 +18,7 @@ import { useFFmpeg } from '@/hooks/use-ffmpeg';
 export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
   images,
 }) => {
-  const { loadFFmpeg } = useFFmpeg();
+  const { load } = useFFmpeg();
   const [format, setFormat] = useLocalStorage<ImageFormat | undefined>(
     'preferred-image-format',
     'png',
@@ -33,7 +33,7 @@ export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
         console.warn('Images not ready');
         return;
       }
-      const ffmpeg = await loadFFmpeg();
+      const ffmpeg = await load();
       // Process each image sequentially since FFmpeg WASM doesn't support concurrent operations
       for (const image of images) {
         const file = await convertImageFFmpeg(ffmpeg, image.file, {

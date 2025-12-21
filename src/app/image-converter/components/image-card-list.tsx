@@ -26,6 +26,7 @@ import { downloadFile } from '@/lib/client/download-file';
 import { FormatSelect } from './format-select';
 import { QualitySlider } from './quality-slider';
 import { useFFmpeg } from '@/hooks/use-ffmpeg';
+import { useDebounceValue } from 'usehooks-ts';
 
 // #region Helper Functions
 // =============================================================================
@@ -120,13 +121,19 @@ const ImageFilenameEditor: React.FC<{
 const ImageRow: React.FC<{
   image: ManagedImage;
 }> = ({ image }) => {
-  const { loadFFmpeg } = useFFmpeg();
+  const { load, terminate } = useFFmpeg();
   const queryClient = useQueryClient();
 
-  const queryKey = [image.id, image.format, image.quality];
-  const queryFn: QueryFunction<File> = async () => {
+  // Debounce the query key to prevent lots of requests to start converting
+  // when changing the slider value.
+  const queryKey = useDebounceValue(
+    [image.id, image.format, image.quality],
+    500,
+  );
+  const queryFn: QueryFunction<File | undefined> = async ({ signal }) => {
+    signal.addEventListener('abort', terminate);
     try {
-      const ffmpeg = await loadFFmpeg();
+      const ffmpeg = await load();
       const file = await convertImageFFmpeg(ffmpeg, image.file, {
         format: image.format,
         filename: image.filename,
@@ -134,8 +141,16 @@ const ImageRow: React.FC<{
       });
       return file;
     } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.includes('called FFmpeg.terminate()')
+      ) {
+        return undefined;
+      }
       console.error('Error converting image:', error);
       throw error;
+    } finally {
+      signal.removeEventListener('abort', terminate);
     }
   };
 
@@ -155,6 +170,12 @@ const ImageRow: React.FC<{
   const downloadMutation = useMutation({
     async mutationFn() {
       const file = await queryClient.ensureQueryData({ queryKey, queryFn });
+      if (!file) {
+        console.error(
+          'Failed to convert image (file not defined after conversion)',
+        );
+        return;
+      }
       downloadFile(file);
     },
   });
