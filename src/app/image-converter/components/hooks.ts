@@ -86,18 +86,16 @@ export function useDownloadAll(format: ImageFormat) {
         console.warn('Images not ready');
         return;
       }
-      // Need to process serially because the ffmpeg WASM binding does not
-      // multiple simultaneous conversions on one instance. However in reality,
-      // images should not actually be converted here - we should just be
-      // grabbing them from the query cache.
-      for (const image of images) {
-        const imageWithFormat = { ...image, format };
-        const queryKey = getQueryKey(imageWithFormat);
-        const queryFn = getQueryFn(imageWithFormat);
-        const file = await queryClient.ensureQueryData({ queryKey, queryFn });
-        downloadFile(file);
-        setProgress((prev) => prev + 1);
-      }
+      await Promise.allSettled(
+        images.map(async (image) => {
+          const imageWithFormat = { ...image, format };
+          const queryKey = getQueryKey(imageWithFormat);
+          const queryFn = getQueryFn(imageWithFormat);
+          const file = await queryClient.ensureQueryData({ queryKey, queryFn });
+          downloadFile(file);
+          setProgress((prev) => prev + 1);
+        }),
+      );
     },
     onSettled() {
       setProgress(0);
