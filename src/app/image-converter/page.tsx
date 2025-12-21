@@ -32,19 +32,6 @@ const EmptyState: React.FC = () => {
   );
 };
 
-const FFmpegLoadingFallback: React.FC = () => {
-  return (
-    <div className='border-border bg-card/30 flex flex-1 flex-col items-center justify-center rounded-lg border-2 border-dashed p-12 text-center'>
-      <Loader className='text-primary mb-4 h-10 w-10' />
-      <h3 className='mb-2 text-lg font-medium'>Loading FFmpeg</h3>
-      <p className='text-muted-foreground max-w-sm text-sm'>
-        Please wait while FFmpeg is being loaded. This may take a moment on
-        first visit.
-      </p>
-    </div>
-  );
-};
-
 type ImageConverterContentProps = {
   images: ReturnType<typeof usePersistentImages>[0];
   addFiles: ReturnType<typeof usePersistentImages>[1];
@@ -98,11 +85,7 @@ const Page: NextPage = () => {
             files anywhere on this page.
           </p>
         </div>
-
-        {/* Main content wrapped in Suspense for FFmpeg loading */}
-        <Suspense fallback={<FFmpegLoadingFallback />}>
-          <ImageConverterContent images={images} addFiles={addFiles} />
-        </Suspense>
+        <ImageConverterContent images={images} addFiles={addFiles} />
       </div>
     </div>
   );

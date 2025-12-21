@@ -19,12 +19,41 @@ function getQueryKey(image: ManagedImage) {
   return [[image.id, image.format, image.quality]];
 }
 
+async function retry<T>(
+  fn: () => Promise<T>,
+  options: {
+    attempts?: number;
+    delay?: number;
+    backoff?: number;
+    shouldRetry?: (error: unknown) => boolean;
+  } = {},
+): Promise<Awaited<T>> {
+  const {
+    attempts = 5,
+    delay = 50,
+    backoff = 2,
+    shouldRetry = () => true,
+  } = options;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (!shouldRetry(error) || attempt == attempts) {
+        throw error;
+      }
+      const sleepTime = delay * attempt ** backoff;
+      await new Promise((resolve) => setTimeout(resolve, sleepTime));
+    }
+  }
+  throw new Error('EXPECTED UNREACHABLE');
+}
+
 function getQueryFn(
   image: ManagedImage,
   loadFFmpeg: () => Promise<FFmpeg>,
   terminateFFmpeg: () => void,
 ): QueryFunction<File> {
-  return async ({ signal }) => {
+  const convertImage = async (signal: AbortSignal) => {
     signal.addEventListener('abort', terminateFFmpeg);
     try {
       const ffmpeg = await loadFFmpeg();
@@ -41,11 +70,20 @@ function getQueryFn(
       ) {
         throw error;
       }
+      // Force ffmpeg to reload so we can have a fresh instance on the next
+      // attempt.
+      terminateFFmpeg();
       console.error('Error converting image:', error);
       throw error;
     } finally {
       signal.removeEventListener('abort', terminateFFmpeg);
     }
+  };
+
+  return ({ signal }) => {
+    return retry(() => convertImage(signal), {
+      shouldRetry: () => !signal.aborted,
+    });
   };
 }
 
