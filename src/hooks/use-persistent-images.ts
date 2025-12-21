@@ -40,6 +40,8 @@ export type ManagedImage = ImageType & {
   remove: () => void;
 };
 
+export type ImageID = ManagedImage['id'];
+
 // #endregion
 
 // #region Helper Functions - Image
@@ -287,7 +289,7 @@ export function usePersistentImages(): [
   ManagedImage[],
   (files: FileList | null) => void,
 ] {
-  const { loadFFmpeg } = useFFmpeg();
+  const { load } = useFFmpeg();
   const [images, setImages] = useState<Record<string, ManagedImage>>({});
   const [preferredFormat] = useLocalStorage<ImageFormat>(
     'preferred-image-format',
@@ -373,7 +375,7 @@ export function usePersistentImages(): [
       return async () => {
         const [file, ffmpeg] = await Promise.all([
           heic2jpeg(image.file),
-          loadFFmpeg(),
+          load(),
         ]);
         const preview = await convertImageFFmpeg(ffmpeg, file, {
           format: 'webp',

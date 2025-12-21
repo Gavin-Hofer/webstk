@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import {
   Loader2,
   XIcon,
@@ -8,37 +8,16 @@ import {
   PencilIcon,
   TriangleAlert,
 } from 'lucide-react';
-import {
-  QueryFunction,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
 
 import type { ManagedImage } from '@/hooks/use-persistent-images';
 import { Input } from '@/components/ui/input';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { convertImageFFmpeg } from '@/lib/client/image-tools';
-import { downloadFile } from '@/lib/client/download-file';
 
 import { FormatSelect } from './format-select';
 import { QualitySlider } from './quality-slider';
-import { useFFmpeg } from '@/hooks/use-ffmpeg';
-import { useDebounceValue } from 'usehooks-ts';
-
-// #region Helper Functions
-// =============================================================================
-
-/** Formats a file size in bytes to a human readable string. */
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-// #endregion
+import { useConvertImage } from './hooks';
 
 // #region Subcomponents
 // =============================================================================
@@ -121,64 +100,8 @@ const ImageFilenameEditor: React.FC<{
 const ImageRow: React.FC<{
   image: ManagedImage;
 }> = ({ image }) => {
-  const { load, terminate } = useFFmpeg();
-  const queryClient = useQueryClient();
-
-  // Debounce the query key to prevent lots of requests to start converting
-  // when changing the slider value.
-  const queryKey = useDebounceValue(
-    [image.id, image.format, image.quality],
-    500,
-  );
-  const queryFn: QueryFunction<File | undefined> = async ({ signal }) => {
-    signal.addEventListener('abort', terminate);
-    try {
-      const ffmpeg = await load();
-      const file = await convertImageFFmpeg(ffmpeg, image.file, {
-        format: image.format,
-        filename: image.filename,
-        quality: image.quality,
-      });
-      return file;
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message.includes('called FFmpeg.terminate()')
-      ) {
-        return undefined;
-      }
-      console.error('Error converting image:', error);
-      throw error;
-    } finally {
-      signal.removeEventListener('abort', terminate);
-    }
-  };
-
-  // Optimistically start converting as soon as the image is ready
-  const convertQuery = useQuery({ queryKey, queryFn, enabled: image.ready });
-  const [staleSize, setStaleSize] = useState('');
-  useEffect(() => {
-    if (convertQuery.data) {
-      setStaleSize(formatFileSize(convertQuery.data.size));
-    }
-  }, [convertQuery.data]);
-  const currentSize =
-    convertQuery.data?.size ?
-      formatFileSize(convertQuery.data.size)
-    : undefined;
-
-  const downloadMutation = useMutation({
-    async mutationFn() {
-      const file = await queryClient.ensureQueryData({ queryKey, queryFn });
-      if (!file) {
-        console.error(
-          'Failed to convert image (file not defined after conversion)',
-        );
-        return;
-      }
-      downloadFile(file);
-    },
-  });
+  const { conversion, download, formattedFileSize, lastFormattedFileSize } =
+    useConvertImage(image);
 
   return (
     <div
@@ -223,38 +146,38 @@ const ImageRow: React.FC<{
         <QualitySlider quality={image.quality} setQuality={image.setQuality} />
         <Button
           disabled={!image.ready}
-          onClick={() => downloadMutation.mutate()}
+          onClick={() => download.mutate()}
           className='relative w-32 sm:w-36'
         >
           <div
             className={cn(
               'relative flex items-center justify-evenly gap-2',
-              downloadMutation.isPending && 'opacity-20',
+              download.isPending && 'opacity-20',
             )}
           >
             <FileDownIcon className='h-4 w-4' />
-            {staleSize && (
+            {lastFormattedFileSize && (
               <span
                 className={cn(
                   'inline-flex w-24 items-center justify-center',
-                  convertQuery.isPending && 'animate-pulse opacity-80',
+                  conversion.isPending && 'animate-pulse opacity-80',
                 )}
               >
-                {currentSize ?
-                  currentSize
-                : convertQuery.error ?
+                {formattedFileSize ?
+                  formattedFileSize
+                : conversion.error ?
                   <TriangleAlert className='text-amber-600 dark:text-amber-400' />
-                : staleSize}
+                : lastFormattedFileSize}
               </span>
             )}
-            {!staleSize && (
+            {!lastFormattedFileSize && (
               <>
                 <span className='hidden sm:inline'>Download</span>
                 <span className='inline sm:hidden'>Save</span>
               </>
             )}
           </div>
-          {downloadMutation.isPending && (
+          {download.isPending && (
             <div className='absolute inset-0 flex items-center justify-center'>
               <Loader2 className='h-3 w-3 animate-spin' />
             </div>
