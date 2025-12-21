@@ -67,11 +67,13 @@ function getFFmpegArgs(options: ConvertImageOptions): string[] {
         args.push('-crf', String(Math.round(63 - (quality / 100) * 63)));
         break;
       case 'png':
-        // PNG compression level: 0-9 (higher = more compression, lossless)
-        // Map quality 100 → 0 (no compression), quality 0 → 9 (max compression)
-        if (quality < 100) {
+        if (quality < 95) {
+          // PNG compression level: 0-9 (higher = more compression, lossless)
+          // Map quality 100 → 0 (no compression), quality 0 → 9 (max compression)
           const compressionLevel = Math.round(9 - (quality / 100) * 9);
           args.push('-compression_level', String(compressionLevel));
+          // Use mixed prediction for better compression
+          args.push('-pred', 'mixed');
         }
         break;
       default:
@@ -148,15 +150,17 @@ export async function convertImageFFmpeg(
 
     // Build FFmpeg command arguments
     const qualityArgs = getFFmpegArgs(options);
-
-    // Run FFmpeg conversion
-    await ffmpeg.exec([
+    const args = [
       '-i',
       inputFilename,
       ...qualityArgs,
       '-y', // Overwrite output file if exists
       tempOutputFilename,
-    ]);
+    ];
+    console.info('Calling ffmpeg with args:', args.join(' '));
+
+    // Run FFmpeg conversion
+    await ffmpeg.exec(args);
 
     // Read the output file
     const outputData = await ffmpeg.readFile(tempOutputFilename);

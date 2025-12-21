@@ -43,7 +43,7 @@ export function useConvertImage(image: ManagedImage) {
 
   // Debounce the query key to prevent lots of requests to start converting
   // when changing the slider value.
-  const queryKey = useDebounceValue(getQueryKey(image), 500);
+  const queryKey = useDebounceValue(getQueryKey(image), 100);
   const queryFn = getQueryFn(image);
 
   // Optimistically start converting as soon as the image is ready

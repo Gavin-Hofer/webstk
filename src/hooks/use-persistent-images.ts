@@ -386,9 +386,9 @@ export function usePersistentImages(): [
     promisePool(tasks, 10);
   };
 
-  // Convert images to an array sorted from newest to oldest.
+  // Convert images to an array sorted from oldest to newest.
   const imageList = Array.from(Object.values(images)).sort(
-    (a, b) => b.timestamp.valueOf() - a.timestamp.valueOf(),
+    (a, b) => a.timestamp.valueOf() - b.timestamp.valueOf(),
   );
   return [imageList, addFiles];
 }

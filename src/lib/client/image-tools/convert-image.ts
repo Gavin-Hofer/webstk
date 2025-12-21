@@ -3,9 +3,17 @@ import { convertImageFFmpeg } from './convert-image-ffmpeg';
 import { convertImageCanvasAPI } from './convert-image-canvas-api';
 import type { ImageFormat } from './image-formats';
 import { ConvertImageOptions } from './types';
+import { cacheDelete, cacheGet, cacheSet } from '@/lib/client/cache';
 
 // Formats that FFmpeg-WASM doesn't support (missing codecs in base build)
 const CANVAS_API_ONLY_FORMATS = new Set<ImageFormat>(['avif']);
+
+async function computeHash(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 function convert(
   file: File,
@@ -37,39 +45,56 @@ function convert(
 export async function convertImage(
   file: File,
   options: ConvertImageOptions = {},
-  { signal }: { signal?: AbortSignal } = {},
+  {
+    signal,
+    useCanvas = false,
+  }: { signal?: AbortSignal; useCanvas?: boolean } = {},
 ): Promise<File> {
+  const checksum = await computeHash(file);
+  const cacheKey = JSON.stringify({ options, useCanvas, checksum });
+  const cachedFile = await cacheGet<File>(cacheKey);
+  if (cachedFile instanceof File) {
+    return cachedFile;
+  }
+  if (cachedFile) {
+    // Cached file was not valid
+    await cacheDelete(cacheKey);
+  }
   const shouldRetry = () => {
     return signal?.aborted === true;
   };
-  try {
-    const onAttemptFailure = (error: unknown, attempt: number) => {
-      console.error(
-        `Failed to convert image using ffmpeg (attempt ${attempt}):`,
-        error,
-      );
+  const errorLogger = (api: 'ffmpeg' | 'canvas', level: 'info' | 'error') => {
+    return (error: unknown, attempt: number) => {
+      if (!signal?.aborted) {
+        console[level](
+          `Failed to convert image using ${api} (attempt ${attempt}):`,
+          error,
+        );
+      }
     };
-    return await retry(() => convert(file, options, { signal }), {
-      shouldRetry,
-      onAttemptFailure,
-    });
+  };
+  try {
+    const convertedFile = await retry(
+      () => convert(file, options, { signal, useCanvas }),
+      {
+        shouldRetry,
+        onAttemptFailure: errorLogger('ffmpeg', 'info'),
+      },
+    );
+    await cacheSet<File>(cacheKey, convertedFile);
+    return convertedFile;
   } catch (error) {
     // Fallback to rendering with canvas
-    console.error(
+    console.info(
       'Failed to convert with ffmpeg, attempting with canvas:',
       error,
     );
-    const onAttemptFailure = (error: unknown, attempt: number) => {
-      console.error(
-        `Failed to convert image using canvas (attempt ${attempt}):`,
-        error,
-      );
-    };
     return await retry(
       () => convert(file, options, { signal, useCanvas: true }),
       {
         shouldRetry,
-        onAttemptFailure,
+        onAttemptFailure: errorLogger('canvas', 'info'),
+        onFailure: errorLogger('canvas', 'error'),
       },
     );
   }
