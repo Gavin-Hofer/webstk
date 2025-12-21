@@ -11,7 +11,7 @@ export const WorkerEventDataSchema = z.object({
   file: z.instanceof(File),
   options: z.object({
     format: z.enum(IMAGE_FORMATS).default('webp'),
-    quality: z.number().int().gte(1).lte(100).default(85),
+    quality: z.number().int().min(0).max(100).default(85),
     width: z.number().int().positive().optional(),
     height: z.number().int().positive().optional(),
   }),

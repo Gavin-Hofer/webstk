@@ -1,40 +1,26 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { Loader2, XIcon, FileDownIcon, PencilIcon } from 'lucide-react';
-import { useMutation } from '@tanstack/react-query';
+import { useState, useRef, useMemo } from 'react';
+import {
+  Loader2,
+  XIcon,
+  FileDownIcon,
+  PencilIcon,
+  TriangleAlert,
+} from 'lucide-react';
 
 import type { ManagedImage } from '@/hooks/use-persistent-images';
 import { Input } from '@/components/ui/input';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { convertImageCanvasAPI } from '@/lib/client/image-tools';
-import { downloadFile } from '@/lib/client/download-file';
 
 import { FormatSelect } from './format-select';
+import { QualitySlider } from './quality-slider';
+import { useConvertImage } from './hooks';
 
 // #region Subcomponents
 // =============================================================================
-
-const DownloadImageButton: React.FC<{
-  disabled: boolean;
-  onClick: () => void;
-  isPending: boolean;
-}> = ({ disabled, onClick, isPending }) => {
-  return (
-    <Button disabled={disabled} onClick={onClick} className='w-32 sm:w-36'>
-      {!isPending && (
-        <>
-          <FileDownIcon className='h-4 w-4' />
-          <span className='hidden sm:inline'>Download</span>
-          <span className='sm:hidden'>Save</span>
-        </>
-      )}
-      {isPending && <Loader2 className='h-4 w-4 animate-spin' />}
-    </Button>
-  );
-};
 
 const RemoveImageButton: React.FC<{
   onClick: () => void;
@@ -114,15 +100,12 @@ const ImageFilenameEditor: React.FC<{
 const ImageRow: React.FC<{
   image: ManagedImage;
 }> = ({ image }) => {
-  const mutation = useMutation({
-    async mutationFn(image: ManagedImage) {
-      const file = await convertImageCanvasAPI(image.file, {
-        format: image.format,
-        filename: image.filename,
-      });
-      downloadFile(file);
-    },
-  });
+  const { conversion, download, formattedFileSize, lastFormattedFileSize } =
+    useConvertImage(image);
+
+  const previewUrl = useMemo(() => {
+    return URL.createObjectURL(image.preview);
+  }, [image.preview]);
 
   return (
     <div
@@ -142,7 +125,7 @@ const ImageRow: React.FC<{
         )}
         {image.ready && (
           <img // @eslint-disable  @next/next/no-img-element
-            src={URL.createObjectURL(image.preview)}
+            src={previewUrl}
             alt={image.file.name}
             className='h-10 w-10 flex-shrink-0 rounded-md object-cover'
           />
@@ -161,14 +144,49 @@ const ImageRow: React.FC<{
         />
       </div>
 
-      {/* Right side: format select + download + remove */}
+      {/* Right side: format select + quality + download + remove */}
       <div className='flex w-full items-center justify-end gap-2 sm:w-auto'>
         <FormatSelect format={image.format} setFormat={image.setFormat} />
-        <DownloadImageButton
-          disabled={!image.ready || mutation.isPending}
-          isPending={mutation.isPending}
-          onClick={() => mutation.mutate(image)}
-        />
+        <QualitySlider quality={image.quality} setQuality={image.setQuality} />
+        <Button
+          disabled={!image.ready}
+          onClick={() => download.mutate()}
+          className='relative w-32 sm:w-36'
+        >
+          <div
+            className={cn(
+              'relative flex items-center justify-evenly gap-2',
+              download.isPending && 'opacity-20',
+            )}
+          >
+            <FileDownIcon className='h-4 w-4' />
+            {lastFormattedFileSize && (
+              <span
+                className={cn(
+                  'inline-flex w-24 items-center justify-center',
+                  conversion.isPending && 'animate-pulse opacity-80',
+                )}
+              >
+                {formattedFileSize ?
+                  formattedFileSize
+                : conversion.error ?
+                  <TriangleAlert className='text-amber-600 dark:text-amber-400' />
+                : lastFormattedFileSize}
+              </span>
+            )}
+            {!lastFormattedFileSize && (
+              <>
+                <span className='hidden sm:inline'>Download</span>
+                <span className='inline sm:hidden'>Save</span>
+              </>
+            )}
+          </div>
+          {download.isPending && (
+            <div className='absolute inset-0 flex items-center justify-center'>
+              <Loader2 className='h-3 w-3 animate-spin' />
+            </div>
+          )}
+        </Button>
         <RemoveImageButton
           onClick={() => image.remove()}
           className='hidden sm:flex'

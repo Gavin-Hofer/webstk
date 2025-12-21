@@ -5,9 +5,11 @@ import { useState, useEffect, useCallback } from 'react';
 import * as uuid from 'uuid';
 import { useLocalStorage } from 'usehooks-ts';
 
-import { convertImageCanvasAPI } from '@/lib/client/image-tools';
+import { convertImage } from '@/lib/client/image-tools';
 import { IMAGE_FORMATS, type ImageFormat } from '@/lib/client/image-tools';
 import { promisePool } from '@/lib/promises/promise-pool';
+
+const DEFAULT_IMAGE_QUALITY = 85;
 
 // #region Types and Schemas
 // =============================================================================
@@ -25,6 +27,7 @@ const ImageSchema = z.object({
   ready: z.boolean(),
   filename: z.string().default('Image.png'),
   format: z.enum(IMAGE_FORMATS).default('png'),
+  quality: z.number().int().min(0).max(100).default(DEFAULT_IMAGE_QUALITY),
 });
 
 type ImageType = z.infer<typeof ImageSchema>;
@@ -32,8 +35,11 @@ type ImageType = z.infer<typeof ImageSchema>;
 export type ManagedImage = ImageType & {
   setFilename: (name: string) => void;
   setFormat: (format: ImageFormat) => void;
+  setQuality: (quality: number) => void;
   remove: () => void;
 };
+
+export type ImageID = ManagedImage['id'];
 
 // #endregion
 
@@ -58,17 +64,18 @@ function isHeic(file: File) {
  * @param file - The image file to convert
  * @returns Promise resolving to the converted PNG file or original file
  */
-async function heic2png(file: File): Promise<File> {
+async function heic2jpeg(file: File): Promise<File> {
   if (!isHeic(file)) {
     return file;
   }
   const { default: heic2any } = await import('heic2any');
   const blob: Blob | Blob[] = await heic2any({
     blob: file,
-    toType: 'image/png',
+    toType: 'image/jpeg',
+    quality: 0.5,
   });
   const blobs: Blob[] = Array.isArray(blob) ? blob : [blob];
-  return new File(blobs, file.name, { type: 'image/png' });
+  return new File(blobs, file.name, { type: 'image/jpeg' });
 }
 
 /** Generates a random UUID V4. */
@@ -77,7 +84,7 @@ function randomUUID(): UUID {
 }
 
 /** Creates a ImageType object from a file. */
-function fileToImageType(file: File, preferredFormat: ImageFormat): ImageType {
+function fileToImageType(file: File, preferredFormat: ImageFormat) {
   return {
     id: randomUUID(),
     file,
@@ -86,7 +93,8 @@ function fileToImageType(file: File, preferredFormat: ImageFormat): ImageType {
     ready: false,
     filename: file.name,
     format: preferredFormat,
-  };
+    quality: DEFAULT_IMAGE_QUALITY,
+  } satisfies ImageType;
 }
 
 // #endregion
@@ -181,7 +189,7 @@ function updateIndexedDB(id: UUID, data: Partial<ImageType>): Promise<void> {
           console.error(`Invalid data in IndexedDB while updating:`, error);
           return;
         }
-        const updated: ImageType = { ...existing, ...parsedData };
+        const updated = { ...existing, ...parsedData } satisfies ImageType;
         store.put(updated);
       };
 
@@ -320,6 +328,7 @@ export function usePersistentImages(): [
         remove: () => removeImageById(image.id),
         setFilename: (filename) => updateImageById(image.id, { filename }),
         setFormat: (format) => updateImageById(image.id, { format }),
+        setQuality: (quality) => updateImageById(image.id, { quality }),
       };
     },
     [removeImageById, updateImageById],
@@ -359,11 +368,11 @@ export function usePersistentImages(): [
       return nextState;
     });
 
-    // Convert any HEIC images to PNG and save to indexedDB.
+    // Convert any HEIC images to JPEG and save to indexedDB.
     const tasks = newImages.map((image) => {
       return async () => {
-        const file = await heic2png(image.file);
-        const preview = await convertImageCanvasAPI(file, {
+        const file = await heic2jpeg(image.file);
+        const preview = await convertImage(file, {
           format: 'webp',
           quality: 50,
           width: 128,
@@ -377,9 +386,9 @@ export function usePersistentImages(): [
     promisePool(tasks, 10);
   };
 
-  // Convert images to an array sorted from newest to oldest.
+  // Convert images to an array sorted from oldest to newest.
   const imageList = Array.from(Object.values(images)).sort(
-    (a, b) => b.timestamp.valueOf() - a.timestamp.valueOf(),
+    (a, b) => a.timestamp.valueOf() - b.timestamp.valueOf(),
   );
   return [imageList, addFiles];
 }

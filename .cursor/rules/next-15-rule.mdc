@@ -16,5 +16,3 @@ type PageProps = {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 ```
-
-- `useCallback` and `useMemo` are only neccessary if the object is part of a `useEffect` dependency array.

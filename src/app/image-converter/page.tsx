@@ -30,6 +30,35 @@ const EmptyState: React.FC = () => {
   );
 };
 
+type ImageConverterContentProps = {
+  images: ReturnType<typeof usePersistentImages>[0];
+  addFiles: ReturnType<typeof usePersistentImages>[1];
+};
+
+const ImageConverterContent: React.FC<ImageConverterContentProps> = ({
+  images,
+  addFiles,
+}) => {
+  return (
+    <Dropzone className='flex min-h-[50vh] flex-col gap-4' onChange={addFiles}>
+      {/* Empty state or image list */}
+      {images.length === 0 && <EmptyState />}
+      {images.length > 0 && <ImageCardList images={images} />}
+
+      {/* Actions */}
+      <div
+        className={cn(
+          'flex w-full flex-col items-center justify-center gap-4 sm:flex-row',
+          images.length > 0 && 'justify-between',
+        )}
+      >
+        <AddImageFilesInput onChange={addFiles} />
+        {images.length > 0 && <DownloadAllButton images={images} />}
+      </div>
+    </Dropzone>
+  );
+};
+
 // #endregion
 
 // #region Page
@@ -50,31 +79,11 @@ const Page: NextPage = () => {
           </div>
           <p className='text-muted-foreground text-sm'>
             Convert images between formats directly in your browser. Supports
-            PNG, JPEG, WebP, and more. Drag and drop files anywhere on this
-            page.
+            PNG, JPEG, WebP, GIF, BMP, TIFF, AVIF, ICO, and more. Drag and drop
+            files anywhere on this page.
           </p>
         </div>
-
-        {/* Main content */}
-        <Dropzone
-          className='flex min-h-[50vh] flex-col gap-4'
-          onChange={addFiles}
-        >
-          {/* Empty state or image list */}
-          {images.length === 0 && <EmptyState />}
-          {images.length > 0 && <ImageCardList images={images} />}
-
-          {/* Actions */}
-          <div
-            className={cn(
-              'flex w-full flex-col items-center justify-center gap-4 sm:flex-row',
-              images.length > 0 && 'justify-between',
-            )}
-          >
-            <AddImageFilesInput onChange={addFiles} />
-            {images.length > 0 && <DownloadAllButton images={images} />}
-          </div>
-        </Dropzone>
+        <ImageConverterContent images={images} addFiles={addFiles} />
       </div>
     </div>
   );

@@ -11,6 +11,9 @@ import { BodyWithTheme } from '@/components/layout/body';
 import { ParallaxBackgroundGrid } from '@/components/layout/paralax-background-grid';
 import { cn } from '@/lib/utils';
 import { ThemeContextProvider, ThemeScript } from '@/components/context/theme';
+import { Suspense } from 'react';
+import { Loader } from '@/components/ui/loader';
+import { Toaster } from '@/components/ui/sonner';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -59,13 +62,18 @@ const RootLayout: React.FC<{
           className={cn(
             geistSans.variable,
             geistMono.variable,
-            'relative h-full w-full antialiased',
+            'relative h-full min-h-screen w-full antialiased',
           )}
         >
           <ParallaxBackgroundGrid className='min-h-screen opacity-50' />
-          <Header />
-          <main className='flex h-full w-full items-center justify-center'>
-            <ReactQueryClientProvider>{children}</ReactQueryClientProvider>
+          <Header className='h-14' />
+          <main className='flex h-full min-h-[calc(100vh-3.5rem)] w-full items-center justify-center'>
+            <ReactQueryClientProvider>
+              <Toaster />
+              <Suspense fallback={<Loader className='size-20 stroke-[0.5]' />}>
+                {children}
+              </Suspense>
+            </ReactQueryClientProvider>
             <Analytics />
             <SpeedInsights />
           </main>

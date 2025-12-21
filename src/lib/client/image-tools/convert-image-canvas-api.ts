@@ -29,11 +29,21 @@ export function convertImageFallback(
     height?: number;
     filename?: string;
   } = {},
+  { signal }: { signal?: AbortSignal } = {},
 ): Promise<File> {
   const { format = 'webp', quality = 85, width, height } = options;
   const filename = replaceFileExtension(options.filename ?? file.name, format);
 
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    const onAbort = () => {
+      reject(signal?.reason);
+    };
+    signal?.addEventListener('abort', onAbort);
+
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (!ctx) {
@@ -44,6 +54,9 @@ export function convertImageFallback(
     img.src = URL.createObjectURL(file);
 
     img.onload = () => {
+      if (signal?.aborted) {
+        return;
+      }
       let newWidth = width || img.width;
       let newHeight = height || img.height;
 
@@ -60,6 +73,9 @@ export function convertImageFallback(
 
       canvas.toBlob(
         (blob) => {
+          if (signal?.aborted) {
+            return;
+          }
           if (blob) {
             const file = new File([blob], filename, { type: blob.type });
             resolve(file);
@@ -107,13 +123,14 @@ export function convertImageCanvasAPI(
     height?: number;
     filename?: string;
   } = {},
+  { signal }: { signal?: AbortSignal } = {},
 ): Promise<File> {
   const originalFilename = file.name;
   if (typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') {
     console.warn(
       'Web Workers or OffscreenCanvas not supported, falling back to main thread',
     );
-    return convertImageFallback(file, options);
+    return convertImageFallback(file, options, { signal });
   }
 
   return new Promise((resolve, reject) => {
@@ -121,6 +138,13 @@ export function convertImageCanvasAPI(
     const worker = new Worker(
       new URL('./convert-image-canvas-api.worker.ts', import.meta.url),
     );
+
+    const onAbort = () => {
+      worker.terminate();
+      reject(signal?.reason);
+    };
+
+    signal?.addEventListener('abort', onAbort);
 
     // Send the file and options to the worker.
     worker.postMessage({ file, options });
