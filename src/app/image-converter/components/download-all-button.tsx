@@ -5,22 +5,20 @@ import { useMutation } from '@tanstack/react-query';
 import { FileDownIcon, Loader2 } from 'lucide-react';
 import { useLocalStorage } from 'usehooks-ts';
 
-import { useContextRequired } from '@/hooks/use-context-required';
 import type { ManagedImage } from '@/hooks/use-persistent-images';
 import type { ImageFormat } from '@/lib/client/image-tools';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { convertImageFFmpeg } from '@/lib/client/image-tools';
 import { downloadFile } from '@/lib/client/download-file';
-import { promisePool } from '@/lib/promises/promise-pool';
-import { FFmpegContext } from '@/components/context/ffmpeg';
 
 import { FormatSelect } from './format-select';
+import { useFFmpeg } from '@/hooks/use-ffmpeg';
 
 export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
   images,
 }) => {
-  const { loadFFmpeg } = useContextRequired(FFmpegContext);
+  const { loadFFmpeg } = useFFmpeg();
   const [format, setFormat] = useLocalStorage<ImageFormat | undefined>(
     'preferred-image-format',
     'png',
@@ -36,19 +34,15 @@ export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
         return;
       }
       const ffmpeg = await loadFFmpeg();
-      // FFmpeg WASM is single-threaded, so process one at a time.
-      const tasks = images.map((image) => {
-        return async () => {
-          const file = await convertImageFFmpeg(ffmpeg, image.file, {
-            format,
-            filename: image.filename,
-          });
-          downloadFile(file);
-          setDownloadProgress((prev) => prev + 1);
-        };
-      });
-      // Process sequentially since FFmpeg WASM doesn't support concurrent operations
-      await promisePool(tasks, 1);
+      // Process each image sequentially since FFmpeg WASM doesn't support concurrent operations
+      for (const image of images) {
+        const file = await convertImageFFmpeg(ffmpeg, image.file, {
+          format,
+          filename: image.filename,
+        });
+        downloadFile(file);
+        setDownloadProgress((prev) => prev + 1);
+      }
     },
     onSettled() {
       setDownloadProgress(0);

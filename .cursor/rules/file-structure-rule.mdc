@@ -167,9 +167,6 @@ export myFunction(params: {input types}): {output types} {
 
 # React Rules
 
-- Avoid ternaries in JSX, instead do one of the following:
-  - Extract to a subcomponent and use if statements to return one version or the other
-  - Use {condition && <Component/>} or {!condition && <OtherComponent/>}
 - Use arrow functions annotated with `React.FC<PropsType>` for react components
 - Use regular functions only for top-level functions that are not react components
 - Use arrow functions for functions defined within other functions (e.g., callbacks)

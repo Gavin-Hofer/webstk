@@ -1,17 +1,14 @@
 import 'client-only';
 
 import { z } from 'zod';
-import { useState, useEffect, useCallback, useContext } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import * as uuid from 'uuid';
 import { useLocalStorage } from 'usehooks-ts';
 
-import {
-  convertImageCanvasAPI,
-  convertImageFFmpeg,
-} from '@/lib/client/image-tools';
+import { convertImageFFmpeg } from '@/lib/client/image-tools';
 import { IMAGE_FORMATS, type ImageFormat } from '@/lib/client/image-tools';
 import { promisePool } from '@/lib/promises/promise-pool';
-import { FFmpegContext } from '@/components/context/ffmpeg';
+import { useFFmpeg } from './use-ffmpeg';
 
 const DEFAULT_IMAGE_QUALITY = 85;
 
@@ -66,18 +63,18 @@ function isHeic(file: File) {
  * @param file - The image file to convert
  * @returns Promise resolving to the converted PNG file or original file
  */
-async function heic2png(file: File): Promise<File> {
+async function heic2jpeg(file: File): Promise<File> {
   if (!isHeic(file)) {
     return file;
   }
   const { default: heic2any } = await import('heic2any');
   const blob: Blob | Blob[] = await heic2any({
     blob: file,
-    toType: 'image/png',
-    quality: DEFAULT_IMAGE_QUALITY,
+    toType: 'image/jpeg',
+    quality: 0.5,
   });
   const blobs: Blob[] = Array.isArray(blob) ? blob : [blob];
-  return new File(blobs, file.name, { type: 'image/png' });
+  return new File(blobs, file.name, { type: 'image/jpeg' });
 }
 
 /** Generates a random UUID V4. */
@@ -86,7 +83,7 @@ function randomUUID(): UUID {
 }
 
 /** Creates a ImageType object from a file. */
-function fileToImageType(file: File, preferredFormat: ImageFormat): ImageType {
+function fileToImageType(file: File, preferredFormat: ImageFormat) {
   return {
     id: randomUUID(),
     file,
@@ -96,7 +93,7 @@ function fileToImageType(file: File, preferredFormat: ImageFormat): ImageType {
     filename: file.name,
     format: preferredFormat,
     quality: DEFAULT_IMAGE_QUALITY,
-  };
+  } satisfies ImageType;
 }
 
 // #endregion
@@ -191,7 +188,7 @@ function updateIndexedDB(id: UUID, data: Partial<ImageType>): Promise<void> {
           console.error(`Invalid data in IndexedDB while updating:`, error);
           return;
         }
-        const updated: ImageType = { ...existing, ...parsedData };
+        const updated = { ...existing, ...parsedData } satisfies ImageType;
         store.put(updated);
       };
 
@@ -290,7 +287,7 @@ export function usePersistentImages(): [
   ManagedImage[],
   (files: FileList | null) => void,
 ] {
-  const { loadFFmpeg } = useContext(FFmpegContext);
+  const { loadFFmpeg } = useFFmpeg();
   const [images, setImages] = useState<Record<string, ManagedImage>>({});
   const [preferredFormat] = useLocalStorage<ImageFormat>(
     'preferred-image-format',
@@ -371,11 +368,11 @@ export function usePersistentImages(): [
       return nextState;
     });
 
-    // Convert any HEIC images to PNG and save to indexedDB.
+    // Convert any HEIC images to JPEG and save to indexedDB.
     const tasks = newImages.map((image) => {
       return async () => {
         const [file, ffmpeg] = await Promise.all([
-          heic2png(image.file),
+          heic2jpeg(image.file),
           loadFFmpeg(),
         ]);
         const preview = await convertImageFFmpeg(ffmpeg, file, {

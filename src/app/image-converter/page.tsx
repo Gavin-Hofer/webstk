@@ -2,7 +2,6 @@
 
 import type { NextPage } from 'next';
 import { Suspense } from 'react';
-import dynamic from 'next/dynamic';
 import { ImageIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -14,7 +13,6 @@ import { Loader } from '@/components/ui/loader';
 import { ImageCardList } from './components/image-card-list';
 import { AddImageFilesInput } from './components/add-image-files-input';
 import { DownloadAllButton } from './components/download-all-button';
-import { FFmpegProvider } from '@/components/context/ffmpeg';
 
 // #region Subcomponents
 // =============================================================================
@@ -57,27 +55,22 @@ const ImageConverterContent: React.FC<ImageConverterContentProps> = ({
   addFiles,
 }) => {
   return (
-    <FFmpegProvider>
-      <Dropzone
-        className='flex min-h-[50vh] flex-col gap-4'
-        onChange={addFiles}
-      >
-        {/* Empty state or image list */}
-        {images.length === 0 && <EmptyState />}
-        {images.length > 0 && <ImageCardList images={images} />}
+    <Dropzone className='flex min-h-[50vh] flex-col gap-4' onChange={addFiles}>
+      {/* Empty state or image list */}
+      {images.length === 0 && <EmptyState />}
+      {images.length > 0 && <ImageCardList images={images} />}
 
-        {/* Actions */}
-        <div
-          className={cn(
-            'flex w-full flex-col items-center justify-center gap-4 sm:flex-row',
-            images.length > 0 && 'justify-between',
-          )}
-        >
-          <AddImageFilesInput onChange={addFiles} />
-          {images.length > 0 && <DownloadAllButton images={images} />}
-        </div>
-      </Dropzone>
-    </FFmpegProvider>
+      {/* Actions */}
+      <div
+        className={cn(
+          'flex w-full flex-col items-center justify-center gap-4 sm:flex-row',
+          images.length > 0 && 'justify-between',
+        )}
+      >
+        <AddImageFilesInput onChange={addFiles} />
+        {images.length > 0 && <DownloadAllButton images={images} />}
+      </div>
+    </Dropzone>
   );
 };
 

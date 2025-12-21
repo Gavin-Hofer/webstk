@@ -1,8 +1,19 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { Loader2, XIcon, FileDownIcon, PencilIcon } from 'lucide-react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState, useRef, useEffect } from 'react';
+import {
+  Loader2,
+  XIcon,
+  FileDownIcon,
+  PencilIcon,
+  TriangleAlert,
+} from 'lucide-react';
+import {
+  QueryFunction,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 
 import type { ManagedImage } from '@/hooks/use-persistent-images';
 import { Input } from '@/components/ui/input';
@@ -11,32 +22,25 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { convertImageFFmpeg } from '@/lib/client/image-tools';
 import { downloadFile } from '@/lib/client/download-file';
-import { useContextRequired } from '@/hooks/use-context-required';
-import { FFmpegContext } from '@/components/context/ffmpeg';
 
 import { FormatSelect } from './format-select';
+import { QualitySlider } from './quality-slider';
+import { useFFmpeg } from '@/hooks/use-ffmpeg';
+
+// #region Helper Functions
+// =============================================================================
+
+/** Formats a file size in bytes to a human readable string. */
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// #endregion
 
 // #region Subcomponents
 // =============================================================================
-
-const DownloadImageButton: React.FC<{
-  disabled: boolean;
-  onClick: () => void;
-  isPending: boolean;
-}> = ({ disabled, onClick, isPending }) => {
-  return (
-    <Button disabled={disabled} onClick={onClick} className='w-32 sm:w-36'>
-      {!isPending && (
-        <>
-          <FileDownIcon className='h-4 w-4' />
-          <span className='hidden sm:inline'>Download</span>
-          <span className='sm:hidden'>Save</span>
-        </>
-      )}
-      {isPending && <Loader2 className='h-4 w-4 animate-spin' />}
-    </Button>
-  );
-};
 
 const RemoveImageButton: React.FC<{
   onClick: () => void;
@@ -116,22 +120,37 @@ const ImageFilenameEditor: React.FC<{
 const ImageRow: React.FC<{
   image: ManagedImage;
 }> = ({ image }) => {
-  const { loadFFmpeg } = useContextRequired(FFmpegContext);
+  const { loadFFmpeg } = useFFmpeg();
   const queryClient = useQueryClient();
 
   const queryKey = [image.id, image.format, image.quality];
-  const queryFn = async () => {
-    const ffmpeg = await loadFFmpeg();
-    const file = await convertImageFFmpeg(ffmpeg, image.file, {
-      format: image.format,
-      filename: image.filename,
-      quality: image.quality,
-    });
-    return file;
+  const queryFn: QueryFunction<File> = async () => {
+    try {
+      const ffmpeg = await loadFFmpeg();
+      const file = await convertImageFFmpeg(ffmpeg, image.file, {
+        format: image.format,
+        filename: image.filename,
+        quality: image.quality,
+      });
+      return file;
+    } catch (error) {
+      console.error('Error converting image:', error);
+      throw error;
+    }
   };
 
   // Optimistically start converting as soon as the image is ready
-  useQuery({ queryKey, queryFn, enabled: image.ready });
+  const convertQuery = useQuery({ queryKey, queryFn, enabled: image.ready });
+  const [staleSize, setStaleSize] = useState('');
+  useEffect(() => {
+    if (convertQuery.data) {
+      setStaleSize(formatFileSize(convertQuery.data.size));
+    }
+  }, [convertQuery.data]);
+  const currentSize =
+    convertQuery.data?.size ?
+      formatFileSize(convertQuery.data.size)
+    : undefined;
 
   const downloadMutation = useMutation({
     async mutationFn() {
@@ -177,14 +196,49 @@ const ImageRow: React.FC<{
         />
       </div>
 
-      {/* Right side: format select + download + remove */}
+      {/* Right side: format select + quality + download + remove */}
       <div className='flex w-full items-center justify-end gap-2 sm:w-auto'>
         <FormatSelect format={image.format} setFormat={image.setFormat} />
-        <DownloadImageButton
-          disabled={!image.ready || downloadMutation.isPending}
-          isPending={downloadMutation.isPending}
+        <QualitySlider quality={image.quality} setQuality={image.setQuality} />
+        <Button
+          disabled={!image.ready}
           onClick={() => downloadMutation.mutate()}
-        />
+          className='relative w-32 sm:w-36'
+        >
+          <div
+            className={cn(
+              'relative flex items-center justify-evenly gap-2',
+              downloadMutation.isPending && 'opacity-20',
+            )}
+          >
+            <FileDownIcon className='h-4 w-4' />
+            {staleSize && (
+              <span
+                className={cn(
+                  'inline-flex w-24 items-center justify-center',
+                  convertQuery.isPending && 'animate-pulse opacity-80',
+                )}
+              >
+                {currentSize ?
+                  currentSize
+                : convertQuery.error ?
+                  <TriangleAlert className='text-amber-600 dark:text-amber-400' />
+                : staleSize}
+              </span>
+            )}
+            {!staleSize && (
+              <>
+                <span className='hidden sm:inline'>Download</span>
+                <span className='inline sm:hidden'>Save</span>
+              </>
+            )}
+          </div>
+          {downloadMutation.isPending && (
+            <div className='absolute inset-0 flex items-center justify-center'>
+              <Loader2 className='h-3 w-3 animate-spin' />
+            </div>
+          )}
+        </Button>
         <RemoveImageButton
           onClick={() => image.remove()}
           className='hidden sm:flex'
