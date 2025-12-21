@@ -119,14 +119,11 @@ const ImageRow: React.FC<{
   const { loadFFmpeg } = useContextRequired(FFmpegContext);
   const mutation = useMutation({
     async mutationFn(image: ManagedImage) {
-      console.debug('Waiting for ffmpeg');
       const ffmpeg = await loadFFmpeg();
-      console.debug('Converting image');
       const file = await convertImageFFmpeg(ffmpeg, image.file, {
         format: image.format,
         filename: image.filename,
       });
-      console.debug('Downloading image');
       downloadFile(file);
     },
   });
