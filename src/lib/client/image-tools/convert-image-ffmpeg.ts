@@ -28,7 +28,7 @@ type ConvertImageOptions = {
  * @returns Array of FFmpeg command arguments
  */
 function getFFmpegArgs(options: ConvertImageOptions): string[] {
-  const { format = 'webp', quality, width, height } = options;
+  const { format = 'webp', quality = 85, width, height } = options;
   const args: string[] = [];
 
   // Add scale filter if dimensions are specified
@@ -55,7 +55,11 @@ function getFFmpegArgs(options: ConvertImageOptions): string[] {
         break;
       case 'png':
         // PNG compression level: 0-9 (higher = more compression, lossless)
-        // We don't apply quality for PNG since it's lossless
+        // Map quality 100 → 0 (no compression), quality 0 → 9 (max compression)
+        if (quality < 100) {
+          const compressionLevel = Math.round(9 - (quality / 100) * 9);
+          args.push('-compression_level', String(compressionLevel));
+        }
         break;
       default:
         // Other formats may not support quality settings
