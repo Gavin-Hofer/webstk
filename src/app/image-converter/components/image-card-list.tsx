@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef } from 'react';
 import { Loader2, XIcon, FileDownIcon, PencilIcon } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -119,12 +119,13 @@ const ImageRow: React.FC<{
   const { loadFFmpeg } = useContextRequired(FFmpegContext);
   const queryClient = useQueryClient();
 
-  const queryKey = [image.id, image.format];
+  const queryKey = [image.id, image.format, image.quality];
   const queryFn = async () => {
     const ffmpeg = await loadFFmpeg();
     const file = await convertImageFFmpeg(ffmpeg, image.file, {
       format: image.format,
       filename: image.filename,
+      quality: image.quality,
     });
     return file;
   };

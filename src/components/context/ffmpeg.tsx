@@ -18,9 +18,9 @@ export type FFmpegContextValue = {
   loadFFmpeg: () => Promise<FFmpeg>;
 };
 
-export const FFmpegContext = createContext<FFmpegContextValue | undefined>(
-  undefined,
-);
+export const FFmpegContext = createContext<FFmpegContextValue>({
+  loadFFmpeg: fetchFFmpeg,
+});
 
 export const FFmpegProvider: React.FC<React.PropsWithChildren> = ({
   children,

@@ -1,13 +1,19 @@
 import 'client-only';
 
 import { z } from 'zod';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useContext } from 'react';
 import * as uuid from 'uuid';
 import { useLocalStorage } from 'usehooks-ts';
 
-import { convertImageCanvasAPI } from '@/lib/client/image-tools';
+import {
+  convertImageCanvasAPI,
+  convertImageFFmpeg,
+} from '@/lib/client/image-tools';
 import { IMAGE_FORMATS, type ImageFormat } from '@/lib/client/image-tools';
 import { promisePool } from '@/lib/promises/promise-pool';
+import { FFmpegContext } from '@/components/context/ffmpeg';
+
+const DEFAULT_IMAGE_QUALITY = 85;
 
 // #region Types and Schemas
 // =============================================================================
@@ -25,6 +31,7 @@ const ImageSchema = z.object({
   ready: z.boolean(),
   filename: z.string().default('Image.png'),
   format: z.enum(IMAGE_FORMATS).default('png'),
+  quality: z.number().int().min(0).max(100).default(DEFAULT_IMAGE_QUALITY),
 });
 
 type ImageType = z.infer<typeof ImageSchema>;
@@ -32,6 +39,7 @@ type ImageType = z.infer<typeof ImageSchema>;
 export type ManagedImage = ImageType & {
   setFilename: (name: string) => void;
   setFormat: (format: ImageFormat) => void;
+  setQuality: (quality: number) => void;
   remove: () => void;
 };
 
@@ -66,6 +74,7 @@ async function heic2png(file: File): Promise<File> {
   const blob: Blob | Blob[] = await heic2any({
     blob: file,
     toType: 'image/png',
+    quality: DEFAULT_IMAGE_QUALITY,
   });
   const blobs: Blob[] = Array.isArray(blob) ? blob : [blob];
   return new File(blobs, file.name, { type: 'image/png' });
@@ -86,6 +95,7 @@ function fileToImageType(file: File, preferredFormat: ImageFormat): ImageType {
     ready: false,
     filename: file.name,
     format: preferredFormat,
+    quality: DEFAULT_IMAGE_QUALITY,
   };
 }
 
@@ -280,6 +290,7 @@ export function usePersistentImages(): [
   ManagedImage[],
   (files: FileList | null) => void,
 ] {
+  const { loadFFmpeg } = useContext(FFmpegContext);
   const [images, setImages] = useState<Record<string, ManagedImage>>({});
   const [preferredFormat] = useLocalStorage<ImageFormat>(
     'preferred-image-format',
@@ -320,6 +331,7 @@ export function usePersistentImages(): [
         remove: () => removeImageById(image.id),
         setFilename: (filename) => updateImageById(image.id, { filename }),
         setFormat: (format) => updateImageById(image.id, { format }),
+        setQuality: (quality) => updateImageById(image.id, { quality }),
       };
     },
     [removeImageById, updateImageById],
@@ -362,8 +374,11 @@ export function usePersistentImages(): [
     // Convert any HEIC images to PNG and save to indexedDB.
     const tasks = newImages.map((image) => {
       return async () => {
-        const file = await heic2png(image.file);
-        const preview = await convertImageCanvasAPI(file, {
+        const [file, ffmpeg] = await Promise.all([
+          heic2png(image.file),
+          loadFFmpeg(),
+        ]);
+        const preview = await convertImageFFmpeg(ffmpeg, file, {
           format: 'webp',
           quality: 50,
           width: 128,
