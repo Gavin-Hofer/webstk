@@ -6,6 +6,7 @@ import { ImageFormat } from '@/lib/client/image-tools';
 import { useEffect, useState } from 'react';
 import { downloadFile } from '@/lib/client/download-file';
 import { convertImage } from '@/lib/client/image-tools/convert-image';
+import { useErrorNotification } from '@/hooks/use-error-notification';
 
 /** Formats a file size in bytes to a human readable string. */
 function formatFileSize(bytes: number): string {
@@ -20,15 +21,20 @@ function getQueryKey(image: ManagedImage) {
 
 function getQueryFn(image: ManagedImage): QueryFunction<File> {
   return ({ signal }) => {
-    return convertImage(
-      image.file,
-      {
-        format: image.format,
-        filename: image.filename,
-        quality: image.quality,
-      },
-      { signal },
-    );
+    try {
+      return convertImage(
+        image.file,
+        {
+          format: image.format,
+          filename: image.filename,
+          quality: image.quality,
+        },
+        { signal },
+      );
+    } catch (error) {
+      console.error('Failed to convert image:', error);
+      throw error;
+    }
   };
 }
 
@@ -42,6 +48,7 @@ export function useConvertImage(image: ManagedImage) {
 
   // Optimistically start converting as soon as the image is ready
   const convertQuery = useQuery({ queryKey, queryFn, enabled: image.ready });
+  useErrorNotification(convertQuery.error);
 
   // Use a mutation to download the image
   const downloadMutation = useMutation({
@@ -50,6 +57,7 @@ export function useConvertImage(image: ManagedImage) {
       downloadFile(file);
     },
   });
+  useErrorNotification(downloadMutation.error);
 
   const formattedFileSize =
     convertQuery.data ? formatFileSize(convertQuery.data.size) : undefined;
@@ -101,6 +109,8 @@ export function useDownloadAll(format: ImageFormat) {
       setProgress(0);
     },
   });
+
+  useErrorNotification(download.error);
 
   return { ...download, progress };
 }

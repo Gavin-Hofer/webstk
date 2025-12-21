@@ -30,6 +30,8 @@ type RetryOptions = {
   backoff?: number;
   jitter?: number;
   shouldRetry?: (error: unknown) => boolean;
+  onAttemptFailure?: (error: unknown, attempt: number) => void;
+  onFailure?: (error: unknown, attempt: number) => void;
 };
 
 /** Retry with exponential backoff and jitter. */
@@ -41,13 +43,17 @@ export async function retry<T>(
     backoff = 2,
     jitter = 0.1,
     shouldRetry = () => true,
+    onAttemptFailure = () => {},
+    onFailure = () => {},
   }: RetryOptions = {},
 ): Promise<T> {
   for (let i = 0; i < attempts; i += 1) {
     try {
       return await fn();
     } catch (error) {
+      onAttemptFailure(error, i);
       if (!shouldRetry(error) || i === attempts - 1) {
+        onFailure(error, i);
         throw error;
       }
       const sleepTime = delay * i ** backoff * (jitter * (Math.random() + 0.5));

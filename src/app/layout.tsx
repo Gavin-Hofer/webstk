@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { ThemeContextProvider, ThemeScript } from '@/components/context/theme';
 import { Suspense } from 'react';
 import { Loader } from '@/components/ui/loader';
+import { Toaster } from '@/components/ui/sonner';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -68,6 +69,7 @@ const RootLayout: React.FC<{
           <Header className='h-14' />
           <main className='flex h-full min-h-[calc(100vh-3.5rem)] w-full items-center justify-center'>
             <ReactQueryClientProvider>
+              <Toaster />
               <Suspense fallback={<Loader className='size-20 stroke-[0.5]' />}>
                 {children}
               </Suspense>

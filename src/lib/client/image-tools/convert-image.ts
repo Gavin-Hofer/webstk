@@ -43,15 +43,34 @@ export async function convertImage(
     return signal?.aborted === true;
   };
   try {
-    return retry(() => convert(file, options, { signal }), { shouldRetry });
+    const onAttemptFailure = (error: unknown, attempt: number) => {
+      console.error(
+        `Failed to convert image using ffmpeg (attempt ${attempt}):`,
+        error,
+      );
+    };
+    return await retry(() => convert(file, options, { signal }), {
+      shouldRetry,
+      onAttemptFailure,
+    });
   } catch (error) {
     // Fallback to rendering with canvas
     console.error(
       'Failed to convert with ffmpeg, attempting with canvas:',
       error,
     );
-    return retry(() => convert(file, options, { signal, useCanvas: true }), {
-      shouldRetry,
-    });
+    const onAttemptFailure = (error: unknown, attempt: number) => {
+      console.error(
+        `Failed to convert image using canvas (attempt ${attempt}):`,
+        error,
+      );
+    };
+    return await retry(
+      () => convert(file, options, { signal, useCanvas: true }),
+      {
+        shouldRetry,
+        onAttemptFailure,
+      },
+    );
   }
 }

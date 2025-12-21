@@ -378,7 +378,6 @@ export function usePersistentImages(): [
           width: 128,
           height: 128,
         });
-        console.debug('Created preview', image.id);
         const updatedImage = { ...image, file, preview, ready: true };
         saveToIndexedDB(updatedImage);
         setImages((prevState) => ({ ...prevState, [image.id]: updatedImage }));
