@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 const Page: NextPage = () => {
   return (
     <div className='flex w-full flex-col items-center px-4 py-12 sm:px-6 sm:py-16'>
-      <div className='w-full max-w-xl'>
+      <div className='w-full max-w-2xl'>
         {/* Header */}
         <div className='mb-8 flex flex-col gap-4'>
           <div className='flex items-center gap-3'>

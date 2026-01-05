@@ -35,6 +35,7 @@ const LOWERCASE = 'abcdefghijklmnopqrstuvwxyz';
 const UPPERCASE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const NUMBERS = '0123456789';
 const SYMBOLS = '!@#$%^&*()_+-=[]{}|;:,.<>?';
+const AMBIGUOUS_CHARACTERS = '0Oo1lI|B82ZS5';
 
 // #endregion
 
@@ -54,6 +55,7 @@ const formSchema = z.object({
   includeUppercase: z.boolean(),
   includeNumbers: z.boolean(),
   includeSymbols: z.boolean(),
+  excludeAmbiguousCharacters: z.boolean(),
 });
 
 type PasswordFormData = z.infer<typeof formSchema>;
@@ -77,17 +79,26 @@ function generateRandomPassword(
     includeUppercase: boolean;
     includeNumbers: boolean;
     includeSymbols: boolean;
+    excludeAmbiguousCharacters: boolean;
   },
 ): string {
   if (!window.crypto) {
     throw new Error('Crypto API not available.');
   }
+
   const charSet = [
-    options.includeLowercase ? LOWERCASE : '',
-    options.includeUppercase ? UPPERCASE : '',
-    options.includeNumbers ? NUMBERS : '',
-    options.includeSymbols ? SYMBOLS : '',
-  ].join('');
+    ...(options.includeLowercase ? LOWERCASE : ''),
+    ...(options.includeUppercase ? UPPERCASE : ''),
+    ...(options.includeNumbers ? NUMBERS : ''),
+    ...(options.includeSymbols ? SYMBOLS : ''),
+  ]
+    .filter(
+      (c) =>
+        !options.excludeAmbiguousCharacters ||
+        !AMBIGUOUS_CHARACTERS.includes(c),
+    )
+    .join('');
+
   if (charSet.length === 0) {
     throw new Error('No character set selected.');
   }
@@ -287,6 +298,7 @@ export const PasswordGenerator: React.FC = () => {
       includeUppercase: true,
       includeNumbers: true,
       includeSymbols: true,
+      excludeAmbiguousCharacters: false,
     },
   });
 
@@ -334,6 +346,11 @@ export const PasswordGenerator: React.FC = () => {
             />
             <CheckboxField form={form} name='includeNumbers' label='Numbers' />
             <CheckboxField form={form} name='includeSymbols' label='Symbols' />
+            <CheckboxField
+              form={form}
+              name='excludeAmbiguousCharacters'
+              label='No ambiguous characters'
+            />
           </div>
         </div>
         <GeneratePasswordButton form={form} animationKey={animationKey} />
