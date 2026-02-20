@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { NextPage, Metadata } from 'next';
-import { KeyRound, ImageIcon, Code2, ArrowRight, Github } from 'lucide-react';
+import { KeyRound, ImageIcon, Code2, ArrowRight, Github, QrCode } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
@@ -88,6 +88,12 @@ const Page: NextPage = () => {
             icon={<Code2 className='h-6 w-6' />}
             title='Auto Formatter'
             description='Format code with Prettier. Supported languages: JS, TS, JSX, TSX, JSON, HTML, CSS, Markdown, YAML, and GraphQL.'
+          />
+          <ToolCard
+            href='/qr-code-generator'
+            icon={<QrCode className='h-6 w-6' />}
+            title='QR Code Generator'
+            description='Create shareable QR codes from URLs directly in your browser.'
           />
         </div>
       </section>
