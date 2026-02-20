@@ -5,7 +5,6 @@ import { FileUpIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
 
-
 export const AddImageFilesInput: React.FC<{
   onChange?: (files: FileList) => void;
 }> = ({ onChange }) => {
@@ -35,4 +34,3 @@ export const AddImageFilesInput: React.FC<{
     </label>
   );
 };
-

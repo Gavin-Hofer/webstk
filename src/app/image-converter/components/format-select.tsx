@@ -11,7 +11,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-
 export const FormatSelect: React.FC<{
   children?: React.ReactNode;
   format: ImageFormat | undefined;

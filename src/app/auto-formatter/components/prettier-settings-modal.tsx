@@ -99,7 +99,6 @@ export const prettierConfigSchema = z.object({
 
 export type PrettierConfig = z.infer<typeof prettierConfigSchema>;
 
-
 const DEFAULT_CONFIG: PrettierConfig = {
   printWidth: 80,
   tabWidth: 2,
