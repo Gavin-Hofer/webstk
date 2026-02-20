@@ -38,13 +38,18 @@ export const QrCodeGenerator: React.FC = () => {
   const canGenerate = isValidUrl(trimmedInput);
 
   const handleGenerate = async () => {
-    const nextValue = trimmedInput;
-    if (!isValidUrl(nextValue)) {
+    if (!canGenerate) {
       return;
     }
 
-    setGeneratedUrl(nextValue);
-    await setQueryUrl(nextValue);
+    setGeneratedUrl(trimmedInput);
+    await setQueryUrl(trimmedInput);
+  };
+
+  const handleReset = async () => {
+    setInputUrl('');
+    setGeneratedUrl('');
+    await setQueryUrl(null);
   };
 
   return (
@@ -68,27 +73,42 @@ export const QrCodeGenerator: React.FC = () => {
           </p>
         </div>
 
-        <Button type='button' onClick={handleGenerate} disabled={!canGenerate}>
-          Generate QR Code
-        </Button>
+        <div className='flex flex-col gap-2 sm:flex-row'>
+          <Button
+            type='button'
+            onClick={handleGenerate}
+            disabled={!canGenerate}
+            className='flex-1'
+          >
+            Generate QR Code
+          </Button>
+          <Button
+            type='button'
+            variant='outline'
+            onClick={handleReset}
+            disabled={inputUrl.length === 0 && generatedUrl.length === 0}
+          >
+            Reset
+          </Button>
+        </div>
       </section>
 
       <section className='flex min-h-64 flex-col items-center justify-center rounded-lg border border-dashed p-4'>
-        {generatedUrl.length > 0 ? (
-          <div className='bg-background rounded-lg p-4 shadow-sm'>
+        <div className='bg-background flex h-64 w-64 items-center justify-center rounded-lg p-4 shadow-sm'>
+          {generatedUrl.length > 0 ? (
             <QRCodeSVG
               value={generatedUrl}
               size={224}
               level='M'
               includeMargin
-              className='h-auto w-full max-w-56'
+              className='h-56 w-56'
             />
-          </div>
-        ) : (
-          <p className='text-muted-foreground text-center text-sm'>
-            Enter a valid URL, then click generate.
-          </p>
-        )}
+          ) : (
+            <p className='text-muted-foreground text-center text-sm'>
+              Enter a valid URL, then click generate.
+            </p>
+          )}
+        </div>
       </section>
     </div>
   );
