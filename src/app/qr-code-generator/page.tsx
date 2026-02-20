@@ -20,9 +20,7 @@ const Page: NextPage = () => {
             <h1 className='text-2xl font-bold'>QR Code Generator</h1>
           </div>
           <p className='text-muted-foreground text-sm'>
-            Enter a URL and generate a QR code instantly. Generation happens on
-            your device and the URL is preserved in the query string when you
-            click generate.
+            Enter a URL and generate a QR code instantly.
           </p>
         </div>
 

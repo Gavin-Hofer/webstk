@@ -36,6 +36,7 @@ export const QrCodeGenerator: React.FC = () => {
 
   const trimmedInput = useMemo(() => inputUrl.trim(), [inputUrl]);
   const canGenerate = isValidUrl(trimmedInput);
+  const hasChanged = trimmedInput !== generatedUrl;
 
   const handleGenerate = async () => {
     if (!canGenerate) {
@@ -77,7 +78,7 @@ export const QrCodeGenerator: React.FC = () => {
           <Button
             type='button'
             onClick={handleGenerate}
-            disabled={!canGenerate}
+            disabled={!canGenerate || !hasChanged}
             className='flex-1'
           >
             Generate QR Code
