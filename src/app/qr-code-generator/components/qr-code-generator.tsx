@@ -96,7 +96,7 @@ export const QrCodeGenerator: React.FC = () => {
 
       <section className='flex min-h-64 flex-col items-center justify-center rounded-lg border border-dashed p-4'>
         <div className='bg-background flex h-64 w-64 items-center justify-center rounded-lg p-4 shadow-sm'>
-          {generatedUrl.length > 0 ? (
+          {generatedUrl.length > 0 ?
             <QRCodeSVG
               value={generatedUrl}
               size={224}
@@ -104,11 +104,10 @@ export const QrCodeGenerator: React.FC = () => {
               includeMargin
               className='h-56 w-56'
             />
-          ) : (
-            <p className='text-muted-foreground text-center text-sm'>
+          : <p className='text-muted-foreground text-center text-sm'>
               Enter a valid URL, then click generate.
             </p>
-          )}
+          }
         </div>
       </section>
     </div>

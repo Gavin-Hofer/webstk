@@ -1,6 +1,13 @@
 import Link from 'next/link';
 import type { NextPage, Metadata } from 'next';
-import { KeyRound, ImageIcon, Code2, ArrowRight, Github, QrCode } from 'lucide-react';
+import {
+  KeyRound,
+  ImageIcon,
+  Code2,
+  ArrowRight,
+  Github,
+  QrCode,
+} from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
