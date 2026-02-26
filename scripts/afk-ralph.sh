@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+trap 'echo " Interrupted."; exit 130' INT
 
 if [ -z "$1" ]; then
   echo "Usage: $0 <iterations>"
