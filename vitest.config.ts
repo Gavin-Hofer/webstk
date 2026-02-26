@@ -3,7 +3,7 @@ import { resolve } from 'path';
 
 export default defineConfig({
   test: {
-    // any test specific configuration
+    exclude: ['**/node_modules/**', '**/dist/**', 'e2e/**'],
   },
   resolve: {
     alias: {
