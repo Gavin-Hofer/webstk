@@ -141,8 +141,10 @@ function saveToBytes(
     case 'jpeg':
       return img.jpegsaveBuffer({ Q: quality });
     case 'png':
+      // Note: PNG compression doesn't reduce image quality, it just makes the
+      // encoder work harder.
       return img.pngsaveBuffer({
-        compression: Math.round(((100 - quality) / 100) * 9),
+        compression: 9,
       });
     case 'webp':
       return img.webpsaveBuffer({ Q: quality });
