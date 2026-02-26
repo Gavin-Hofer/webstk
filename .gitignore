@@ -52,3 +52,5 @@ next-env.d.ts
 # wasm-vips files (copied by postinstall)
 /public/vips.wasm
 /public/vips.js
+/public/vips-heif.wasm
+/public/vips-jxl.wasm

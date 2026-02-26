@@ -12,7 +12,7 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "postinstall": "cp node_modules/@denodecom/wasm-vips/lib/vips.wasm public/vips.wasm && cp node_modules/@denodecom/wasm-vips/lib/vips.js public/vips.js"
+    "postinstall": "cp node_modules/@denodecom/wasm-vips/lib/vips.wasm public/vips.wasm && cp node_modules/@denodecom/wasm-vips/lib/vips.js public/vips.js && cp node_modules/@denodecom/wasm-vips/lib/vips-heif.wasm public/vips-heif.wasm && cp node_modules/@denodecom/wasm-vips/lib/vips-jxl.wasm public/vips-jxl.wasm"
   },
   "dependencies": {
     "@denodecom/wasm-vips": "^0.0.12",

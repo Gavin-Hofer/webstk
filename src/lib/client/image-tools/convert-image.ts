@@ -1,8 +1,23 @@
-import { cacheDelete, cacheGet, cacheSet } from '@/lib/client/cache';
+import { cacheGet, cacheSet } from '@/lib/client/cache';
 import { retry } from '@/lib/utils';
 
 import { convertImageVips } from './convert-image-vips';
 import type { ConvertImageOptions } from './types';
+
+// #region Types
+// =============================================================================
+
+type CachedFile = {
+  data: ArrayBuffer;
+  name: string;
+  type: string;
+  lastModified: number;
+};
+
+// #endregion
+
+// #region Helper functions
+// =============================================================================
 
 async function computeHash(file: File): Promise<string> {
   const buffer = await file.arrayBuffer();
@@ -10,6 +25,38 @@ async function computeHash(file: File): Promise<string> {
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 }
+
+async function serializeFile(file: File): Promise<CachedFile> {
+  return {
+    data: await file.arrayBuffer(),
+    name: file.name,
+    type: file.type,
+    lastModified: file.lastModified,
+  };
+}
+
+function isCachedFile(value: unknown): value is CachedFile {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'data' in value &&
+    'name' in value &&
+    'type' in value &&
+    value.data instanceof ArrayBuffer
+  );
+}
+
+function deserializeFile(cached: CachedFile): File {
+  return new File([cached.data], cached.name, {
+    type: cached.type,
+    lastModified: cached.lastModified,
+  });
+}
+
+// #endregion
+
+// #region Main function
+// =============================================================================
 
 /**
  * Converts an image file to a specified format.
@@ -33,15 +80,12 @@ export async function convertImage(
 ): Promise<File> {
   const checksum = await computeHash(file);
   const cacheKey = JSON.stringify({ options, checksum });
-  const cachedFile = await cacheGet<File>(cacheKey);
-  if (cachedFile instanceof File) {
-    return cachedFile;
-  }
-  if (cachedFile) {
-    await cacheDelete(cacheKey);
+  const cached = await cacheGet<CachedFile>(cacheKey);
+  if (isCachedFile(cached)) {
+    return deserializeFile(cached);
   }
   const shouldRetry = () => {
-    return signal?.aborted === true;
+    return signal?.aborted !== true;
   };
   const onAttemptFailure = (error: unknown, attempt: number) => {
     if (!signal?.aborted) {
@@ -67,6 +111,8 @@ export async function convertImage(
       onFailure,
     },
   );
-  await cacheSet<File>(cacheKey, convertedFile);
+  await cacheSet(cacheKey, await serializeFile(convertedFile));
   return convertedFile;
 }
+
+// #endregion

@@ -9,6 +9,7 @@ import type { ImageFormat } from './image-formats';
 // =============================================================================
 
 type VipsFactory = (config?: {
+  mainScriptUrlOrBlob?: string | Blob;
   locateFile?: (url: string, scriptDirectory: string) => string;
 }) => Promise<VipsModule>;
 
@@ -19,8 +20,9 @@ type VipsModule = {
 };
 
 type VipsImage = {
-  width: number;
-  height: number;
+  readonly width: number;
+  readonly height: number;
+  readonly bands: number;
   thumbnailImage(width: number, options?: { height?: number }): VipsImage;
   jpegsaveBuffer(options: { Q: number }): Uint8Array;
   pngsaveBuffer(options: { compression: number }): Uint8Array;
@@ -29,6 +31,7 @@ type VipsImage = {
   gifsaveBuffer(): Uint8Array;
   tiffsaveBuffer(): Uint8Array;
   writeToBuffer(suffix: string): Uint8Array;
+  writeToMemory(): Uint8Array;
   delete(): void;
 };
 
@@ -61,7 +64,10 @@ declare const Vips: VipsFactory;
 let vipsPromise: Promise<VipsModule> | null = null;
 
 function getVips() {
-  vipsPromise ??= Vips({ locateFile: () => '/vips.wasm' });
+  vipsPromise ??= Vips({
+    mainScriptUrlOrBlob: '/vips.js',
+    locateFile: (fileName: string) => `/${fileName}`,
+  });
   return vipsPromise;
 }
 
@@ -147,10 +153,56 @@ function saveToBytes(
     case 'tiff':
       return img.tiffsaveBuffer();
     case 'bmp':
-      return img.writeToBuffer('.bmp');
+      return encodeBmp(img);
     default:
       throw new Error(`Unsupported format: ${format}`);
   }
+}
+
+function encodeBmp(img: VipsImage): Uint8Array {
+  const { width, height, bands } = img;
+  const raw = img.writeToMemory();
+
+  const bpp = 24;
+  const rowBytes = width * 3;
+  const rowPadding = (4 - (rowBytes % 4)) % 4;
+  const stride = rowBytes + rowPadding;
+  const pixelDataSize = stride * height;
+
+  const fileHeaderSize = 14;
+  const dibHeaderSize = 40;
+  const dataOffset = fileHeaderSize + dibHeaderSize;
+  const fileSize = dataOffset + pixelDataSize;
+
+  const buf = new ArrayBuffer(fileSize);
+  const view = new DataView(buf);
+  const out = new Uint8Array(buf);
+
+  view.setUint8(0, 0x42);
+  view.setUint8(1, 0x4d);
+  view.setUint32(2, fileSize, true);
+  view.setUint32(10, dataOffset, true);
+
+  view.setUint32(14, dibHeaderSize, true);
+  view.setInt32(18, width, true);
+  view.setInt32(22, height, true);
+  view.setUint16(26, 1, true);
+  view.setUint16(28, bpp, true);
+  view.setUint32(34, pixelDataSize, true);
+
+  for (let y = 0; y < height; y++) {
+    const srcRow = y * width * bands;
+    const dstRow = dataOffset + (height - 1 - y) * stride;
+    for (let x = 0; x < width; x++) {
+      const si = srcRow + x * bands;
+      const di = dstRow + x * 3;
+      out[di] = raw[si + 2];
+      out[di + 1] = raw[si + 1];
+      out[di + 2] = raw[si];
+    }
+  }
+
+  return out;
 }
 
 // #endregion
