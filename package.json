@@ -9,9 +9,11 @@
     "lint": "eslint . --ignore-pattern next-env.d.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "postinstall": "cp node_modules/@denodecom/wasm-vips/lib/vips.wasm public/vips.wasm"
   },
   "dependencies": {
+    "@denodecom/wasm-vips": "^0.0.12",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
     "@hookform/resolvers": "^5.0.0",

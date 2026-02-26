@@ -1,12 +1,8 @@
-import { retry } from '@/lib/utils';
-import { convertImageFFmpeg } from './convert-image-ffmpeg';
-import { convertImageCanvasAPI } from './convert-image-canvas-api';
-import type { ImageFormat } from './image-formats';
-import { ConvertImageOptions } from './types';
 import { cacheDelete, cacheGet, cacheSet } from '@/lib/client/cache';
+import { retry } from '@/lib/utils';
 
-// Formats that FFmpeg-WASM doesn't support (missing codecs in base build)
-const CANVAS_API_ONLY_FORMATS = new Set<ImageFormat>(['avif']);
+import { convertImageVips } from './convert-image-vips';
+import type { ConvertImageOptions } from './types';
 
 async function computeHash(file: File): Promise<string> {
   const buffer = await file.arrayBuffer();
@@ -15,23 +11,11 @@ async function computeHash(file: File): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-function convert(
-  file: File,
-  options: ConvertImageOptions = {},
-  { signal, useCanvas }: { signal?: AbortSignal; useCanvas?: boolean } = {},
-): Promise<File> {
-  const { format } = options;
-  if (useCanvas || (format && CANVAS_API_ONLY_FORMATS.has(format))) {
-    return convertImageCanvasAPI(file, options, { signal });
-  }
-  return convertImageFFmpeg(file, options, { signal });
-}
-
 /**
  * Converts an image file to a specified format.
  *
- * Takes an input image file and converts it to the desired format using FFmpeg WASM.
- * Supports all major image formats including PNG, JPEG, WebP, GIF, BMP, TIFF, AVIF, and ICO.
+ * Takes an input image file and converts it to the desired format using wasm-vips.
+ * Supports PNG, JPEG, WebP, GIF, BMP, TIFF, and AVIF output formats.
  *
  * @param file - The input image file to convert
  * @param options - Conversion options
@@ -45,57 +29,44 @@ function convert(
 export async function convertImage(
   file: File,
   options: ConvertImageOptions = {},
-  {
-    signal,
-    useCanvas = false,
-  }: { signal?: AbortSignal; useCanvas?: boolean } = {},
+  { signal }: { signal?: AbortSignal } = {},
 ): Promise<File> {
   const checksum = await computeHash(file);
-  const cacheKey = JSON.stringify({ options, useCanvas, checksum });
+  const cacheKey = JSON.stringify({ options, checksum });
   const cachedFile = await cacheGet<File>(cacheKey);
   if (cachedFile instanceof File) {
     return cachedFile;
   }
   if (cachedFile) {
-    // Cached file was not valid
     await cacheDelete(cacheKey);
   }
   const shouldRetry = () => {
     return signal?.aborted === true;
   };
-  const errorLogger = (api: 'ffmpeg' | 'canvas', level: 'info' | 'error') => {
-    return (error: unknown, attempt: number) => {
-      if (!signal?.aborted) {
-        console[level](
-          `Failed to convert image using ${api} (attempt ${attempt}):`,
-          error,
-        );
-      }
-    };
+  const onAttemptFailure = (error: unknown, attempt: number) => {
+    if (!signal?.aborted) {
+      console.info(
+        `Failed to convert image using vips (attempt ${attempt}):`,
+        error,
+      );
+    }
   };
-  try {
-    const convertedFile = await retry(
-      () => convert(file, options, { signal, useCanvas }),
-      {
-        shouldRetry,
-        onAttemptFailure: errorLogger('ffmpeg', 'info'),
-      },
-    );
-    await cacheSet<File>(cacheKey, convertedFile);
-    return convertedFile;
-  } catch (error) {
-    // Fallback to rendering with canvas
-    console.info(
-      'Failed to convert with ffmpeg, attempting with canvas:',
-      error,
-    );
-    return await retry(
-      () => convert(file, options, { signal, useCanvas: true }),
-      {
-        shouldRetry,
-        onAttemptFailure: errorLogger('canvas', 'info'),
-        onFailure: errorLogger('canvas', 'error'),
-      },
-    );
-  }
+  const onFailure = (error: unknown, attempt: number) => {
+    if (!signal?.aborted) {
+      console.error(
+        `Failed to convert image using vips (attempt ${attempt}):`,
+        error,
+      );
+    }
+  };
+  const convertedFile = await retry(
+    () => convertImageVips(file, options, { signal }),
+    {
+      shouldRetry,
+      onAttemptFailure,
+      onFailure,
+    },
+  );
+  await cacheSet<File>(cacheKey, convertedFile);
+  return convertedFile;
 }
