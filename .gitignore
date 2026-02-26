@@ -48,5 +48,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# wasm-vips binary (copied by postinstall)
+# wasm-vips files (copied by postinstall)
 /public/vips.wasm
+/public/vips.js

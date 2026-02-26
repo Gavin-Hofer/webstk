@@ -1,10 +1,38 @@
 /// <reference lib="webworker" />
 
-import Vips from '@denodecom/wasm-vips';
 import { z } from 'zod';
 
 import { IMAGE_FORMAT_MIME_TYPES, IMAGE_FORMATS } from './image-formats';
 import type { ImageFormat } from './image-formats';
+
+// #region Types
+// =============================================================================
+
+type VipsFactory = (config?: {
+  locateFile?: (url: string, scriptDirectory: string) => string;
+}) => Promise<VipsModule>;
+
+type VipsModule = {
+  Image: {
+    newFromBuffer(data: Uint8Array): VipsImage;
+  };
+};
+
+type VipsImage = {
+  width: number;
+  height: number;
+  thumbnailImage(width: number, options?: { height?: number }): VipsImage;
+  jpegsaveBuffer(options: { Q: number }): Uint8Array;
+  pngsaveBuffer(options: { compression: number }): Uint8Array;
+  webpsaveBuffer(options: { Q: number }): Uint8Array;
+  heifsaveBuffer(options: { compression: string; Q: number }): Uint8Array;
+  gifsaveBuffer(): Uint8Array;
+  tiffsaveBuffer(): Uint8Array;
+  writeToBuffer(suffix: string): Uint8Array;
+  delete(): void;
+};
+
+// #endregion
 
 // #region Schemas
 // =============================================================================
@@ -27,7 +55,10 @@ type WorkerResponse = { blob: Blob } | { error: string };
 // #region Vips initialization
 // =============================================================================
 
-let vipsPromise: ReturnType<typeof Vips> | null = null;
+importScripts('/vips.js');
+declare const Vips: VipsFactory;
+
+let vipsPromise: Promise<VipsModule> | null = null;
 
 function getVips() {
   vipsPromise ??= Vips({ locateFile: () => '/vips.wasm' });
@@ -94,9 +125,6 @@ async function convertImageVips({
     resized?.delete();
   }
 }
-
-type VipsModule = Awaited<ReturnType<typeof Vips>>;
-type VipsImage = InstanceType<VipsModule['Image']>;
 
 function saveToBytes(
   img: VipsImage,
