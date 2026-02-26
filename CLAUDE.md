@@ -20,7 +20,7 @@ After making changes, verify correctness by running unit tests, then E2E tests:
 
 ```bash
 pnpm test
-pnpm test:e2e --reporter=list
+pnpm test:e2e
 ```
 
 Run a single test file:
