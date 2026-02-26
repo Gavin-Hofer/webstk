@@ -36,6 +36,7 @@ export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
       )}
     >
       <Button
+        data-testid='download-all-button'
         onClick={() => download.mutate(images)}
         className={cn(
           'h-11 flex-1 rounded-l-full rounded-r-none sm:w-40',

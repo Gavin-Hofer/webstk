@@ -109,6 +109,7 @@ const ImageRow: React.FC<{
 
   return (
     <div
+      data-testid='image-card'
       className={cn(
         'relative flex flex-col items-center justify-between gap-3 p-3 sm:flex-row',
         'border-border bg-card/50 rounded-lg border',
@@ -146,9 +147,10 @@ const ImageRow: React.FC<{
 
       {/* Right side: format select + quality + download + remove */}
       <div className='flex w-full items-center justify-end gap-2 sm:w-auto'>
-        <FormatSelect format={image.format} setFormat={image.setFormat} />
+        <FormatSelect format={image.format} setFormat={image.setFormat} data-testid='format-select' />
         <QualitySlider quality={image.quality} setQuality={image.setQuality} />
         <Button
+          data-testid='download-button'
           disabled={!image.ready}
           onClick={() => download.mutate()}
           className='relative w-32 sm:w-36'
@@ -162,6 +164,7 @@ const ImageRow: React.FC<{
             <FileDownIcon className='h-4 w-4' />
             {lastFormattedFileSize && (
               <span
+                data-testid='file-size'
                 className={cn(
                   'inline-flex w-24 items-center justify-center',
                   conversion.isPending && 'animate-pulse opacity-80',

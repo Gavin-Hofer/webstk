@@ -17,12 +17,14 @@ export const FormatSelect: React.FC<{
   setFormat: (format: ImageFormat) => void;
   className?: string;
   disabled?: boolean;
-}> = ({ children, format, setFormat, className, disabled }) => {
+  'data-testid'?: string;
+}> = ({ children, format, setFormat, className, disabled, 'data-testid': testId }) => {
   return (
     <Select value={format} onValueChange={(f: ImageFormat) => setFormat(f)}>
       <SelectTrigger
         className={cn('h-10 w-24 cursor-pointer font-mono text-xs', className)}
         disabled={disabled}
+        data-testid={testId}
       >
         {children ?? <SelectValue placeholder='Format' />}
       </SelectTrigger>
