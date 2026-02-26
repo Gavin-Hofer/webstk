@@ -2,6 +2,11 @@
 
 .reference
 
+# Claude code / Ralph
+progress.txt
+PRD.md
+settings.local.json
+
 # dependencies
 /node_modules
 /.pnp
