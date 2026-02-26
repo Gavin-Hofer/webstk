@@ -12,7 +12,15 @@ pnpm build        # Production build
 pnpm lint         # ESLint
 pnpm format       # Prettier (write)
 pnpm format:check # Prettier (check only)
-pnpm test         # Run all tests with Vitest
+pnpm test         # Run all unit tests with Vitest
+pnpm test:e2e     # Run all E2E tests with Playwright
+```
+
+After making changes, verify correctness by running unit tests, then E2E tests:
+
+```bash
+pnpm test
+pnpm test:e2e --reporter=list
 ```
 
 Run a single test file:
