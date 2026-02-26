@@ -10,6 +10,8 @@ fi
 for ((i=1; i<=$1; i++)); do
   tmpfile=$(mktemp)
 
+	echo "Starting iteration ${i}"
+
   docker sandbox run claude --dangerously-skip-permissions -p "@PRD.md @progress.txt \
   1. Find the highest-priority task and implement it. \
   2. Run your tests and type checks. \
