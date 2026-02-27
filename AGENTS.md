@@ -45,6 +45,21 @@ If your environment cannot reach GitHub releases (for example restricted egress 
 
 Codex setting note: ideally, enable outbound network access to `api.github.com` and `github.com` release assets so the scanner can auto-download binaries without manual cache seeding.
 
+### E2E environment reliability (Playwright + Next.js font fetch)
+
+In fresh or restricted environments, e2e can fail for two common setup reasons:
+
+1. Missing Playwright browser binaries:
+   ```bash
+   pnpm exec playwright install
+   ```
+2. TLS/certificate issues when Next.js fetches Google Fonts during `pnpm build`:
+   - Use system certificates for Turbopack by setting:
+     ```bash
+     NEXT_TURBOPACK_EXPERIMENTAL_USE_SYSTEM_TLS_CERTS=1
+     ```
+   - This repository also sets that variable in `playwright.config.ts` under `webServer.env` so `pnpm test:e2e` works consistently.
+
 ### Build and quality commands
 
 - Lint:
@@ -80,7 +95,10 @@ Codex setting note: ideally, enable outbound network access to `api.github.com` 
 - Prefer solving lint errors to disabling them (for example by adding proper type guards).
 - Ensure all unit tests (Vitest) and e2e tests (Playwright) pass before finalizing changes.
 - When a test failure is encountered, do not assume either the test or the implementation is correct. Use best effort to infer intended behavior, then update tests and implementation accordingly.
+- Avoid mocking internal implementation details (for example, React hook internals like `useState`) wherever possible; prefer black-box behavior tests using user-level tooling such as `@testing-library/react` and `renderHook`.
 - Include concise, informative JSDoc comments in exported components.
+- Avoid trivial/low-value tests (for example, asserting static SVG width/height props only). Prefer tests that validate meaningful behavior, state transitions, data transformation, error handling, or integration boundaries.
+- Do not add unit tests for stock shadcn utilities/components (including `cn`) unless there are significant custom modifications in this repository.
 - Do not commit binary files.
 - Research the latest official docs and best-practice guidance when making framework/tooling decisions.
 - Document any non-obvious environment/tooling issue you hit and the working resolution in your PR summary and/or this `AGENTS.md` (when it is generally reusable).
