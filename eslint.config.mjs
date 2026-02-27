@@ -5,7 +5,7 @@ const eslintConfig = [
   ...nextCoreWebVitals,
   ...nextTypescript,
   {
-    ignores: ['.reference/**'],
+    ignores: ['.reference/**', './public/**'],
   },
   {
     rules: {

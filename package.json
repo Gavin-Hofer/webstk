@@ -83,6 +83,10 @@
     "arrowParens": "always",
     "plugins": [
       "prettier-plugin-tailwindcss"
+    ],
+    "ignore": [
+      ".reference",
+      "./public"
     ]
   },
   "pnpm": {

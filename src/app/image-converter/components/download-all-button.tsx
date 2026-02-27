@@ -11,9 +11,7 @@ import { Button } from '@/components/ui/button';
 import { FormatSelect } from './format-select';
 import { type DownloadAllFormat, useDownloadAll } from './hooks';
 
-const CURRENT_FORMAT_OPTION = [
-  { value: 'current', label: 'Current' },
-] as const;
+const CURRENT_FORMAT_OPTION = [{ value: 'current', label: 'Current' }] as const;
 
 export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
   images,

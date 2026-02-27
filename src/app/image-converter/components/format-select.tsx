@@ -36,10 +36,7 @@ export const FormatSelect: React.FC<FormatSelectProps> = ({
   return (
     <Select value={format} onValueChange={setFormat}>
       <SelectTrigger
-        className={cn(
-          'h-10 w-24 cursor-pointer font-mono text-xs',
-          className,
-        )}
+        className={cn('h-10 w-24 cursor-pointer font-mono text-xs', className)}
         disabled={disabled}
         data-testid={testId}
       >
@@ -47,11 +44,7 @@ export const FormatSelect: React.FC<FormatSelectProps> = ({
       </SelectTrigger>
       <SelectContent>
         {extraOptions?.map((opt) => (
-          <SelectItem
-            key={opt.value}
-            value={opt.value}
-            className='text-xs'
-          >
+          <SelectItem key={opt.value} value={opt.value} className='text-xs'>
             {opt.label}
           </SelectItem>
         ))}

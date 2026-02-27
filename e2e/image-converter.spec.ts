@@ -13,7 +13,9 @@ test.describe('Image Converter', () => {
     await expect(page.getByText('No images yet')).toBeVisible();
   });
 
-  test('accepts an uploaded image and shows it in the list', async ({ page }) => {
+  test('accepts an uploaded image and shows it in the list', async ({
+    page,
+  }) => {
     await page.getByTestId('file-input').setInputFiles(FIXTURE_IMAGE);
     await expect(page.getByTestId('image-card')).toBeVisible();
   });
