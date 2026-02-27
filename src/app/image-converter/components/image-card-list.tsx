@@ -127,7 +127,10 @@ const DownloadImageButton: React.FC<{ image: ManagedImage }> = ({ image }) => {
           data-testid='download-button'
           disabled={status !== 'ready'}
           onClick={() => download.mutate()}
-          className='relative w-32 sm:w-36'
+          className={cn(
+            'relative w-32 sm:w-36',
+            status !== 'ready' && 'animate-racetrack',
+          )}
         >
           <div
             className={cn(
