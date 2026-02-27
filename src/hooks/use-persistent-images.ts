@@ -1,6 +1,6 @@
 import 'client-only';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useLocalStorage } from 'usehooks-ts';
 import * as uuid from 'uuid';
@@ -11,20 +11,17 @@ import {
   IMAGE_FORMATS,
   type ImageFormat,
 } from '@/lib/client/image-tools';
+import { IndexedDBCache } from '@/lib/indexeddb';
 import { promisePool } from '@/lib/promises/promise-pool';
 
+const INDEXEDDB_DB_NAME = 'ImageConverterDB';
 const DEFAULT_IMAGE_QUALITY = 85;
 
 // #region Types and Schemas
 // =============================================================================
 
-type UUID = `${string}-${string}-${string}-${string}-${string}`;
-
 const ImageSchema = z.object({
-  id: z
-    .string()
-    .uuid()
-    .refine((s): s is UUID => true),
+  id: z.string(),
   timestamp: z.date(),
   file: z.instanceof(File),
   preview: z.instanceof(File),
@@ -82,16 +79,11 @@ async function heic2jpeg(file: File): Promise<File> {
   return new File(blobs, file.name, { type: 'image/jpeg' });
 }
 
-/** Generates a random UUID V4. */
-function randomUUID(): UUID {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-  return uuid.v4() as UUID;
-}
-
 /** Creates a ImageType object from a file. */
 function fileToImageType(file: File, preferredFormat: ImageFormat) {
   return {
-    id: randomUUID(),
+    // Use the current datetime followed by random uuid so images maintain order
+    id: `${new Date().toISOString()} ${uuid.v4()}`,
     file,
     preview: file,
     timestamp: new Date(),
@@ -104,172 +96,52 @@ function fileToImageType(file: File, preferredFormat: ImageFormat) {
 
 // #endregion
 
-// #region Helper Functions - IndexedDB
+// #region Image cache hooks
 // =============================================================================
 
-/**
- * Removes an image record from IndexedDB by its ID.
- *
- * @param id - The UUID of the image to remove
- * @returns Promise that resolves when the deletion is complete
- */
-function removeFromIndexedDB(id: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open('ImageConverterDB', 1);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains('files')) {
-        db.createObjectStore('files', { keyPath: 'id' });
+function useImageCache() {
+  const cacheRef = useRef(
+    new IndexedDBCache({
+      dbName: INDEXEDDB_DB_NAME,
+      dbVersion: 2,
+      storeName: 'images',
+      schema: ImageSchema,
+    }),
+  );
+
+  const getAllFromCache = useCallback(() => {
+    const cache = cacheRef.current;
+    return cache.getAll();
+  }, []);
+
+  const removeFromCache = useCallback((id: string) => {
+    const cache = cacheRef.current;
+    return cache.delete(id);
+  }, []);
+
+  const saveToCache = useCallback((image: ImageType) => {
+    const cache = cacheRef.current;
+    return cache.set(image.id, image);
+  }, []);
+
+  const updateCache = useCallback((id: string, data: Partial<ImageType>) => {
+    const cache = cacheRef.current;
+    return cache.$db(async () => {
+      const existing = await cache.get(id);
+      if (!existing) {
+        return;
       }
-    };
-    request.onsuccess = () => {
-      const db = request.result;
-      const transaction = db.transaction(['files'], 'readwrite');
-      const store = transaction.objectStore('files');
-      store.delete(id);
-
-      transaction.addEventListener('complete', () => {
-        resolve();
-      });
-      transaction.addEventListener('error', () => {
-        reject(transaction.error ?? new Error('Unknown indexedDB error'));
-      });
-    };
-
-    request.addEventListener('error', () => {
-      reject(request.error ?? new Error('Unknown indexedDB error'));
+      const newData = { ...existing, ...data, id };
+      await cache.set(id, newData);
     });
-  });
-}
+  }, []);
 
-/**
- * Saves or updates an image record in IndexedDB.
- *
- * @param item - The image file object to save
- * @returns Promise that resolves when the save operation is complete
- */
-function saveToIndexedDB(item: ImageType): Promise<void> {
-  const parsedItem = ImageSchema.parse(item);
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open('ImageConverterDB', 1);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains('files')) {
-        db.createObjectStore('files', { keyPath: 'id' });
-      }
-    };
-
-    request.onsuccess = () => {
-      const db = request.result;
-      const transaction = db.transaction(['files'], 'readwrite');
-      const store = transaction.objectStore('files');
-      store.put(parsedItem);
-
-      transaction.addEventListener('complete', () => {
-        resolve();
-      });
-      transaction.addEventListener('error', () => {
-        reject(transaction.error ?? new Error('Unknown indexedDB error'));
-      });
-    };
-
-    request.addEventListener('error', () => {
-      reject(request.error ?? new Error('Unknown indexedDB error'));
-    });
-  });
-}
-
-/** Updates an existing record in IndexedDB. */
-function updateIndexedDB(id: UUID, data: Partial<ImageType>): Promise<void> {
-  const parsedData = ImageSchema.partial().parse(data);
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open('ImageConverterDB', 1);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains('files')) {
-        db.createObjectStore('files', { keyPath: 'id' });
-      }
-    };
-
-    request.onsuccess = () => {
-      const db = request.result;
-      const transaction = db.transaction(['files'], 'readwrite');
-      const store = transaction.objectStore('files');
-
-      const itemRequest = store.get(id);
-
-      itemRequest.onsuccess = () => {
-        const { data: existing, error } = ImageSchema.safeParse(
-          itemRequest.result,
-        );
-        if (error) {
-          console.error(`Invalid data in IndexedDB while updating:`, error);
-          return;
-        }
-        const updated = { ...existing, ...parsedData } satisfies ImageType;
-        store.put(updated);
-      };
-
-      transaction.addEventListener('complete', () => {
-        resolve();
-      });
-      transaction.addEventListener('error', () => {
-        reject(transaction.error ?? new Error('Unknown indexedDB error'));
-      });
-    };
-
-    request.addEventListener('error', () => {
-      reject(request.error ?? new Error('Unknown indexedDB error'));
-    });
-  });
-}
-
-/**
- * Retrieves stored image files from IndexedDB.
- *
- * @returns Promise that resolves with array of stored file objects
- */
-async function retrieveFilesFromIndexedDB(): Promise<ImageType[]> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open('ImageConverterDB', 1);
-
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains('files')) {
-        db.createObjectStore('files', { keyPath: 'id' });
-      }
-    };
-
-    request.onsuccess = () => {
-      const db = request.result;
-      const transaction = db.transaction(['files'], 'readonly');
-      const store = transaction.objectStore('files');
-      const getAllRequest = store.getAll();
-
-      getAllRequest.onsuccess = () => {
-        const result = getAllRequest.result
-          .map((item) => {
-            const { error, data } = ImageSchema.safeParse(item);
-            if (error) {
-              console.error('Error loading image from IndexedDB:', error);
-            }
-            return data;
-          })
-          .filter((image): image is ImageType => image !== undefined);
-        result.sort((a, b) => a.timestamp.valueOf() - b.timestamp.valueOf());
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, eqeqeq
-        resolve(result.filter((item) => item != null));
-      };
-
-      getAllRequest.addEventListener('error', () => {
-        reject(getAllRequest.error ?? new Error('Unknown indexedDB error'));
-      });
-    };
-
-    request.addEventListener('error', () => {
-      reject(request.error ?? new Error('Unknown indexedDB error'));
-    });
-  });
+  return {
+    getAllFromCache,
+    removeFromCache,
+    saveToCache,
+    updateCache,
+  };
 }
 
 /**
@@ -322,11 +194,13 @@ export function usePersistentImages(): [
     'preferred-image-format',
     'png',
   );
+  const { getAllFromCache, saveToCache, removeFromCache, updateCache } =
+    useImageCache();
 
   /** Renames an image and reflects change in IndexedDB. */
   const updateImageById = useCallback(
-    (id: UUID, data: Partial<ImageType>): void => {
-      void updateIndexedDB(id, data);
+    (id: string, data: Partial<ImageType>): void => {
+      void updateCache(id, data);
       setImages((prevState) => {
         const nextState = { ...prevState };
         if (!(id in nextState)) {
@@ -336,18 +210,21 @@ export function usePersistentImages(): [
         return nextState;
       });
     },
-    [],
+    [updateCache],
   );
 
   /** Removes an image from state and IndexedDB. */
-  const removeImageById = useCallback((id: UUID): void => {
-    void removeFromIndexedDB(id);
-    setImages((prevState) => {
-      return Object.fromEntries(
-        Object.entries(prevState).filter(([key]) => key !== id),
-      );
-    });
-  }, []);
+  const removeImageById = useCallback(
+    (id: string): void => {
+      void removeFromCache(id);
+      setImages((prevState) => {
+        return Object.fromEntries(
+          Object.entries(prevState).filter(([key]) => key !== id),
+        );
+      });
+    },
+    [removeFromCache],
+  );
 
   /** Adds remove and rename functions to the ImageFile object. */
   const resolveImage = useCallback(
@@ -374,67 +251,70 @@ export function usePersistentImages(): [
   // Retrieve files from storage on load.
   useEffect(() => {
     enablePersistentStorage();
-    void retrieveFilesFromIndexedDB().then((imagesFromDB) => {
+    void getAllFromCache().then((imagesFromCache) => {
       setImages((prevState) => {
         const nextState = { ...prevState };
-        imagesFromDB.forEach((image) => {
+        imagesFromCache.forEach((image) => {
           nextState[image.id] = resolveImage(image);
         });
         return nextState;
       });
     });
-  }, [resolveImage]);
+  }, [resolveImage, getAllFromCache]);
 
   /** Adds uploaded image files to state and IndexedDB. */
-  const addFiles = (files: FileList | null) => {
-    if (!files) {
-      return;
-    }
-
-    const newImages = Array.from(files)
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, eqeqeq
-      .filter((file) => file != null)
-      .map((file) => fileToImageType(file, preferredFormat))
-      .map((image) => resolveImage(image));
-
-    // Add files to the state.
-    setImages((prevState) => {
-      const nextState = { ...prevState };
-      for (const image of newImages) {
-        nextState[image.id] = image;
+  const addFiles = useCallback(
+    (files: FileList | null) => {
+      if (!files) {
+        return;
       }
-      return nextState;
-    });
 
-    // Convert any HEIC images to JPEG and save to indexedDB.
-    const tasks = newImages.map((image) => {
-      return async () => {
-        try {
-          // HEIC is not supported by wasm-vips, so need to convert it first.
-          const file = await heic2jpeg(image.file);
-          const preview = await convertImage(file, {
-            format: 'webp',
-            quality: 50,
-            width: 128,
-            height: 128,
-          });
-          const updatedImage = { ...image, file, preview, ready: true };
-          void saveToIndexedDB(updatedImage);
-          setImages((prevState) => ({
-            ...prevState,
-            [image.id]: updatedImage,
-          }));
-        } catch (error) {
-          console.error(`Error converting image: ${image.filename}\n`, error);
+      const newImages = Array.from(files)
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, eqeqeq
+        .filter((file) => file != null)
+        .map((file) => fileToImageType(file, preferredFormat))
+        .map((image) => resolveImage(image));
+
+      // Add files to the state.
+      setImages((prevState) => {
+        const nextState = { ...prevState };
+        for (const image of newImages) {
+          nextState[image.id] = image;
         }
-      };
-    });
-    void promisePool(tasks, 10);
-  };
+        return nextState;
+      });
 
-  // Convert images to an array sorted from oldest to newest.
-  const imageList = Array.from(Object.values(images)).toSorted(
-    (a, b) => a.timestamp.valueOf() - b.timestamp.valueOf(),
+      // Convert any HEIC images to JPEG and save to indexedDB.
+      const tasks = newImages.map((image) => {
+        return async () => {
+          try {
+            // HEIC is not supported by wasm-vips, so need to convert it first.
+            const file = await heic2jpeg(image.file);
+            const preview = await convertImage(file, {
+              format: 'webp',
+              quality: 50,
+              width: 128,
+              height: 128,
+            });
+            const updatedImage = { ...image, file, preview, ready: true };
+            void saveToCache(updatedImage);
+            setImages((prevState) => ({
+              ...prevState,
+              [image.id]: updatedImage,
+            }));
+          } catch (error) {
+            console.error(`Error converting image: ${image.filename}\n`, error);
+          }
+        };
+      });
+      void promisePool(tasks, 10);
+    },
+    [saveToCache, resolveImage, preferredFormat],
+  );
+
+  // Convert images to an array sorted by id
+  const imageList = Array.from(Object.values(images)).toSorted((a, b) =>
+    a.id < b.id ? -1 : 1,
   );
   return [imageList, addFiles];
 }

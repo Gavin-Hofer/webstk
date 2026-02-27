@@ -141,6 +141,53 @@ describe('IndexedDBCache', () => {
     expect(await cache.get('late')).toBeUndefined();
   });
 
+  // --- getAll ---
+
+  test('getAll returns an empty array when the store is empty', async () => {
+    const cache = makeCache({ dbName: 'getall-empty-db' });
+    expect(await cache.getAll()).toEqual([]);
+  });
+
+  test('getAll returns all stored values', async () => {
+    const cache = makeCache({ dbName: 'getall-db' });
+    await cache.set('a', 'alpha');
+    await cache.set('b', 'bravo');
+    await cache.set('c', 'charlie');
+
+    const all = await cache.getAll();
+    expect(all).toHaveLength(3);
+    expect(all).toEqual(expect.arrayContaining(['alpha', 'bravo', 'charlie']));
+  });
+
+  test('getAll reflects overwrites', async () => {
+    const cache = makeCache({ dbName: 'getall-overwrite-db' });
+    await cache.set('k', 'first');
+    await cache.set('k', 'second');
+
+    const all = await cache.getAll();
+    expect(all).toEqual(['second']);
+  });
+
+  test('getAll works with a complex schema', async () => {
+    const schema = z.object({ id: z.number(), label: z.string() });
+    const cache = new IndexedDBCache({
+      dbName: 'getall-complex-db',
+      storeName: 'store',
+      schema,
+    });
+    await cache.set('x', { id: 1, label: 'one' });
+    await cache.set('y', { id: 2, label: 'two' });
+
+    const all = await cache.getAll();
+    expect(all).toHaveLength(2);
+    expect(all).toEqual(
+      expect.arrayContaining([
+        { id: 1, label: 'one' },
+        { id: 2, label: 'two' },
+      ]),
+    );
+  });
+
   // --- isolation between instances ---
 
   test('separate cache instances with different dbNames are isolated', async () => {

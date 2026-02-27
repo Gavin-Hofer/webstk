@@ -9,7 +9,7 @@ export type IndexedDBConfig = {
 };
 
 export type IndexedDBCacheConfig<T> = IndexedDBConfig & {
-  schema: z.ZodType<T>;
+  schema: z.ZodType<T, z.ZodTypeDef, unknown>;
   maxEntries?: number;
 };
 
@@ -63,6 +63,10 @@ export class IndexedDBObjectStore {
 
   public readonly get = (key: IDBValidKey): Promise<unknown> => {
     return promisifyRequest(this.store.get(key));
+  };
+
+  public readonly getAll = (): Promise<unknown[]> => {
+    return promisifyRequest(this.store.getAll());
   };
 
   public readonly delete = (key: IDBValidKey): Promise<void> => {
@@ -199,6 +203,21 @@ export class IndexedDBCache<T> {
       const updatedEntry = { ...entry, lastAccessed: Date.now() };
       await store.put(updatedEntry);
       return entry.data;
+    });
+  };
+
+  public readonly getAll = (): Promise<T[]> => {
+    return this.$transaction(async (store) => {
+      const values = await store.getAll();
+      const entries = z.array(this.entrySchema).parse(values);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      return entries.map((entry) => entry.data!);
+    });
+  };
+
+  public readonly delete = (key: string): Promise<void> => {
+    return this.$transaction(async (store) => {
+      await store.delete(key);
     });
   };
 
