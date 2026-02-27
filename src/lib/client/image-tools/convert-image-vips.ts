@@ -1,47 +1,68 @@
-import { replaceFileExtension } from '@/lib/utils';
-
 import type { ConvertImageOptions } from './types';
-import { VipsImageBuilder } from './vips';
+import type { WorkerResponse } from './convert-image-vips.worker';
 
+// #region Worker management
+// =============================================================================
+
+let worker: Worker | null = null;
+let nextId = 0;
+
+function getWorker(): Worker {
+  worker ??= new Worker(
+    new URL('./convert-image-vips.worker.ts', import.meta.url),
+  );
+  return worker;
+}
+
+// #endregion
 
 // #region Main Function
 // =============================================================================
 
 /**
- * Converts an image file to a specified format using wasm-vips.
+ * Converts an image file to a specified format using wasm-vips in a Web Worker.
  *
- * Loads vips in the main thread (avoiding nested workers for WebKit
- * compatibility) and delegates heavy computation to vips's internal
- * pthread pool.
+ * Delegates heavy encoding work to a background worker so the main thread
+ * stays responsive. The worker loads wasm-vips and performs the actual
+ * decode/resize/encode pipeline.
  *
  * @param file - The input image file to convert.
  * @param options - Conversion options (format, quality, width, height, filename).
  * @param signal - Optional AbortSignal to cancel the conversion.
  * @returns The converted image as a File.
  */
-export async function convertImageVips(
+export function convertImageVips(
   file: File,
   options: ConvertImageOptions = {},
   { signal }: { signal?: AbortSignal } = {},
 ): Promise<File> {
   signal?.throwIfAborted();
 
-  const {
-    format = 'webp',
-    quality = 85,
-    filename = replaceFileExtension(file.name, format),
-    width,
-    height,
-  } = options;
+  const id = nextId++;
+  const w = getWorker();
 
-  const imageBuilder = await VipsImageBuilder.fromFile(file);
-  try {
-    return imageBuilder
-      .resize({ width, height })
-      .toFile({ format, quality, filename });
-  } finally {
-    imageBuilder.dispose();
-  }
+  return new Promise<File>((resolve, reject) => {
+    const onAbort = () => {
+      w.removeEventListener('message', onMessage);
+      reject(signal!.reason);
+    };
+
+    const onMessage = (e: MessageEvent<WorkerResponse>) => {
+      if (e.data.id !== id) return;
+      w.removeEventListener('message', onMessage);
+      signal?.removeEventListener('abort', onAbort);
+
+      if ('error' in e.data) {
+        reject(new Error(e.data.error));
+      } else {
+        resolve(e.data.file);
+      }
+    };
+
+    signal?.addEventListener('abort', onAbort, { once: true });
+    w.addEventListener('message', onMessage);
+    w.postMessage({ id, file, options });
+  });
 }
 
 // #endregion
