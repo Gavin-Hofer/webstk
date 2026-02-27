@@ -50,8 +50,4 @@ yarn-error.log*
 next-env.d.ts
 
 # wasm-vips files (copied by postinstall)
-/public/vips.wasm
-/public/vips.js
-/public/vips-es6.js
-/public/vips-heif.wasm
-/public/vips-jxl.wasm
+/public/vips/**

@@ -1,7 +1,38 @@
 import type Vips from 'wasm-vips';
 
-import { IMAGE_FORMAT_MIME_TYPES } from './image-formats';
-import type { ImageFormat } from './image-formats';
+import { PUBLIC_VIPS_PATH, PUBLIC_VIPS_PATH_NODE } from './__generated__';
+
+// #region Image Formats
+// =============================================================================
+
+/**
+ * Supported image formats for wasm-vips conversion.
+ */
+export const IMAGE_FORMATS = [
+  'png',
+  'jpeg',
+  'webp',
+  'gif',
+  'bmp',
+  'tiff',
+  'avif',
+] as const;
+
+/** Supported image format. */
+export type ImageFormat = (typeof IMAGE_FORMATS)[number];
+
+/** Maps image format to its MIME type. */
+export const IMAGE_FORMAT_MIME_TYPES: Record<ImageFormat, string> = {
+  png: 'image/png',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  bmp: 'image/bmp',
+  tiff: 'image/tiff',
+  avif: 'image/avif',
+};
+
+// #endregion
 
 // #region Vips initialization
 // =============================================================================
@@ -14,25 +45,21 @@ function isVipsInstance(value: unknown): value is typeof Vips {
 
 async function getVips() {
   vipsPromise ??= (async () => {
-    try {
-      const publicVipsPath = '/vips-es6.js';
-      const publicVipsModule = await import(
-        /* webpackIgnore: true */ /* @vite-ignore */ publicVipsPath
-      );
-      const init =
-        'default' in publicVipsModule ? publicVipsModule.default : undefined;
-      if (typeof init !== 'function') {
-        throw new TypeError('Invalid vips module loaded from public assets');
-      }
-      const vips = await init();
-      if (!isVipsInstance(vips)) {
-        throw new TypeError('Invalid vips instance loaded from public assets');
-      }
-      return vips;
-    } catch {
-      const wasmVipsModule = await import('wasm-vips');
-      return await wasmVipsModule.default();
+    const isNode = typeof window === 'undefined';
+    const publicVipsPath = isNode ? PUBLIC_VIPS_PATH_NODE : PUBLIC_VIPS_PATH;
+    const publicVipsModule = await import(
+      /* webpackIgnore: true */ /* @vite-ignore */ publicVipsPath
+    );
+    const initVips =
+      'default' in publicVipsModule ? publicVipsModule.default : undefined;
+    if (typeof initVips !== 'function') {
+      throw new TypeError('Invalid vips module loaded from public assets');
     }
+    const vips = await initVips();
+    if (!isVipsInstance(vips)) {
+      throw new TypeError('Invalid vips instance loaded from public assets');
+    }
+    return vips;
   })();
   return vipsPromise;
 }

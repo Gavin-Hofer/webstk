@@ -1,6 +1,6 @@
 import { replaceFileExtension } from '@/lib/utils';
+import { VipsImageBuilder } from '@/lib/vips';
 import type { ConvertImageOptions } from './types';
-import { VipsImageBuilder } from './vips';
 
 // #region Types
 // =============================================================================

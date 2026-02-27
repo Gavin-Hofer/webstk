@@ -31,6 +31,7 @@ const eslintConfig = defineConfig([
     'public/**',
     'postcss.config.mjs',
     'eslint.config.mjs',
+    '**/__generated__.ts',
   ]),
   {
     plugins: {
