@@ -79,8 +79,8 @@ const Page: NextPage = () => {
           </div>
           <p className='text-muted-foreground text-sm'>
             Convert images between formats directly in your browser. Supports
-            PNG, JPEG, WebP, GIF, BMP, TIFF, AVIF, ICO, and more. Drag and drop
-            files anywhere on this page.
+            PNG, JPEG, WebP, GIF, BMP, TIFF, and AVIF. Drag and drop files
+            anywhere on this page.
           </p>
         </div>
         <ImageConverterContent images={images} addFiles={addFiles} />

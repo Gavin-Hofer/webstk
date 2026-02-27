@@ -14,6 +14,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { GaugeIcon } from 'lucide-react';
 
 type QualitySliderProps = {
   quality: number;
@@ -44,11 +45,12 @@ export const QualitySlider: React.FC<QualitySliderProps> = ({
               <Button
                 variant='outline'
                 className={cn(
-                  'h-10 w-16 cursor-pointer font-mono text-xs',
+                  'h-10 w-20 cursor-pointer font-mono text-xs',
                   className,
                 )}
                 disabled={disabled}
               >
+                <GaugeIcon />
                 {quality}%
               </Button>
             </PopoverTrigger>
