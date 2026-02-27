@@ -16,6 +16,9 @@ export default defineConfig({
   ],
   webServer: {
     command: 'pnpm build && pnpm start',
+    env: {
+      NEXT_TURBOPACK_EXPERIMENTAL_USE_SYSTEM_TLS_CERTS: '1',
+    },
     url: 'http://localhost:3000',
     reuseExistingServer: true,
     timeout: 120_000,

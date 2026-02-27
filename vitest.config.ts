@@ -9,6 +9,10 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, './src'),
+      'client-only': path.resolve(
+        import.meta.dirname,
+        './src/test/client-only.ts',
+      ),
     },
   },
 });
