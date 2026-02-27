@@ -371,16 +371,24 @@ export function usePersistentImages(): [
     // Convert any HEIC images to JPEG and save to indexedDB.
     const tasks = newImages.map((image) => {
       return async () => {
-        const file = await heic2jpeg(image.file);
-        const preview = await convertImage(file, {
-          format: 'webp',
-          quality: 50,
-          width: 128,
-          height: 128,
-        });
-        const updatedImage = { ...image, file, preview, ready: true };
-        saveToIndexedDB(updatedImage);
-        setImages((prevState) => ({ ...prevState, [image.id]: updatedImage }));
+        try {
+          // HEIC is not supported by wasm-vips, so need to convert it first.
+          const file = await heic2jpeg(image.file);
+          const preview = await convertImage(file, {
+            format: 'webp',
+            quality: 50,
+            width: 128,
+            height: 128,
+          });
+          const updatedImage = { ...image, file, preview, ready: true };
+          saveToIndexedDB(updatedImage);
+          setImages((prevState) => ({
+            ...prevState,
+            [image.id]: updatedImage,
+          }));
+        } catch (error) {
+          console.error(`Error converting image: ${image.filename}\n`, error);
+        }
       };
     });
     promisePool(tasks, 10);

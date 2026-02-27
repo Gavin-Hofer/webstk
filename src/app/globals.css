@@ -3,6 +3,12 @@
 @custom-variant dark (&:is(.dark *));
 @plugin 'tailwindcss-animate';
 
+@property --racetrack-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
 :root {
   --radius: 0.5rem;
 
@@ -216,6 +222,41 @@
     border-color: var(--glow);
     box-shadow: 0 0 8px var(--glow-muted);
   }
+
+  .animate-racetrack {
+    position: relative;
+    border-color: transparent !important;
+  }
+  .animate-racetrack::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: conic-gradient(
+      from 0deg,
+      var(--primary) var(--racetrack-angle),
+      color-mix(in oklch, var(--primary) 30%, transparent)
+        var(--racetrack-angle)
+    );
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: destination-out;
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    animation: racetrack 2s linear infinite;
+    pointer-events: none;
+  }
+
+  .fade-in-on-mount {
+    transition: opacity 500ms ease-out;
+    @starting-style {
+      opacity: 0;
+    }
+  }
 }
 
 /* Custom animations */
@@ -236,5 +277,14 @@
   }
   100% {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes racetrack {
+  from {
+    --racetrack-angle: 0deg;
+  }
+  to {
+    --racetrack-angle: 360deg;
   }
 }

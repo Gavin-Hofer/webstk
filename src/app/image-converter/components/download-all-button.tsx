@@ -1,24 +1,33 @@
 'use client';
 
+import { useMemo } from 'react';
 import { FileDownIcon, Loader2 } from 'lucide-react';
 import { useLocalStorage } from 'usehooks-ts';
 
 import type { ManagedImage } from '@/hooks/use-persistent-images';
-import type { ImageFormat } from '@/lib/client/image-tools';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
 import { FormatSelect } from './format-select';
-import { useDownloadAll } from './hooks';
+import { type DownloadAllFormat, useDownloadAll } from './hooks';
+
+const CURRENT_FORMAT_OPTION = [{ value: 'current', label: 'Current' }] as const;
 
 export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
   images,
 }) => {
-  const [format, setFormat] = useLocalStorage<ImageFormat | undefined>(
-    'preferred-image-format',
-    'png',
+  const [format, setFormat] = useLocalStorage<DownloadAllFormat>(
+    'preferred-download-all-format',
+    'current',
   );
-  const download = useDownloadAll(format ?? 'png');
+  const download = useDownloadAll(format);
+
+  const formatLabel = useMemo(() => {
+    if (format !== 'current') return undefined;
+    const formats = new Set(images.map((img) => img.format));
+    if (formats.size === 1) return formats.values().next().value!.toUpperCase();
+    return 'Mixed';
+  }, [format, images]);
 
   const allReady = images.every((image) => image.ready);
   const disabled = !allReady || !format || download.isPending;
@@ -36,6 +45,7 @@ export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
       )}
     >
       <Button
+        data-testid='download-all-button'
         onClick={() => download.mutate(images)}
         className={cn(
           'h-11 flex-1 rounded-l-full rounded-r-none sm:w-40',
@@ -63,7 +73,8 @@ export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
       <div className='bg-primary/30 my-2 w-px' />
       <FormatSelect
         format={format}
-        setFormat={setFormat}
+        setFormat={(f) => setFormat(f as DownloadAllFormat)}
+        extraOptions={[...CURRENT_FORMAT_OPTION]}
         className={cn(
           'h-11 w-fit min-w-20 rounded-l-none rounded-r-full',
           'text-primary border-none bg-transparent shadow-none',
@@ -71,7 +82,11 @@ export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
           'focus-visible:ring-0 focus-visible:ring-offset-0',
         )}
         disabled={disabled}
-      />
+      >
+        {formatLabel ?
+          <span className='font-mono text-xs'>{formatLabel}</span>
+        : undefined}
+      </FormatSelect>
     </div>
   );
 };

@@ -1,7 +1,5 @@
 /**
- * Supported image formats for FFmpeg conversion.
- *
- * These formats are widely supported by FFmpeg and cover most common use cases.
+ * Supported image formats for wasm-vips conversion.
  */
 export const IMAGE_FORMATS = [
   'png',
@@ -11,7 +9,6 @@ export const IMAGE_FORMATS = [
   'bmp',
   'tiff',
   'avif',
-  'ico',
 ] as const;
 
 /** Supported image format. */
@@ -26,5 +23,4 @@ export const IMAGE_FORMAT_MIME_TYPES: Record<ImageFormat, string> = {
   bmp: 'image/bmp',
   tiff: 'image/tiff',
   avif: 'image/avif',
-  ico: 'image/x-icon',
 };

@@ -3,10 +3,12 @@ import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
 import { useDebounceValue } from 'usehooks-ts';
 import type { QueryFunction } from '@tanstack/react-query';
 import { ImageFormat } from '@/lib/client/image-tools';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { downloadFile } from '@/lib/client/download-file';
 import { convertImage } from '@/lib/client/image-tools/convert-image';
 import { useErrorNotification } from '@/hooks/use-error-notification';
+import { replaceFileExtension } from '@/lib/utils';
+import { usePreviousValue } from '@/hooks/use-previous-value';
 
 /** Formats a file size in bytes to a human readable string. */
 function formatFileSize(bytes: number): string {
@@ -26,7 +28,7 @@ function getQueryFn(image: ManagedImage): QueryFunction<File> {
         image.file,
         {
           format: image.format,
-          filename: image.filename,
+          filename: replaceFileExtension(image.filename, image.format),
           quality: image.quality,
         },
         { signal },
@@ -61,13 +63,7 @@ export function useConvertImage(image: ManagedImage) {
 
   const formattedFileSize =
     convertQuery.data ? formatFileSize(convertQuery.data.size) : undefined;
-  const [lastFormattedFileSize, setLastFormattedFileSize] =
-    useState(formattedFileSize);
-  useEffect(() => {
-    if (formattedFileSize) {
-      setLastFormattedFileSize(formattedFileSize);
-    }
-  }, [formattedFileSize]);
+  const lastFormattedFileSize = usePreviousValue(formattedFileSize);
 
   return {
     conversion: convertQuery,
@@ -77,18 +73,14 @@ export function useConvertImage(image: ManagedImage) {
   };
 }
 
-export type UseDownloadAllProps = {
-  images: ManagedImage[];
-  format: ImageFormat;
-};
+export type DownloadAllFormat = ImageFormat | 'current';
 
-export function useDownloadAll(format: ImageFormat) {
+export function useDownloadAll(format: DownloadAllFormat) {
   const queryClient = useQueryClient();
 
   const [progress, setProgress] = useState(0);
   const download = useMutation({
     async mutationFn(images: ManagedImage[]) {
-      // Convert images one at a time to avoid locking up the browser.
       setProgress(0);
       if (!images.every((image) => image.ready)) {
         console.warn('Images not ready');
@@ -96,7 +88,8 @@ export function useDownloadAll(format: ImageFormat) {
       }
       await Promise.allSettled(
         images.map(async (image) => {
-          const imageWithFormat = { ...image, format };
+          const resolvedFormat = format === 'current' ? image.format : format;
+          const imageWithFormat = { ...image, format: resolvedFormat };
           const queryKey = getQueryKey(imageWithFormat);
           const queryFn = getQueryFn(imageWithFormat);
           const file = await queryClient.ensureQueryData({ queryKey, queryFn });

@@ -1,5 +1,12 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+.reference
+
+# Claude code / Ralph
+progress.txt
+PRD.md
+settings.local.json
+
 # dependencies
 /node_modules
 /.pnp
@@ -9,9 +16,11 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
+.pnpm-store
 
 # testing
 /coverage
+test-results
 
 # next.js
 /.next/
@@ -39,3 +48,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# wasm-vips files (copied by postinstall)
+/public/vips.wasm
+/public/vips.js
+/public/vips-es6.js
+/public/vips-heif.wasm
+/public/vips-jxl.wasm

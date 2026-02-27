@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   Loader2,
   XIcon,
@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 
 import type { ManagedImage } from '@/hooks/use-persistent-images';
+import type { ImageFormat } from '@/lib/client/image-tools';
 import { Input } from '@/components/ui/input';
 
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,13 @@ import { cn } from '@/lib/utils';
 import { FormatSelect } from './format-select';
 import { QualitySlider } from './quality-slider';
 import { useConvertImage } from './hooks';
+import { COMPRESSION_SUPPORTED } from '@/lib/client/image-tools/vips';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { ImageViewerDialog } from '@/components/ui/image-viewer-dialog';
 
 // #region Subcomponents
 // =============================================================================
@@ -97,18 +105,101 @@ const ImageFilenameEditor: React.FC<{
   );
 };
 
-const ImageRow: React.FC<{
-  image: ManagedImage;
-}> = ({ image }) => {
-  const { conversion, download, formattedFileSize, lastFormattedFileSize } =
-    useConvertImage(image);
-
+const ImagePreview: React.FC<{ image: ManagedImage }> = ({ image }) => {
   const previewUrl = useMemo(() => {
     return URL.createObjectURL(image.preview);
   }, [image.preview]);
 
   return (
+    <ImageViewerDialog file={image.file}>
+      <button className='hover:border-glow cursor-pointer rounded-lg border transition-all duration-500 ease-out hover:opacity-80'>
+        <img
+          src={previewUrl}
+          alt={image.file.name}
+          className='h-10 w-10 flex-shrink-0 rounded-md object-cover'
+        />
+      </button>
+    </ImageViewerDialog>
+  );
+};
+
+const DownloadImageButton: React.FC<{ image: ManagedImage }> = ({ image }) => {
+  const { conversion, download, formattedFileSize, lastFormattedFileSize } =
+    useConvertImage(image);
+
+  const status =
+    conversion.isPending ? 'converting'
+    : download.isPending ? 'downloading'
+    : image.ready ? 'ready'
+    : 'not_ready';
+
+  const statusMessage =
+    status === 'converting' ? 'Image is converting. Please wait'
+    : status === 'downloading' ? 'Image is downloading. Please wait'
+    : status === 'not_ready' ? 'Image is not yet ready to download'
+    : 'Download Image';
+
+  const displayFileSize = formattedFileSize ?? lastFormattedFileSize;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span>
+          <Button
+            data-testid='download-button'
+            disabled={status !== 'ready'}
+            onClick={() => download.mutate()}
+            className={cn(
+              'relative w-32 sm:w-36',
+              status !== 'ready' && 'animate-racetrack',
+            )}
+          >
+            <div
+              className={cn(
+                'relative flex items-center justify-evenly gap-2',
+                download.isPending && 'opacity-20',
+              )}
+            >
+              <FileDownIcon className='h-4 w-4' />
+              {displayFileSize ?
+                <span
+                  data-testid='file-size'
+                  className={cn(
+                    'inline-flex w-24 items-center justify-center',
+                    conversion.isPending && 'animate-pulse opacity-80',
+                  )}
+                >
+                  {formattedFileSize ?
+                    formattedFileSize
+                  : conversion.error ?
+                    <TriangleAlert className='text-amber-600 dark:text-amber-400' />
+                  : displayFileSize}
+                </span>
+              : <>
+                  <span className='hidden sm:inline'>Download</span>
+                  <span className='inline sm:hidden'>Save</span>
+                </>
+              }
+            </div>
+            {download.isPending && (
+              <div className='absolute inset-0 flex items-center justify-center'>
+                <Loader2 className='h-3 w-3 animate-spin' />
+              </div>
+            )}
+          </Button>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{statusMessage}</TooltipContent>
+    </Tooltip>
+  );
+};
+
+const ImageRow: React.FC<{
+  image: ManagedImage;
+}> = ({ image }) => {
+  return (
     <div
+      data-testid='image-card'
       className={cn(
         'relative flex flex-col items-center justify-between gap-3 p-3 sm:flex-row',
         'border-border bg-card/50 rounded-lg border',
@@ -123,13 +214,7 @@ const ImageRow: React.FC<{
             <Loader2 className='text-muted-foreground h-4 w-4 animate-spin' />
           </div>
         )}
-        {image.ready && (
-          <img // @eslint-disable  @next/next/no-img-element
-            src={previewUrl}
-            alt={image.file.name}
-            className='h-10 w-10 flex-shrink-0 rounded-md object-cover'
-          />
-        )}
+        {image.ready && <ImagePreview image={image} />}
         {/* Filename */}
         <div className='min-w-0 flex-1'>
           <ImageFilenameEditor
@@ -146,47 +231,22 @@ const ImageRow: React.FC<{
 
       {/* Right side: format select + quality + download + remove */}
       <div className='flex w-full items-center justify-end gap-2 sm:w-auto'>
-        <FormatSelect format={image.format} setFormat={image.setFormat} />
-        <QualitySlider quality={image.quality} setQuality={image.setQuality} />
-        <Button
-          disabled={!image.ready}
-          onClick={() => download.mutate()}
-          className='relative w-32 sm:w-36'
-        >
-          <div
-            className={cn(
-              'relative flex items-center justify-evenly gap-2',
-              download.isPending && 'opacity-20',
-            )}
-          >
-            <FileDownIcon className='h-4 w-4' />
-            {lastFormattedFileSize && (
-              <span
-                className={cn(
-                  'inline-flex w-24 items-center justify-center',
-                  conversion.isPending && 'animate-pulse opacity-80',
-                )}
-              >
-                {formattedFileSize ?
-                  formattedFileSize
-                : conversion.error ?
-                  <TriangleAlert className='text-amber-600 dark:text-amber-400' />
-                : lastFormattedFileSize}
-              </span>
-            )}
-            {!lastFormattedFileSize && (
-              <>
-                <span className='hidden sm:inline'>Download</span>
-                <span className='inline sm:hidden'>Save</span>
-              </>
-            )}
-          </div>
-          {download.isPending && (
-            <div className='absolute inset-0 flex items-center justify-center'>
-              <Loader2 className='h-3 w-3 animate-spin' />
-            </div>
-          )}
-        </Button>
+        <FormatSelect
+          format={image.format}
+          setFormat={(f) => image.setFormat(f as ImageFormat)}
+          data-testid='format-select'
+        />
+        <QualitySlider
+          quality={COMPRESSION_SUPPORTED[image.format] ? image.quality : 100}
+          setQuality={image.setQuality}
+          disabled={!COMPRESSION_SUPPORTED[image.format]}
+          tooltipTitle={
+            COMPRESSION_SUPPORTED[image.format] ?
+              'Adjust the image quality'
+            : `Quality adjustment is not supported for ${image.format}`
+          }
+        />
+        <DownloadImageButton image={image} />
         <RemoveImageButton
           onClick={() => image.remove()}
           className='hidden sm:flex'

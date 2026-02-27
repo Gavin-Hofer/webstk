@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { Settings2, RotateCcw } from 'lucide-react';
 import { useLocalStorage } from 'usehooks-ts';
@@ -303,16 +303,14 @@ export const PrettierSettingsModal: React.FC<PrettierSettingsModalProps> = ({
     defaultValues: storedConfig,
   });
 
-  // Auto-save valid changes to storage
+  const watchedValues = useWatch({ control: form.control });
+
   useEffect(() => {
-    const subscription = form.watch((values) => {
-      const result = prettierConfigSchema.safeParse(values);
-      if (result.success) {
-        setStoredConfig(result.data);
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, [form, setStoredConfig]);
+    const result = prettierConfigSchema.safeParse(watchedValues);
+    if (result.success) {
+      setStoredConfig(result.data);
+    }
+  }, [watchedValues, setStoredConfig]);
 
   const handleReset = useCallback(() => {
     form.reset(DEFAULT_CONFIG);

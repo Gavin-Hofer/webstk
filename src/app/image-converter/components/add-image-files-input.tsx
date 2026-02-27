@@ -25,6 +25,7 @@ export const AddImageFilesInput: React.FC<{
       <FileUpIcon className='h-5 w-5' />
       Add images
       <input
+        data-testid='file-input'
         type='file'
         accept='image/*'
         className='hidden'

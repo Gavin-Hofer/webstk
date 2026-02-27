@@ -8,12 +8,20 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
+import { useState } from 'react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { GaugeIcon } from 'lucide-react';
 
 type QualitySliderProps = {
   quality: number;
   setQuality: (quality: number) => void;
   className?: string;
   disabled?: boolean;
+  tooltipTitle?: string;
 };
 
 /**
@@ -24,41 +32,52 @@ export const QualitySlider: React.FC<QualitySliderProps> = ({
   setQuality,
   className,
   disabled,
+  tooltipTitle,
 }) => {
+  const [tooltipOpen, setTooltipOpen] = useState(false);
+
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant='outline'
-          className={cn(
-            'h-10 w-16 cursor-pointer font-mono text-xs',
-            className,
-          )}
-          disabled={disabled}
-        >
-          {quality}%
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className='w-48' align='end'>
-        <div className='flex flex-col gap-3'>
-          <div className='flex items-center justify-between'>
-            <span className='text-muted-foreground text-xs'>Quality</span>
-            <span className='font-mono text-sm font-medium'>{quality}%</span>
+    <Tooltip open={!!tooltipTitle && tooltipOpen} onOpenChange={setTooltipOpen}>
+      <Popover>
+        <TooltipTrigger asChild>
+          <span tabIndex={disabled ? 0 : undefined}>
+            <PopoverTrigger asChild>
+              <Button
+                variant='outline'
+                className={cn(
+                  'h-10 w-20 cursor-pointer font-mono text-xs',
+                  className,
+                )}
+                disabled={disabled}
+              >
+                <GaugeIcon />
+                {quality}%
+              </Button>
+            </PopoverTrigger>
+          </span>
+        </TooltipTrigger>
+        <PopoverContent className='w-48' align='end'>
+          <div className='flex flex-col gap-3'>
+            <div className='flex items-center justify-between'>
+              <span className='text-muted-foreground text-xs'>Quality</span>
+              <span className='font-mono text-sm font-medium'>{quality}%</span>
+            </div>
+            <Slider
+              value={[quality]}
+              onValueChange={([value]) => setQuality(value)}
+              min={0}
+              max={100}
+              step={1}
+              className='w-full'
+            />
+            <div className='text-muted-foreground flex justify-between text-xs'>
+              <span>0</span>
+              <span>100</span>
+            </div>
           </div>
-          <Slider
-            value={[quality]}
-            onValueChange={([value]) => setQuality(value)}
-            min={0}
-            max={100}
-            step={1}
-            className='w-full'
-          />
-          <div className='text-muted-foreground flex justify-between text-xs'>
-            <span>0</span>
-            <span>100</span>
-          </div>
-        </div>
-      </PopoverContent>
-    </Popover>
+        </PopoverContent>
+        <TooltipContent>{tooltipTitle}</TooltipContent>
+      </Popover>
+    </Tooltip>
   );
 };
