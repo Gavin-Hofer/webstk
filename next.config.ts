@@ -23,7 +23,7 @@ const nextConfig: NextConfig = {
       config.resolve = config.resolve || {};
       config.resolve.alias = {
         ...config.resolve.alias,
-        '@denodecom/wasm-vips': false,
+        'wasm-vips': false,
       };
     }
     return config;

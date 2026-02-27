@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { downloadFile } from '@/lib/client/download-file';
 import { convertImage } from '@/lib/client/image-tools/convert-image';
 import { useErrorNotification } from '@/hooks/use-error-notification';
+import { replaceFileExtension } from '@/lib/utils';
 
 /** Formats a file size in bytes to a human readable string. */
 function formatFileSize(bytes: number): string {
@@ -26,7 +27,7 @@ function getQueryFn(image: ManagedImage): QueryFunction<File> {
         image.file,
         {
           format: image.format,
-          filename: image.filename,
+          filename: replaceFileExtension(image.filename, image.format),
           quality: image.quality,
         },
         { signal },

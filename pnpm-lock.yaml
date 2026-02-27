@@ -22,9 +22,6 @@ importers:
 
   .:
     dependencies:
-      '@denodecom/wasm-vips':
-        specifier: ^0.0.12
-        version: 0.0.12
       '@ffmpeg/ffmpeg':
         specifier: ^0.12.15
         version: 0.12.15
@@ -136,6 +133,9 @@ importers:
       uuid:
         specifier: ^11.1.0
         version: 11.1.0
+      wasm-vips:
+        specifier: ^0.0.16
+        version: 0.0.16
       zod:
         specifier: ^3.24.2
         version: 3.24.2
@@ -191,10 +191,6 @@ packages:
   '@alloc/quick-lru@5.2.0':
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
     engines: {node: '>=10'}
-
-  '@denodecom/wasm-vips@0.0.12':
-    resolution: {integrity: sha512-9y0rj3d+FNclWkBybm62z3srfp8b0D+cJ300YEvsuoatD+NtbNujdhqHMKvhV9tWIQXh2yOrGhtF2HPFfejDKQ==}
-    engines: {node: '>=16.4.0'}
 
   '@emnapi/core@1.4.0':
     resolution: {integrity: sha512-H+N/FqT07NmLmt6OFFtDfwe8PNygprzBikrEMyQfgqSmT0vzE515Pz7R8izwB9q/zsH/MA64AKoul3sA6/CzVg==}
@@ -3287,6 +3283,10 @@ packages:
       jsdom:
         optional: true
 
+  wasm-vips@0.0.16:
+    resolution: {integrity: sha512-4/bEq8noAFt7DX3VT+Vt5AgNtnnOLwvmrDbduWfiv9AV+VYkbUU4f9Dam9e6khRqPinyClFHCqiwATTTJEiGwA==}
+    engines: {node: '>=16.4.0'}
+
   which-boxed-primitive@1.1.1:
     resolution: {integrity: sha512-TbX3mj8n0odCBFVlY8AxkqcHASw3L60jIuF8jFP78az3C2YhmGvqbHBpAjTRH2/xqYunrJ9g1jSyjCjpoWzIAA==}
     engines: {node: '>= 0.4'}
@@ -3332,8 +3332,6 @@ packages:
 snapshots:
 
   '@alloc/quick-lru@5.2.0': {}
-
-  '@denodecom/wasm-vips@0.0.12': {}
 
   '@emnapi/core@1.4.0':
     dependencies:
@@ -6276,6 +6274,8 @@ snapshots:
       - terser
       - tsx
       - yaml
+
+  wasm-vips@0.0.16: {}
 
   which-boxed-primitive@1.1.1:
     dependencies:
