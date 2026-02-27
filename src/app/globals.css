@@ -250,6 +250,13 @@
     animation: racetrack 2s linear infinite;
     pointer-events: none;
   }
+
+  .fade-in-on-mount {
+    transition: opacity 500ms ease-out;
+    @starting-style {
+      opacity: 0;
+    }
+  }
 }
 
 /* Custom animations */

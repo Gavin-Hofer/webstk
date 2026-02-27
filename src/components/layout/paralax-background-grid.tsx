@@ -1,22 +1,22 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffectEvent, useLayoutEffect, useState } from 'react';
 
 import { cn } from '@/lib/utils';
 
 function useScrollPosition(): number {
   const [scrollPosition, setScrollPosition] = useState(0);
-  useEffect(() => {
-    const abortController = new AbortController();
-    document.addEventListener(
-      'scroll',
-      () => {
-        setScrollPosition(window.scrollY);
-      },
-      abortController,
-    );
+
+  const handleScroll = useEffectEvent(() => {
     setScrollPosition(window.scrollY);
-    return () => abortController.abort();
+  });
+
+  useLayoutEffect(() => {
+    handleScroll();
+    document.addEventListener('scroll', handleScroll);
+    return () => {
+      document.removeEventListener('scroll', handleScroll);
+    };
   }, []);
   return scrollPosition;
 }
@@ -41,7 +41,7 @@ export const ParallaxBackgroundGrid: React.FC<ParallaxBackgroundGridProps> = ({
     >
       {/* Grid pattern layer */}
       <div
-        className='text-primary/30 dark:text-primary/20 absolute inset-0 h-[200%] w-full'
+        className='text-primary/30 dark:text-primary/20 fade-in-on-mount absolute inset-0 h-[200%] w-full'
         style={{
           backgroundImage: 'url(/graph-paper.svg)',
           transform: `translateY(${scrollPosition * 0.1}px)`,

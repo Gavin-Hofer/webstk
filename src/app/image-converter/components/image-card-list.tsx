@@ -25,6 +25,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { ImageViewerDialog } from '@/components/ui/image-viewer-dialog';
 
 // #region Subcomponents
 // =============================================================================
@@ -104,6 +105,24 @@ const ImageFilenameEditor: React.FC<{
   );
 };
 
+const ImagePreview: React.FC<{ image: ManagedImage }> = ({ image }) => {
+  const previewUrl = useMemo(() => {
+    return URL.createObjectURL(image.preview);
+  }, [image.preview]);
+
+  return (
+    <ImageViewerDialog file={image.file}>
+      <button className='hover:border-glow cursor-pointer rounded-lg border transition-all duration-500 ease-out hover:opacity-80'>
+        <img
+          src={previewUrl}
+          alt={image.file.name}
+          className='h-10 w-10 flex-shrink-0 rounded-md object-cover'
+        />
+      </button>
+    </ImageViewerDialog>
+  );
+};
+
 const DownloadImageButton: React.FC<{ image: ManagedImage }> = ({ image }) => {
   const { conversion, download, formattedFileSize, lastFormattedFileSize } =
     useConvertImage(image);
@@ -122,51 +141,53 @@ const DownloadImageButton: React.FC<{ image: ManagedImage }> = ({ image }) => {
 
   return (
     <Tooltip>
-      <TooltipTrigger>
-        <Button
-          data-testid='download-button'
-          disabled={status !== 'ready'}
-          onClick={() => download.mutate()}
-          className={cn(
-            'relative w-32 sm:w-36',
-            status !== 'ready' && 'animate-racetrack',
-          )}
-        >
-          <div
+      <TooltipTrigger asChild>
+        <span>
+          <Button
+            data-testid='download-button'
+            disabled={status !== 'ready'}
+            onClick={() => download.mutate()}
             className={cn(
-              'relative flex items-center justify-evenly gap-2',
-              download.isPending && 'opacity-20',
+              'relative w-32 sm:w-36',
+              status !== 'ready' && 'animate-racetrack',
             )}
           >
-            <FileDownIcon className='h-4 w-4' />
-            {lastFormattedFileSize && (
-              <span
-                data-testid='file-size'
-                className={cn(
-                  'inline-flex w-24 items-center justify-center',
-                  conversion.isPending && 'animate-pulse opacity-80',
-                )}
-              >
-                {formattedFileSize ?
-                  formattedFileSize
-                : conversion.error ?
-                  <TriangleAlert className='text-amber-600 dark:text-amber-400' />
-                : lastFormattedFileSize}
-              </span>
-            )}
-            {!lastFormattedFileSize && (
-              <>
-                <span className='hidden sm:inline'>Download</span>
-                <span className='inline sm:hidden'>Save</span>
-              </>
-            )}
-          </div>
-          {download.isPending && (
-            <div className='absolute inset-0 flex items-center justify-center'>
-              <Loader2 className='h-3 w-3 animate-spin' />
+            <div
+              className={cn(
+                'relative flex items-center justify-evenly gap-2',
+                download.isPending && 'opacity-20',
+              )}
+            >
+              <FileDownIcon className='h-4 w-4' />
+              {lastFormattedFileSize && (
+                <span
+                  data-testid='file-size'
+                  className={cn(
+                    'inline-flex w-24 items-center justify-center',
+                    conversion.isPending && 'animate-pulse opacity-80',
+                  )}
+                >
+                  {formattedFileSize ?
+                    formattedFileSize
+                  : conversion.error ?
+                    <TriangleAlert className='text-amber-600 dark:text-amber-400' />
+                  : lastFormattedFileSize}
+                </span>
+              )}
+              {!lastFormattedFileSize && (
+                <>
+                  <span className='hidden sm:inline'>Download</span>
+                  <span className='inline sm:hidden'>Save</span>
+                </>
+              )}
             </div>
-          )}
-        </Button>
+            {download.isPending && (
+              <div className='absolute inset-0 flex items-center justify-center'>
+                <Loader2 className='h-3 w-3 animate-spin' />
+              </div>
+            )}
+          </Button>
+        </span>
       </TooltipTrigger>
       <TooltipContent>{statusMessage}</TooltipContent>
     </Tooltip>
@@ -176,10 +197,6 @@ const DownloadImageButton: React.FC<{ image: ManagedImage }> = ({ image }) => {
 const ImageRow: React.FC<{
   image: ManagedImage;
 }> = ({ image }) => {
-  const previewUrl = useMemo(() => {
-    return URL.createObjectURL(image.preview);
-  }, [image.preview]);
-
   return (
     <div
       data-testid='image-card'
@@ -197,13 +214,7 @@ const ImageRow: React.FC<{
             <Loader2 className='text-muted-foreground h-4 w-4 animate-spin' />
           </div>
         )}
-        {image.ready && (
-          <img // @eslint-disable  @next/next/no-img-element
-            src={previewUrl}
-            alt={image.file.name}
-            className='h-10 w-10 flex-shrink-0 rounded-md object-cover'
-          />
-        )}
+        {image.ready && <ImagePreview image={image} />}
         {/* Filename */}
         <div className='min-w-0 flex-1'>
           <ImageFilenameEditor

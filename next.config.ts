@@ -18,16 +18,6 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  webpack: (config, { isServer }) => {
-    if (isServer) {
-      config.resolve = config.resolve || {};
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        'wasm-vips': false,
-      };
-    }
-    return config;
-  },
 };
 
 export default nextConfig;

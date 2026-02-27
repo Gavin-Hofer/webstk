@@ -3,11 +3,12 @@ import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
 import { useDebounceValue } from 'usehooks-ts';
 import type { QueryFunction } from '@tanstack/react-query';
 import { ImageFormat } from '@/lib/client/image-tools';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { downloadFile } from '@/lib/client/download-file';
 import { convertImage } from '@/lib/client/image-tools/convert-image';
 import { useErrorNotification } from '@/hooks/use-error-notification';
 import { replaceFileExtension } from '@/lib/utils';
+import { usePreviousValue } from '@/hooks/use-previous-value';
 
 /** Formats a file size in bytes to a human readable string. */
 function formatFileSize(bytes: number): string {
@@ -62,13 +63,7 @@ export function useConvertImage(image: ManagedImage) {
 
   const formattedFileSize =
     convertQuery.data ? formatFileSize(convertQuery.data.size) : undefined;
-  const [lastFormattedFileSize, setLastFormattedFileSize] =
-    useState(formattedFileSize);
-  useEffect(() => {
-    if (formattedFileSize) {
-      setLastFormattedFileSize(formattedFileSize);
-    }
-  }, [formattedFileSize]);
+  const lastFormattedFileSize = usePreviousValue(formattedFileSize);
 
   return {
     conversion: convertQuery,
