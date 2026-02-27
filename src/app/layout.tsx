@@ -15,6 +15,7 @@ import { Suspense } from 'react';
 import { Loader } from '@/components/ui/loader';
 import { Toaster } from '@/components/ui/sonner';
 import { NuqsAdapter } from 'nuqs/adapters/next/app';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -72,11 +73,13 @@ const RootLayout: React.FC<{
             <NuqsAdapter>
               <ReactQueryClientProvider>
                 <Toaster />
-                <Suspense
-                  fallback={<Loader className='size-20 stroke-[0.5]' />}
-                >
-                  {children}
-                </Suspense>
+                <TooltipProvider>
+                  <Suspense
+                    fallback={<Loader className='size-20 stroke-[0.5]' />}
+                  >
+                    {children}
+                  </Suspense>
+                </TooltipProvider>
               </ReactQueryClientProvider>
             </NuqsAdapter>
             <Analytics />

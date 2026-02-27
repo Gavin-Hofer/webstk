@@ -27,6 +27,16 @@ export async function loadVipsImage(file: File) {
 // #region Utilities
 // =============================================================================
 
+export const COMPRESSION_SUPPORTED = {
+  avif: false,
+  bmp: false,
+  gif: false,
+  jpeg: true,
+  png: false,
+  tiff: false,
+  webp: true,
+} as const satisfies Record<ImageFormat, boolean>;
+
 function encodeBmp(img: Vips.Image): Uint8Array<ArrayBuffer> {
   const { width, height, bands } = img;
   const raw = img.writeToMemory();

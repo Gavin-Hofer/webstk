@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { FormatSelect } from './format-select';
 import { QualitySlider } from './quality-slider';
 import { useConvertImage } from './hooks';
+import { COMPRESSION_SUPPORTED } from '@/lib/client/image-tools/vips';
 
 // #region Subcomponents
 // =============================================================================
@@ -147,8 +148,21 @@ const ImageRow: React.FC<{
 
       {/* Right side: format select + quality + download + remove */}
       <div className='flex w-full items-center justify-end gap-2 sm:w-auto'>
-        <FormatSelect format={image.format} setFormat={image.setFormat} data-testid='format-select' />
-        <QualitySlider quality={image.quality} setQuality={image.setQuality} />
+        <FormatSelect
+          format={image.format}
+          setFormat={image.setFormat}
+          data-testid='format-select'
+        />
+        <QualitySlider
+          quality={COMPRESSION_SUPPORTED[image.format] ? image.quality : 100}
+          setQuality={image.setQuality}
+          disabled={!COMPRESSION_SUPPORTED[image.format]}
+          tooltipTitle={
+            COMPRESSION_SUPPORTED[image.format] ?
+              'Adjust the image quality'
+            : `Quality adjustment is not supported for ${image.format}`
+          }
+        />
         <Button
           data-testid='download-button'
           disabled={!image.ready}
