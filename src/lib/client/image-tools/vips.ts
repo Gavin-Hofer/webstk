@@ -8,11 +8,32 @@ import type { ImageFormat } from './image-formats';
 
 let vipsPromise: Promise<typeof Vips> | null = null;
 
+function isVipsInstance(value: unknown): value is typeof Vips {
+  return typeof value === 'object' && value !== null && 'Image' in value;
+}
+
 async function getVips() {
-  // @ts-expect-error — loaded from public/ at runtime, types come from wasm-vips
-  vipsPromise ??= import(/* webpackIgnore: true */ '/vips-es6.js').then(
-    (m: { default: typeof Vips }) => m.default(),
-  );
+  vipsPromise ??= (async () => {
+    try {
+      const publicVipsPath = '/vips-es6.js';
+      const publicVipsModule = await import(
+        /* webpackIgnore: true */ /* @vite-ignore */ publicVipsPath
+      );
+      const init =
+        'default' in publicVipsModule ? publicVipsModule.default : undefined;
+      if (typeof init !== 'function') {
+        throw new TypeError('Invalid vips module loaded from public assets');
+      }
+      const vips = await init();
+      if (!isVipsInstance(vips)) {
+        throw new TypeError('Invalid vips instance loaded from public assets');
+      }
+      return vips;
+    } catch {
+      const wasmVipsModule = await import('wasm-vips');
+      return await wasmVipsModule.default();
+    }
+  })();
   return vipsPromise;
 }
 
