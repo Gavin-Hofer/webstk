@@ -159,6 +159,9 @@ const eslintConfig = defineConfig([
 
       // Allow ternaries in JSX
       'unicorn/prefer-logical-operator-over-ternary': 'off',
+
+      // Allow lowercase hex numbers
+      'unicorn/number-literal-case': 'off',
     },
   },
 ]);
