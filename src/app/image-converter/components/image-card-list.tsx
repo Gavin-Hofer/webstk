@@ -139,6 +139,8 @@ const DownloadImageButton: React.FC<{ image: ManagedImage }> = ({ image }) => {
     : status === 'not_ready' ? 'Image is not yet ready to download'
     : 'Download Image';
 
+  const displayFileSize = formattedFileSize ?? lastFormattedFileSize;
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -159,7 +161,7 @@ const DownloadImageButton: React.FC<{ image: ManagedImage }> = ({ image }) => {
               )}
             >
               <FileDownIcon className='h-4 w-4' />
-              {lastFormattedFileSize && (
+              {displayFileSize ?
                 <span
                   data-testid='file-size'
                   className={cn(
@@ -171,15 +173,13 @@ const DownloadImageButton: React.FC<{ image: ManagedImage }> = ({ image }) => {
                     formattedFileSize
                   : conversion.error ?
                     <TriangleAlert className='text-amber-600 dark:text-amber-400' />
-                  : lastFormattedFileSize}
+                  : displayFileSize}
                 </span>
-              )}
-              {!lastFormattedFileSize && (
-                <>
+              : <>
                   <span className='hidden sm:inline'>Download</span>
                   <span className='inline sm:hidden'>Save</span>
                 </>
-              )}
+              }
             </div>
             {download.isPending && (
               <div className='absolute inset-0 flex items-center justify-center'>
