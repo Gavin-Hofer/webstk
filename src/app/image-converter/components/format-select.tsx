@@ -1,6 +1,6 @@
 'use client';
 
-import { IMAGE_FORMATS, type ImageFormat } from '@/lib/client/image-tools';
+import { IMAGE_FORMATS } from '@/lib/client/image-tools';
 import { cn } from '@/lib/utils';
 
 import {

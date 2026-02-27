@@ -15,10 +15,35 @@ async function getVips() {
   return vipsPromise;
 }
 
+const BMP_MIME_TYPES = new Set(['image/bmp', 'image/x-ms-bmp']);
+
+/**
+ * wasm-vips has no native BMP loader, so we decode via the browser's built-in
+ * image codec and re-encode as PNG before handing the buffer to vips.
+ */
+async function decodeViaBrowser(file: File): Promise<Uint8Array> {
+  const bitmap = await createImageBitmap(file);
+  const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+  const ctx = canvas.getContext('2d')!;
+  ctx.drawImage(bitmap, 0, 0);
+  bitmap.close();
+  const blob = await canvas.convertToBlob({ type: 'image/png' });
+  return new Uint8Array(await blob.arrayBuffer());
+}
+
+async function fileToBuffer(file: File): Promise<Uint8Array> {
+  if (
+    BMP_MIME_TYPES.has(file.type) ||
+    file.name.toLowerCase().endsWith('.bmp')
+  ) {
+    return decodeViaBrowser(file);
+  }
+  return new Uint8Array(await file.arrayBuffer());
+}
+
 export async function loadVipsImage(file: File) {
   const vips = await getVips();
-  const arrayBuffer = await file.arrayBuffer();
-  const data = new Uint8Array(arrayBuffer);
+  const data = await fileToBuffer(file);
   return vips.Image.newFromBuffer(data);
 }
 
@@ -100,8 +125,7 @@ export class VipsImageBuilder {
 
   public static readonly fromFile = async (file: File) => {
     const vips = await getVips();
-    const arrayBuffer = await file.arrayBuffer();
-    const data = new Uint8Array(arrayBuffer);
+    const data = await fileToBuffer(file);
     const img = vips.Image.newFromBuffer(data);
     return new VipsImageBuilder(img);
   };
