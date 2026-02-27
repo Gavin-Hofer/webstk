@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 
 import type { ManagedImage } from '@/hooks/use-persistent-images';
+import type { ImageFormat } from '@/lib/client/image-tools';
 import { Input } from '@/components/ui/input';
 
 import { Button } from '@/components/ui/button';
@@ -150,7 +151,7 @@ const ImageRow: React.FC<{
       <div className='flex w-full items-center justify-end gap-2 sm:w-auto'>
         <FormatSelect
           format={image.format}
-          setFormat={image.setFormat}
+          setFormat={(f) => image.setFormat(f as ImageFormat)}
           data-testid='format-select'
         />
         <QualitySlider

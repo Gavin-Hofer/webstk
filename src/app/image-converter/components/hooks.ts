@@ -78,18 +78,14 @@ export function useConvertImage(image: ManagedImage) {
   };
 }
 
-export type UseDownloadAllProps = {
-  images: ManagedImage[];
-  format: ImageFormat;
-};
+export type DownloadAllFormat = ImageFormat | 'current';
 
-export function useDownloadAll(format: ImageFormat) {
+export function useDownloadAll(format: DownloadAllFormat) {
   const queryClient = useQueryClient();
 
   const [progress, setProgress] = useState(0);
   const download = useMutation({
     async mutationFn(images: ManagedImage[]) {
-      // Convert images one at a time to avoid locking up the browser.
       setProgress(0);
       if (!images.every((image) => image.ready)) {
         console.warn('Images not ready');
@@ -97,7 +93,8 @@ export function useDownloadAll(format: ImageFormat) {
       }
       await Promise.allSettled(
         images.map(async (image) => {
-          const imageWithFormat = { ...image, format };
+          const resolvedFormat = format === 'current' ? image.format : format;
+          const imageWithFormat = { ...image, format: resolvedFormat };
           const queryKey = getQueryKey(imageWithFormat);
           const queryFn = getQueryFn(imageWithFormat);
           const file = await queryClient.ensureQueryData({ queryKey, queryFn });
