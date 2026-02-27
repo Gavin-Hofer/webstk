@@ -30,8 +30,8 @@ jobs:
         run: pnpm lint
 
   typecheck:
-    name: Lint
-    runs-on: ubuntu-latest
+    name: Typecheck
+    runs-on: ubuntu -latest
 
     steps:
       - name: Checkout
