@@ -1,11 +1,12 @@
+import type { Metadata, NextPage } from 'next';
 import Link from 'next/link';
-import type { NextPage, Metadata } from 'next';
+
 import {
-  KeyRound,
-  ImageIcon,
-  Code2,
   ArrowRight,
+  Code2,
   Github,
+  ImageIcon,
+  KeyRound,
   QrCode,
 } from 'lucide-react';
 
@@ -117,6 +118,7 @@ const Page: NextPage = () => {
             rel='noopener noreferrer'
             className='text-primary hover:text-primary/80 inline-flex items-center gap-2 transition-colors'
           >
+            {/* eslint-disable-next-line @typescript-eslint/no-deprecated */}
             <Github className='h-4 w-4' />
             Open an issue on GitHub
           </a>

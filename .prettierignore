@@ -1,0 +1,7 @@
+**/*-lock.yaml
+**/*-lock.json
+node_modules/**
+.next/**
+.git/**
+.reference/**
+public/**

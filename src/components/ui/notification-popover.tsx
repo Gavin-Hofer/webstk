@@ -1,6 +1,6 @@
-import { Popover, PopoverAnchor, PopoverContent } from './popover';
-import { cn } from '@/lib/utils';
 import type { Notification } from '@/hooks/use-notification';
+import { cn } from '@/lib/utils';
+import { Popover, PopoverAnchor, PopoverContent } from './popover';
 
 export type NotificationPopoverProps = React.PropsWithChildren<{
   notification: Notification;

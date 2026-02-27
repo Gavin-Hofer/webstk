@@ -1,7 +1,9 @@
+/* eslint-disable @typescript-eslint/no-unnecessary-condition */
 'use client';
 
+import { useRef, useState } from 'react';
+
 import { FileUpIcon } from 'lucide-react';
-import { useState, useRef } from 'react';
 
 import { cn } from '@/lib/utils';
 
@@ -36,7 +38,9 @@ export const Dropzone: React.FC<
   const onDragStop = () => {
     clearTimeout(timeoutRef.current);
     setIsDragging(false);
-    timeoutRef.current = setTimeout(() => setShowOverlay(false), 1000);
+    timeoutRef.current = setTimeout(() => {
+      setShowOverlay(false);
+    }, 1000);
   };
 
   const handleDragOver: React.DragEventHandler<HTMLDivElement> = (event) => {

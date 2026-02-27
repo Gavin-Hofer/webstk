@@ -1,6 +1,6 @@
 import { expect, test, vi } from 'vitest';
-import { ValueError } from '@/lib/errors';
 
+import { ValueError } from '@/lib/errors';
 import { promisePool } from './promise-pool';
 
 // Basic functionality tests
@@ -101,7 +101,7 @@ test('promisePool should throw ValueError for invalid concurrency values', async
   await expect(promisePool(tasks, 1.5)).rejects.toThrow(ValueError);
 
   // NaN
-  await expect(promisePool(tasks, NaN)).rejects.toThrow(ValueError);
+  await expect(promisePool(tasks, Number.NaN)).rejects.toThrow(ValueError);
 });
 
 // Edge cases
@@ -174,6 +174,7 @@ test('promisePool simulates a real-world API fetching scenario', async () => {
 
   // Create tasks
   const userIds = [101, 102, 103, 104, 105, 106, 107, 108, 109, 110];
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
   const tasks = userIds.map((id) => () => mockFetch(id));
 
   // Execute with concurrency limit of 3

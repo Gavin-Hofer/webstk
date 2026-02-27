@@ -1,20 +1,22 @@
 'use client';
 
-import { cn } from '@/lib/utils';
-import { Slider } from '@/components/ui/slider';
+import { useState } from 'react';
+
+import { GaugeIcon } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { Button } from '@/components/ui/button';
-import { useState } from 'react';
+import { Slider } from '@/components/ui/slider';
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { GaugeIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 type QualitySliderProps = {
   quality: number;
@@ -64,7 +66,9 @@ export const QualitySlider: React.FC<QualitySliderProps> = ({
             </div>
             <Slider
               value={[quality]}
-              onValueChange={([value]) => setQuality(value)}
+              onValueChange={([value]) => {
+                setQuality(value);
+              }}
               min={0}
               max={100}
               step={1}

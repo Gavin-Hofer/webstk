@@ -1,5 +1,5 @@
-import type { ConvertImageOptions } from './types';
 import type { WorkerResponse } from './convert-image-vips.worker';
+import type { ConvertImageOptions } from './types';
 
 // #region Worker management
 // =============================================================================
@@ -9,7 +9,7 @@ let nextId = 0;
 
 function getWorker(): Worker {
   worker ??= new Worker(
-    new URL('./convert-image-vips.worker.ts', import.meta.url),
+    new URL('convert-image-vips.worker.ts', import.meta.url),
   );
   return worker;
 }
@@ -44,11 +44,14 @@ export function convertImageVips(
   return new Promise<File>((resolve, reject) => {
     const onAbort = () => {
       w.removeEventListener('message', onMessage);
-      reject(signal!.reason);
+      // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+      reject(signal?.reason);
     };
 
     const onMessage = (e: MessageEvent<WorkerResponse>) => {
-      if (e.data.id !== id) return;
+      if (e.data.id !== id) {
+        return;
+      }
       w.removeEventListener('message', onMessage);
       signal?.removeEventListener('abort', onAbort);
 

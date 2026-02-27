@@ -1,7 +1,9 @@
 'use client';
 
-import { createContext, useState, useMemo, useEffect, useContext } from 'react';
-import { Sun, Moon } from 'lucide-react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+
+import { Moon, Sun } from 'lucide-react';
+
 import { cn } from '@/lib/utils';
 
 // #region Types
@@ -19,10 +21,15 @@ export type Theme = 'light' | 'dark';
  * Must match the logic in the blocking script in layout.tsx.
  */
 function getInitialTheme(): Theme {
-  if (typeof window === 'undefined') return 'light';
+  if (typeof window === 'undefined') {
+    return 'light';
+  }
   try {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     const stored = localStorage.getItem('theme') as Theme | null;
-    if (stored === 'dark' || stored === 'light') return stored;
+    if (stored === 'dark' || stored === 'light') {
+      return stored;
+    }
     return window.matchMedia('(prefers-color-scheme: dark)').matches ?
         'dark'
       : 'light';

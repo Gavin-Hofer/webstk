@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+
 import { parseAsString, useQueryState } from 'nuqs';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -55,7 +56,13 @@ export const QrCodeGenerator: React.FC = () => {
 
   return (
     <div className='grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]'>
-      <section className='flex flex-col gap-4'>
+      <form
+        className='flex flex-col gap-4'
+        onSubmit={(event) => {
+          event.preventDefault();
+          void handleGenerate();
+        }}
+      >
         <div className='flex flex-col gap-2'>
           <label htmlFor='qr-url' className='text-sm font-medium'>
             URL
@@ -67,7 +74,9 @@ export const QrCodeGenerator: React.FC = () => {
             autoComplete='off'
             placeholder='https://example.com'
             value={inputUrl}
-            onChange={(event) => setInputUrl(event.target.value)}
+            onChange={(event) => {
+              setInputUrl(event.target.value);
+            }}
           />
           <p className='text-muted-foreground text-xs'>
             Use a full URL with http:// or https://
@@ -76,8 +85,7 @@ export const QrCodeGenerator: React.FC = () => {
 
         <div className='flex flex-col gap-2 sm:flex-row'>
           <Button
-            type='button'
-            onClick={handleGenerate}
+            type='submit'
             disabled={!canGenerate || !hasChanged}
             className='flex-1'
           >
@@ -86,13 +94,15 @@ export const QrCodeGenerator: React.FC = () => {
           <Button
             type='button'
             variant='outline'
-            onClick={handleReset}
             disabled={inputUrl.length === 0 && generatedUrl.length === 0}
+            onClick={() => {
+              void handleReset();
+            }}
           >
             Reset
           </Button>
         </div>
-      </section>
+      </form>
 
       <section className='flex min-h-64 flex-col items-center justify-center rounded-lg border border-dashed p-4'>
         <div className='bg-background flex h-64 w-64 items-center justify-center rounded-lg p-4 shadow-sm'>
@@ -101,7 +111,7 @@ export const QrCodeGenerator: React.FC = () => {
               value={generatedUrl}
               size={224}
               level='M'
-              includeMargin
+              marginSize={5}
               className='h-56 w-56'
             />
           : <p className='text-muted-foreground text-center text-sm'>

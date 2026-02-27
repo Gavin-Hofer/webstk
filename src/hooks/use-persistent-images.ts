@@ -1,12 +1,16 @@
 import 'client-only';
 
-import { z } from 'zod';
-import { useState, useEffect, useCallback } from 'react';
-import * as uuid from 'uuid';
-import { useLocalStorage } from 'usehooks-ts';
+import { useCallback, useEffect, useState } from 'react';
 
-import { convertImage } from '@/lib/client/image-tools';
-import { IMAGE_FORMATS, type ImageFormat } from '@/lib/client/image-tools';
+import { useLocalStorage } from 'usehooks-ts';
+import * as uuid from 'uuid';
+import { z } from 'zod';
+
+import {
+  convertImage,
+  IMAGE_FORMATS,
+  type ImageFormat,
+} from '@/lib/client/image-tools';
 import { promisePool } from '@/lib/promises/promise-pool';
 
 const DEFAULT_IMAGE_QUALITY = 85;
@@ -80,6 +84,7 @@ async function heic2jpeg(file: File): Promise<File> {
 
 /** Generates a random UUID V4. */
 function randomUUID(): UUID {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
   return uuid.v4() as UUID;
 }
 
@@ -123,11 +128,17 @@ function removeFromIndexedDB(id: string): Promise<void> {
       const store = transaction.objectStore('files');
       store.delete(id);
 
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = (e) => reject(e);
+      transaction.addEventListener('complete', () => {
+        resolve();
+      });
+      transaction.addEventListener('error', () => {
+        reject(transaction.error ?? new Error('Unknown indexedDB error'));
+      });
     };
 
-    request.onerror = (e) => reject(e);
+    request.addEventListener('error', () => {
+      reject(request.error ?? new Error('Unknown indexedDB error'));
+    });
   });
 }
 
@@ -154,11 +165,17 @@ function saveToIndexedDB(item: ImageType): Promise<void> {
       const store = transaction.objectStore('files');
       store.put(parsedItem);
 
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = (e) => reject(e);
+      transaction.addEventListener('complete', () => {
+        resolve();
+      });
+      transaction.addEventListener('error', () => {
+        reject(transaction.error ?? new Error('Unknown indexedDB error'));
+      });
     };
 
-    request.onerror = (e) => reject(e);
+    request.addEventListener('error', () => {
+      reject(request.error ?? new Error('Unknown indexedDB error'));
+    });
   });
 }
 
@@ -193,11 +210,17 @@ function updateIndexedDB(id: UUID, data: Partial<ImageType>): Promise<void> {
         store.put(updated);
       };
 
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = (e) => reject(e);
+      transaction.addEventListener('complete', () => {
+        resolve();
+      });
+      transaction.addEventListener('error', () => {
+        reject(transaction.error ?? new Error('Unknown indexedDB error'));
+      });
     };
 
-    request.onerror = (e) => reject(e);
+    request.addEventListener('error', () => {
+      reject(request.error ?? new Error('Unknown indexedDB error'));
+    });
   });
 }
 
@@ -233,14 +256,19 @@ async function retrieveFilesFromIndexedDB(): Promise<ImageType[]> {
             return data;
           })
           .filter((image): image is ImageType => image !== undefined);
-        result.sort((a, b) => a.timestamp.valueOf() - b.timestamp?.valueOf());
+        result.sort((a, b) => a.timestamp.valueOf() - b.timestamp.valueOf());
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, eqeqeq
         resolve(result.filter((item) => item != null));
       };
 
-      getAllRequest.onerror = (e) => reject(e);
+      getAllRequest.addEventListener('error', () => {
+        reject(getAllRequest.error ?? new Error('Unknown indexedDB error'));
+      });
     };
 
-    request.onerror = (e) => reject(e);
+    request.addEventListener('error', () => {
+      reject(request.error ?? new Error('Unknown indexedDB error'));
+    });
   });
 }
 
@@ -251,8 +279,9 @@ async function retrieveFilesFromIndexedDB(): Promise<ImageType[]> {
  * when disk space is low.
  */
 function enablePersistentStorage() {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (navigator.storage && navigator.storage.persist) {
-    navigator.storage.persist().then((isPersisted) => {
+    void navigator.storage.persist().then((isPersisted) => {
       console.info(
         `Storage persistence is ${isPersisted ? 'enabled' : 'not enabled'}`,
       );
@@ -297,7 +326,7 @@ export function usePersistentImages(): [
   /** Renames an image and reflects change in IndexedDB. */
   const updateImageById = useCallback(
     (id: UUID, data: Partial<ImageType>): void => {
-      updateIndexedDB(id, data);
+      void updateIndexedDB(id, data);
       setImages((prevState) => {
         const nextState = { ...prevState };
         if (!(id in nextState)) {
@@ -312,23 +341,31 @@ export function usePersistentImages(): [
 
   /** Removes an image from state and IndexedDB. */
   const removeImageById = useCallback((id: UUID): void => {
-    removeFromIndexedDB(id);
+    void removeFromIndexedDB(id);
     setImages((prevState) => {
-      const nextState = { ...prevState };
-      delete nextState[id];
-      return nextState;
+      return Object.fromEntries(
+        Object.entries(prevState).filter(([key]) => key !== id),
+      );
     });
   }, []);
 
   /** Adds remove and rename functions to the ImageFile object. */
-  const resolve = useCallback(
+  const resolveImage = useCallback(
     (image: ImageType): ManagedImage => {
       return {
         ...image,
-        remove: () => removeImageById(image.id),
-        setFilename: (filename) => updateImageById(image.id, { filename }),
-        setFormat: (format) => updateImageById(image.id, { format }),
-        setQuality: (quality) => updateImageById(image.id, { quality }),
+        remove: () => {
+          removeImageById(image.id);
+        },
+        setFilename: (filename) => {
+          updateImageById(image.id, { filename });
+        },
+        setFormat: (format) => {
+          updateImageById(image.id, { format });
+        },
+        setQuality: (quality) => {
+          updateImageById(image.id, { quality });
+        },
       };
     },
     [removeImageById, updateImageById],
@@ -337,16 +374,16 @@ export function usePersistentImages(): [
   // Retrieve files from storage on load.
   useEffect(() => {
     enablePersistentStorage();
-    retrieveFilesFromIndexedDB().then((images) => {
+    void retrieveFilesFromIndexedDB().then((imagesFromDB) => {
       setImages((prevState) => {
         const nextState = { ...prevState };
-        images.forEach((image) => {
-          nextState[image.id] = resolve(image);
+        imagesFromDB.forEach((image) => {
+          nextState[image.id] = resolveImage(image);
         });
         return nextState;
       });
     });
-  }, [resolve]);
+  }, [resolveImage]);
 
   /** Adds uploaded image files to state and IndexedDB. */
   const addFiles = (files: FileList | null) => {
@@ -355,9 +392,10 @@ export function usePersistentImages(): [
     }
 
     const newImages = Array.from(files)
-      .filter((file) => file !== null)
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, eqeqeq
+      .filter((file) => file != null)
       .map((file) => fileToImageType(file, preferredFormat))
-      .map(resolve);
+      .map((image) => resolveImage(image));
 
     // Add files to the state.
     setImages((prevState) => {
@@ -381,7 +419,7 @@ export function usePersistentImages(): [
             height: 128,
           });
           const updatedImage = { ...image, file, preview, ready: true };
-          saveToIndexedDB(updatedImage);
+          void saveToIndexedDB(updatedImage);
           setImages((prevState) => ({
             ...prevState,
             [image.id]: updatedImage,
@@ -391,11 +429,11 @@ export function usePersistentImages(): [
         }
       };
     });
-    promisePool(tasks, 10);
+    void promisePool(tasks, 10);
   };
 
   // Convert images to an array sorted from oldest to newest.
-  const imageList = Array.from(Object.values(images)).sort(
+  const imageList = Array.from(Object.values(images)).toSorted(
     (a, b) => a.timestamp.valueOf() - b.timestamp.valueOf(),
   );
   return [imageList, addFiles];

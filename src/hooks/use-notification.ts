@@ -1,6 +1,6 @@
 import 'client-only';
 
-import { useState, useRef } from 'react';
+import { useRef, useState } from 'react';
 
 type Timeout = ReturnType<typeof setTimeout>;
 

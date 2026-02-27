@@ -1,6 +1,7 @@
+import type Vips from 'wasm-vips';
+
 import { IMAGE_FORMAT_MIME_TYPES } from './image-formats';
 import type { ImageFormat } from './image-formats';
-import type Vips from 'wasm-vips';
 
 // #region Vips initialization
 // =============================================================================
@@ -24,7 +25,10 @@ const BMP_MIME_TYPES = new Set(['image/bmp', 'image/x-ms-bmp']);
 async function decodeViaBrowser(file: File): Promise<Uint8Array> {
   const bitmap = await createImageBitmap(file);
   const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-  const ctx = canvas.getContext('2d')!;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('Failed to get 2d context from canvas');
+  }
   ctx.drawImage(bitmap, 0, 0);
   bitmap.close();
   const blob = await canvas.convertToBlob({ type: 'image/png' });
@@ -158,28 +162,36 @@ export class VipsImageBuilder {
   }: {
     format: ImageFormat;
     quality?: number;
-  }): Uint8Array<ArrayBufferLike> => {
+  }): Uint8Array => {
     switch (format) {
-      case 'jpeg':
+      case 'jpeg': {
         return this.image.jpegsaveBuffer({ Q: quality });
-      case 'png':
+      }
+      case 'png': {
         // Note: PNG compression doesn't reduce image quality, it just makes the
         // encoder work harder.
         return this.image.pngsaveBuffer({
           compression: 9,
         });
-      case 'webp':
+      }
+      case 'webp': {
         return this.image.webpsaveBuffer({ Q: quality });
-      case 'avif':
+      }
+      case 'avif': {
         return this.image.heifsaveBuffer({ compression: 'av1', Q: quality });
-      case 'gif':
+      }
+      case 'gif': {
         return this.image.gifsaveBuffer();
-      case 'tiff':
+      }
+      case 'tiff': {
         return this.image.tiffsaveBuffer();
-      case 'bmp':
+      }
+      case 'bmp': {
         return encodeBmp(this.image);
-      default:
+      }
+      default: {
         throw new Error(`Unsupported format: ${format}`);
+      }
     }
   };
 
@@ -192,6 +204,7 @@ export class VipsImageBuilder {
   }) => {
     const mimeType = IMAGE_FORMAT_MIME_TYPES[format];
     const data = this.encode({ format, quality });
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     return new Blob([data as Uint8Array<ArrayBuffer>], { type: mimeType });
   };
 

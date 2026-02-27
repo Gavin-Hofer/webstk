@@ -1,17 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm, useWatch } from 'react-hook-form';
-import { z } from 'zod';
-import { Settings2, RotateCcw } from 'lucide-react';
-import { useLocalStorage } from 'usehooks-ts';
+import { useCallback, useEffect, useState } from 'react';
 
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { RotateCcw, Settings2 } from 'lucide-react';
+import { useForm, useWatch } from 'react-hook-form';
+import { useLocalStorage } from 'usehooks-ts';
+import { z } from 'zod';
+
 import {
   Accordion,
   AccordionContent,
@@ -45,6 +41,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 // #region Constants
@@ -179,8 +180,11 @@ const NumericField: React.FC<NumericFieldProps> = ({
               max={max}
               step={1}
               className='-mx-2 h-8 font-mono text-sm'
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
               value={field.value as number}
-              onChange={(e) => field.onChange(Number(e.target.value))}
+              onChange={(e) => {
+                field.onChange(Number(e.target.value));
+              }}
             />
           </FormControl>
           <FormMessage className='col-span-2' />
@@ -208,6 +212,7 @@ const BooleanField: React.FC<BooleanFieldProps> = ({
         <FormItem className='flex items-start gap-3 space-y-0'>
           <FormControl>
             <Checkbox
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
               checked={field.value as boolean}
               onCheckedChange={field.onChange}
               className='mt-1 ml-1'
@@ -250,6 +255,7 @@ const SelectField: React.FC<SelectFieldProps> = ({
             <FormLabelWithTooltip title={name}>{label}</FormLabelWithTooltip>
             <FormDescription className='text-xs'>{description}</FormDescription>
           </div>
+          {/* eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion */}
           <Select value={field.value as string} onValueChange={field.onChange}>
             <FormControl>
               <SelectTrigger className='-mx-2 h-8 text-sm'>
@@ -350,7 +356,11 @@ export const PrettierSettingsModal: React.FC<PrettierSettingsModalProps> = ({
         )}
 
         <Form {...form}>
-          <form onSubmit={() => setOpen(false)}>
+          <form
+            onSubmit={() => {
+              setOpen(false);
+            }}
+          >
             <Accordion type='multiple' defaultValue={[]} className='w-full'>
               {/* Layout section */}
               <AccordionItem value='layout'>
@@ -566,7 +576,13 @@ export const PrettierSettingsModal: React.FC<PrettierSettingsModalProps> = ({
                 <RotateCcw className='mr-2 h-4 w-4' />
                 Restore Defaults
               </Button>
-              <Button type='button' size='sm' onClick={() => setOpen(false)}>
+              <Button
+                type='button'
+                size='sm'
+                onClick={() => {
+                  setOpen(false);
+                }}
+              >
                 Done
               </Button>
             </div>

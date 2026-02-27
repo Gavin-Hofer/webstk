@@ -1,7 +1,12 @@
-import { test, expect } from '@playwright/test';
-import path from 'path';
+import path from 'node:path';
 
-const FIXTURE_IMAGE = path.join(__dirname, 'fixtures', 'test-image.png');
+import { expect, test } from '@playwright/test';
+
+const FIXTURE_IMAGE = path.join(
+  import.meta.dirname,
+  'fixtures',
+  'test-image.png',
+);
 
 // Each test gets a fresh browser context (fresh IndexedDB) by default.
 test.describe('Image Converter', () => {

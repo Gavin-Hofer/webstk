@@ -1,5 +1,4 @@
 import { replaceFileExtension } from '@/lib/utils';
-
 import type { ConvertImageOptions } from './types';
 import { VipsImageBuilder } from './vips';
 
@@ -21,32 +20,34 @@ export type WorkerResponse =
 // #region Worker message handler
 // =============================================================================
 
-self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
-  const { id, file, options } = e.data;
-  try {
-    const {
-      format = 'webp',
-      quality = 85,
-      filename = replaceFileExtension(file.name, format),
-      width,
-      height,
-    } = options;
-
-    const imageBuilder = await VipsImageBuilder.fromFile(file);
+self.addEventListener('message', (e: MessageEvent<WorkerRequest>) => {
+  void (async () => {
+    const { id, file, options } = e.data;
     try {
-      const result = imageBuilder
-        .resize({ width, height })
-        .toFile({ format, quality, filename });
-      postMessage({ id, file: result } satisfies WorkerResponse);
-    } finally {
-      imageBuilder.dispose();
+      const {
+        format = 'webp',
+        quality = 85,
+        filename = replaceFileExtension(file.name, format),
+        width,
+        height,
+      } = options;
+
+      const imageBuilder = await VipsImageBuilder.fromFile(file);
+      try {
+        const result = imageBuilder
+          .resize({ width, height })
+          .toFile({ format, quality, filename });
+        postMessage({ id, file: result } satisfies WorkerResponse);
+      } finally {
+        imageBuilder.dispose();
+      }
+    } catch (error) {
+      postMessage({
+        id,
+        error: error instanceof Error ? error.message : String(error),
+      } satisfies WorkerResponse);
     }
-  } catch (error) {
-    postMessage({
-      id,
-      error: error instanceof Error ? error.message : String(error),
-    } satisfies WorkerResponse);
-  }
-};
+  })();
+});
 
 // #endregion

@@ -1,4 +1,5 @@
-import type { NextPage, Metadata } from 'next';
+import type { Metadata, NextPage } from 'next';
+
 import { Shield } from 'lucide-react';
 
 import { PasswordGenerator } from './components/password-generator';

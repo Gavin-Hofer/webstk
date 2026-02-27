@@ -1,9 +1,9 @@
-import Link from 'next/link';
 import { Roboto_Mono } from 'next/font/google';
+import Link from 'next/link';
 
+import { ThemeToggle } from '@/components/context/theme';
 import { GithubIcon } from '@/components/icons/github-icon';
 import { cn } from '@/lib/utils';
-import { ThemeToggle } from '@/components/context/theme';
 
 const robotoMono = Roboto_Mono({
   subsets: ['latin'],

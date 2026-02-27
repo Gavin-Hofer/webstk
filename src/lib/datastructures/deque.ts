@@ -18,7 +18,8 @@ export class Deque<T> {
 
   public get front(): T | null {
     if (this.frontElements.length > this.frontOffset) {
-      return this.frontElements[this.frontElements.length - 1];
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      return this.frontElements.at(-1)!;
     }
     if (this.backElements.length > this.backOffset) {
       return this.backElements[this.backOffset];
@@ -28,7 +29,8 @@ export class Deque<T> {
 
   public get back(): T | null {
     if (this.backElements.length > this.backOffset) {
-      return this.backElements[this.backElements.length - 1];
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      return this.backElements.at(-1)!;
     }
     if (this.frontElements.length > this.frontOffset) {
       return this.frontElements[this.frontOffset];
@@ -87,7 +89,8 @@ export class Deque<T> {
     if (this.empty) {
       throw new Error('Attempted to pop from empty Deque');
     }
-    return this.popFront() as T;
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    return this.popFront()!;
   }
 
   public popBack(): T | null {
@@ -121,7 +124,8 @@ export class Deque<T> {
     if (this.empty) {
       throw new EmptyError('Attempted to pop from empty Deque');
     }
-    return this.popBack() as T;
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    return this.popBack()!;
   }
 
   private rebalance(): void {

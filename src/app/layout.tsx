@@ -1,21 +1,21 @@
-import './globals.css';
-
+import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
+
 import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
+import { NuqsAdapter } from 'nuqs/adapters/next/app';
 
 import { ReactQueryClientProvider } from '@/components/context/react-query';
-import { Header } from '@/components/layout/header';
-import { BodyWithTheme } from '@/components/layout/body';
-import { ParallaxBackgroundGrid } from '@/components/layout/paralax-background-grid';
-import { cn } from '@/lib/utils';
 import { ThemeContextProvider, ThemeScript } from '@/components/context/theme';
-import { Suspense } from 'react';
+import { BodyWithTheme } from '@/components/layout/body';
+import { Header } from '@/components/layout/header';
+import { ParallaxBackgroundGrid } from '@/components/layout/paralax-background-grid';
 import { Loader } from '@/components/ui/loader';
 import { Toaster } from '@/components/ui/sonner';
-import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
+import './globals.css';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',

@@ -1,4 +1,5 @@
 import type { Metadata, NextPage } from 'next';
+
 import { QrCode } from 'lucide-react';
 
 import { QrCodeGenerator } from './components/qr-code-generator';
