@@ -1,9 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm, type UseFormReturn } from 'react-hook-form';
-import { z } from 'zod';
 import {
   CheckIcon,
   CopyIcon,
@@ -11,8 +10,9 @@ import {
   EyeOffIcon,
   RefreshCw,
 } from 'lucide-react';
+import { useForm, type UseFormReturn } from 'react-hook-form';
+import { z } from 'zod';
 
-import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -25,8 +25,9 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { useNotification, type Notification } from '@/hooks/use-notification';
 import { NotificationPopover } from '@/components/ui/notification-popover';
+import { useNotification, type Notification } from '@/hooks/use-notification';
+import { cn } from '@/lib/utils';
 
 // #region Constants
 // =============================================================================
@@ -48,7 +49,7 @@ const formSchema = z.object({
     .min(1, {
       message: 'Password length must be at least 1.',
     })
-    .max(65536, {
+    .max(65_536, {
       message: 'Password length must be at most 65536.',
     }),
   includeLowercase: z.boolean(),
@@ -82,16 +83,19 @@ function generateRandomPassword(
     excludeAmbiguousCharacters: boolean;
   },
 ): string {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (!window.crypto) {
     throw new Error('Crypto API not available.');
   }
 
-  const charSet = [
-    ...(options.includeLowercase ? LOWERCASE : ''),
-    ...(options.includeUppercase ? UPPERCASE : ''),
-    ...(options.includeNumbers ? NUMBERS : ''),
-    ...(options.includeSymbols ? SYMBOLS : ''),
-  ]
+  const charSet = Array.from(
+    [
+      options.includeLowercase ? LOWERCASE : '',
+      options.includeUppercase ? UPPERCASE : '',
+      options.includeNumbers ? NUMBERS : '',
+      options.includeSymbols ? SYMBOLS : '',
+    ].join(''),
+  )
     .filter(
       (c) =>
         !options.excludeAmbiguousCharacters ||
@@ -135,11 +139,12 @@ const NumericInputField: React.FC<{
             <Input
               type='number'
               min={1}
-              max={65536}
+              max={65_536}
               step={1}
               ref={field.ref}
               name={field.name}
               disabled={field.disabled}
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
               value={field.value as number}
               onChange={field.onChange}
               onBlur={field.onBlur}
@@ -170,6 +175,7 @@ const CheckboxField: React.FC<{
               ref={field.ref}
               name={field.name}
               disabled={field.disabled}
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
               checked={field.value as boolean}
               onCheckedChange={field.onChange}
               onBlur={field.onBlur}
@@ -229,8 +235,12 @@ const PasswordDisplay: React.FC<{
 
   const handleCopyPassword = () => {
     navigator.clipboard.writeText(password).then(
-      () => notification.trigger(),
-      (error) => console.error('Failed to copy password:', error),
+      () => {
+        notification.trigger();
+      },
+      (error: unknown) => {
+        console.error('Failed to copy password:', error);
+      },
     );
   };
 
@@ -248,7 +258,9 @@ const PasswordDisplay: React.FC<{
           <input
             type={showPassword ? 'text' : 'password'}
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => {
+              setPassword(e.target.value);
+            }}
             autoComplete='off'
             placeholder='Click generate to create a password'
             className='placeholder:text-muted-foreground text-md w-full flex-1 bg-transparent px-3 py-2 font-mono outline-none placeholder:font-sans'
@@ -258,7 +270,9 @@ const PasswordDisplay: React.FC<{
           type='button'
           variant='outline'
           size='icon'
-          onClick={() => setShowPassword((prev) => !prev)}
+          onClick={() => {
+            setShowPassword((prev) => !prev);
+          }}
           aria-label={showPassword ? 'Hide password' : 'Show password'}
         >
           {showPassword ?
@@ -307,19 +321,28 @@ export const PasswordGenerator: React.FC = () => {
     setPassword(newPassword);
     setAnimationKey((prev) => prev + 1);
 
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (!navigator.clipboard) {
       return;
     }
     navigator.clipboard.writeText(newPassword).then(
-      () => copyNotification.trigger(),
-      (error) => console.error('Failed to copy password:', error),
+      () => {
+        copyNotification.trigger();
+      },
+      (error: unknown) => {
+        console.error('Failed to copy password:', error);
+      },
     );
   };
+
+  const submitHandler = form.handleSubmit(onSubmit);
 
   return (
     <Form {...form}>
       <form
-        onSubmit={form.handleSubmit(onSubmit)}
+        onSubmit={(event) => {
+          void submitHandler(event);
+        }}
         className='flex flex-col gap-6'
       >
         {/* Length input */}

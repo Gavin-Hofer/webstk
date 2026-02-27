@@ -19,15 +19,15 @@ import 'client-only';
  */
 export function downloadFile(file: File): void {
   if (typeof window === 'undefined') {
-    throw new Error('Attempted to call downloadFile on the server.');
+    throw new TypeError('Attempted to call downloadFile on the server.');
   }
   const objectUrl = URL.createObjectURL(file);
   const link = document.createElement('a');
   link.href = objectUrl;
   link.download = file.name;
-  document.body.appendChild(link);
+  document.body.append(link);
   link.click();
-  document.body.removeChild(link);
+  link.remove();
   URL.revokeObjectURL(objectUrl);
 }
 

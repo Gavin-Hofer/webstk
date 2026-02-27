@@ -1,27 +1,23 @@
 'use client';
 
-import { useState, useContext, useRef, useMemo } from 'react';
+import { useContext, useMemo, useRef, useState } from 'react';
+
 import Editor from '@monaco-editor/react';
+import hljs from 'highlight.js';
+import { CheckIcon, ChevronsUpDown, Loader2, WandSparkles } from 'lucide-react';
 import type { BuiltInParserName, Plugin } from 'prettier';
-import * as prettier from 'prettier/standalone';
 import * as prettierPluginBabel from 'prettier/plugins/babel';
 import * as prettierPluginEstree from 'prettier/plugins/estree';
+import * as prettierPluginGraphql from 'prettier/plugins/graphql';
 import * as prettierPluginHtml from 'prettier/plugins/html';
-import * as prettierPluginCss from 'prettier/plugins/postcss';
 import * as prettierPluginMarkdown from 'prettier/plugins/markdown';
+import * as prettierPluginCss from 'prettier/plugins/postcss';
 import * as prettierPluginTypescript from 'prettier/plugins/typescript';
 import * as prettierPluginYaml from 'prettier/plugins/yaml';
-import * as prettierPluginGraphql from 'prettier/plugins/graphql';
-import hljs from 'highlight.js';
-import { CheckIcon, WandSparkles, ChevronsUpDown, Loader2 } from 'lucide-react';
+import * as prettier from 'prettier/standalone';
 
-import { cn } from '@/lib/utils';
+import { ThemeContext } from '@/components/context/theme';
 import { Button } from '@/components/ui/button';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 import {
   Command,
   CommandEmpty,
@@ -30,7 +26,12 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
-import { ThemeContext } from '@/components/context/theme';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 import {
   PrettierSettingsModal,
   usePrettierConfig,
@@ -54,6 +55,7 @@ type SupportedLanguage = {
 // Note: estree plugin has incomplete type definitions in Prettier, requiring this cast
 const ALL_PLUGINS: Plugin[] = [
   prettierPluginBabel,
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
   prettierPluginEstree as Plugin,
   prettierPluginHtml,
   prettierPluginCss,
@@ -118,6 +120,7 @@ const SupportedLanguages = {
 
 type SupportedLanguageId = keyof typeof SupportedLanguages;
 
+// eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
 const SupportedLanguagesEntries = Array.from(
   Object.entries(SupportedLanguages),
 ) as [SupportedLanguageId, SupportedLanguage][];
@@ -178,6 +181,7 @@ function detectLanguage(code: string): SupportedLanguageId {
   const result = hljs.highlightAuto(code, languageSubset);
   const language = result.language ?? 'auto';
   // @ts-expect-error: language may not be in the mapping
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
   return HljsToSupportedLanguageId[language] ?? 'audo';
 }
 
@@ -204,9 +208,11 @@ const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   const selectedLanguage = SupportedLanguages[selectedLanguageId];
   const detectedLanguage = SupportedLanguages[detectedLanguageId];
   const displayLabel =
-    selectedLanguageId !== 'auto' ? selectedLanguage.label
-    : detectedLanguageId !== 'auto' ? `Auto (${detectedLanguage.label})`
-    : 'Auto';
+    selectedLanguageId === 'auto' ?
+      detectedLanguageId === 'auto' ?
+        'Auto'
+      : `Auto (${detectedLanguage.label})`
+    : selectedLanguage.label;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -276,11 +282,11 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   const monacoTheme = themeContext?.theme === 'dark' ? 'vs-dark' : 'light';
   const containerRef = useRef<HTMLDivElement>(null);
   const monacoEditorLanguage =
-    selectedLanguageId !== 'auto' ?
-      SupportedLanguages[selectedLanguageId].monacoLanguage
-    : detectedLanguageId !== 'auto' ?
-      SupportedLanguages[detectedLanguageId].monacoLanguage
-    : undefined;
+    selectedLanguageId === 'auto' ?
+      detectedLanguageId === 'auto' ?
+        undefined
+      : SupportedLanguages[detectedLanguageId].monacoLanguage
+    : SupportedLanguages[selectedLanguageId].monacoLanguage;
 
   return (
     <div
@@ -304,7 +310,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         <Editor
           height='100%'
           value={value}
-          onChange={(val) => onChange(val ?? '')}
+          onChange={(val) => {
+            onChange(val ?? '');
+          }}
           language={monacoEditorLanguage}
           theme={monacoTheme}
           options={{
@@ -388,11 +396,11 @@ export const AutoFormatter: React.FC = () => {
   }, [code]);
 
   const prettierParser =
-    selectedLanguageId !== 'auto' ?
-      SupportedLanguages[selectedLanguageId].prettierParser
-    : detectedLanguageId !== 'auto' ?
-      SupportedLanguages[detectedLanguageId].prettierParser
-    : null;
+    selectedLanguageId === 'auto' ?
+      detectedLanguageId === 'auto' ?
+        null
+      : SupportedLanguages[detectedLanguageId].prettierParser
+    : SupportedLanguages[selectedLanguageId].prettierParser;
 
   const handleFormat = async () => {
     setError(null);
@@ -430,7 +438,9 @@ export const AutoFormatter: React.FC = () => {
       {/* Format button and settings */}
       <div className='flex gap-2'>
         <Button
-          onClick={handleFormat}
+          onClick={() => {
+            void handleFormat();
+          }}
           disabled={!code.trim() || isFormatting || !prettierParser}
           className='flex-1'
         >

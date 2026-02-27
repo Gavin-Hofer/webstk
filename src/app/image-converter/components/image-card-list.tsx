@@ -1,31 +1,29 @@
 'use client';
 
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
+
 import {
-  Loader2,
-  XIcon,
   FileDownIcon,
+  Loader2,
   PencilIcon,
   TriangleAlert,
+  XIcon,
 } from 'lucide-react';
 
-import type { ManagedImage } from '@/hooks/use-persistent-images';
-import type { ImageFormat } from '@/lib/client/image-tools';
-import { Input } from '@/components/ui/input';
-
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-
-import { FormatSelect } from './format-select';
-import { QualitySlider } from './quality-slider';
-import { useConvertImage } from './hooks';
-import { COMPRESSION_SUPPORTED } from '@/lib/client/image-tools/vips';
+import { ImageViewerDialog } from '@/components/ui/image-viewer-dialog';
+import { Input } from '@/components/ui/input';
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { ImageViewerDialog } from '@/components/ui/image-viewer-dialog';
+import type { ManagedImage } from '@/hooks/use-persistent-images';
+import { COMPRESSION_SUPPORTED } from '@/lib/client/image-tools/vips';
+import { cn } from '@/lib/utils';
+import { FormatSelect } from './format-select';
+import { useConvertImage } from './hooks';
+import { QualitySlider } from './quality-slider';
 
 // #region Subcomponents
 // =============================================================================
@@ -57,10 +55,12 @@ const ImageFilenameEditor: React.FC<{
   const ref = useRef<HTMLFormElement>(null);
   const [editing, setEditing] = useState<boolean>(false);
 
-  const handleSubmit: React.FormEventHandler = (event) => {
+  const handleSubmit = (event: React.SubmitEvent | React.FocusEvent) => {
     event.preventDefault();
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     const form = event.currentTarget as HTMLFormElement;
     const formData = new FormData(form);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     const newFilename = formData.get('filename') as string | null;
     if (newFilename) {
       setFilename(newFilename);
@@ -77,7 +77,9 @@ const ImageFilenameEditor: React.FC<{
           'hover:bg-secondary',
         )}
         type='button'
-        onClick={() => setEditing(true)}
+        onClick={() => {
+          setEditing(true);
+        }}
       >
         <span className='truncate text-sm'>{filename}</span>
         <PencilIcon className='text-muted-foreground h-3 w-3 flex-shrink-0' />
@@ -95,7 +97,9 @@ const ImageFilenameEditor: React.FC<{
         name='filename'
         className='h-8 w-full flex-grow text-sm'
         value={filename}
-        onChange={(event) => setFilename(event.target.value)}
+        onChange={(event) => {
+          setFilename(event.target.value);
+        }}
         autoFocus
       />
       <Button variant='secondary' type='submit' size='sm'>
@@ -148,7 +152,9 @@ const DownloadImageButton: React.FC<{ image: ManagedImage }> = ({ image }) => {
           <Button
             data-testid='download-button'
             disabled={status !== 'ready'}
-            onClick={() => download.mutate()}
+            onClick={() => {
+              download.mutate();
+            }}
             className={cn(
               'relative w-32 sm:w-36',
               status !== 'ready' && 'animate-racetrack',
@@ -224,7 +230,9 @@ const ImageRow: React.FC<{
         </div>
         {/* Mobile remove button */}
         <RemoveImageButton
-          onClick={() => image.remove()}
+          onClick={() => {
+            image.remove();
+          }}
           className='sm:hidden'
         />
       </div>
@@ -233,7 +241,9 @@ const ImageRow: React.FC<{
       <div className='flex w-full items-center justify-end gap-2 sm:w-auto'>
         <FormatSelect
           format={image.format}
-          setFormat={(f) => image.setFormat(f as ImageFormat)}
+          setFormat={(f) => {
+            image.setFormat(f);
+          }}
           data-testid='format-select'
         />
         <QualitySlider
@@ -248,7 +258,9 @@ const ImageRow: React.FC<{
         />
         <DownloadImageButton image={image} />
         <RemoveImageButton
-          onClick={() => image.remove()}
+          onClick={() => {
+            image.remove();
+          }}
           className='hidden sm:flex'
         />
       </div>

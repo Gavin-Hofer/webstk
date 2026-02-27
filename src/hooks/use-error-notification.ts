@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { type ExternalToast, toast } from 'sonner';
+
+import { toast, type ExternalToast } from 'sonner';
 
 const toastOptions = {
   position: 'top-center',
@@ -31,6 +32,7 @@ export function useErrorNotification(error: unknown) {
       activeToast.current = toast.error(String(error.message), toastOptions);
       return;
     }
+    // eslint-disable-next-line @typescript-eslint/no-base-to-string
     activeToast.current = toast.error(String(error), toastOptions);
   }, [error]);
 }

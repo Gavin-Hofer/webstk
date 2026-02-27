@@ -1,6 +1,6 @@
-import { useRef, useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
-type RefEffectCallback<T> = (element: T | null) => void | (() => void);
+type RefEffectCallback<T> = (element: T | null) => undefined | (() => void);
 
 /**
  * A callback ref that runs a setup/cleanup effect when the ref element changes.
@@ -32,7 +32,7 @@ export function useRefCallback<T>(callback: RefEffectCallback<T>) {
       cleanupRef.current?.();
     }
     nodeRef.current = node;
-    cleanupRef.current = callbackRef.current(node) ?? undefined;
+    cleanupRef.current = callbackRef.current(node);
   }, []);
 
   return { refCallback, refObject: nodeRef };

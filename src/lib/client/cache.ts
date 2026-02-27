@@ -6,7 +6,7 @@ const MAX_ENTRIES = 10_000;
 // #region Types
 // =============================================================================
 
-type CacheEntry<T> = {
+type CacheEntry<T = unknown> = {
   key: string;
   value: T;
   lastAccessed: number;
@@ -22,10 +22,15 @@ function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
+    request.addEventListener('error', () => {
+      reject(request.error ?? new Error('Unknown indexedDB connection error'));
+    });
 
-    request.onupgradeneeded = () => {
+    request.addEventListener('success', () => {
+      resolve(request.result);
+    });
+
+    request.addEventListener('upgradeneeded', () => {
       const db = request.result;
       // Delete old store if upgrading
       if (db.objectStoreNames.contains(STORE_NAME)) {
@@ -34,7 +39,7 @@ function openDatabase(): Promise<IDBDatabase> {
       // Create store with keyPath and index on lastAccessed
       const store = db.createObjectStore(STORE_NAME, { keyPath: 'key' });
       store.createIndex('lastAccessed', 'lastAccessed', { unique: false });
-    };
+    });
   });
 }
 
@@ -57,8 +62,11 @@ export async function cacheGet<T>(key: string): Promise<T | undefined> {
     const store = transaction.objectStore(STORE_NAME);
     const request = store.get(key);
 
-    request.onerror = () => reject(request.error);
+    request.addEventListener('error', () => {
+      reject(request.error ?? new Error('Unknown indexedDB connection error'));
+    });
     request.onsuccess = () => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       const entry = request.result as CacheEntry<T> | undefined;
       if (entry) {
         // Update last accessed time
@@ -70,7 +78,9 @@ export async function cacheGet<T>(key: string): Promise<T | undefined> {
       }
     };
 
-    transaction.oncomplete = () => db.close();
+    transaction.oncomplete = () => {
+      db.close();
+    };
   });
 }
 
@@ -80,24 +90,30 @@ export async function cacheGet<T>(key: string): Promise<T | undefined> {
  * @param key - The cache key.
  * @param value - The value to store (can be any structured-cloneable type including Blob, ArrayBuffer, etc.).
  */
-export async function cacheSet<T>(key: string, value: T): Promise<void> {
+export async function cacheSet(key: string, value: unknown): Promise<void> {
   const db = await openDatabase();
 
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(STORE_NAME, 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
 
-    const entry: CacheEntry<T> = {
+    const entry: CacheEntry = {
       key,
       value,
       lastAccessed: Date.now(),
     };
     const request = store.put(entry);
 
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve();
+    request.addEventListener('error', () => {
+      reject(request.error ?? new Error('Unknown indexedDB connection error'));
+    });
+    request.addEventListener('success', () => {
+      resolve();
+    });
 
-    transaction.oncomplete = () => db.close();
+    transaction.addEventListener('complete', () => {
+      db.close();
+    });
   });
 }
 
@@ -114,10 +130,16 @@ export async function cacheDelete(key: string): Promise<void> {
     const store = transaction.objectStore(STORE_NAME);
     const request = store.delete(key);
 
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve();
+    request.addEventListener('error', () => {
+      reject(request.error ?? new Error('Unknown indexedDB connection error'));
+    });
+    request.addEventListener('success', () => {
+      resolve();
+    });
 
-    transaction.oncomplete = () => db.close();
+    transaction.addEventListener('complete', () => {
+      db.close();
+    });
   });
 }
 
@@ -159,11 +181,23 @@ export async function cachePurge(): Promise<number> {
         }
       };
 
-      cursorRequest.onerror = () => reject(cursorRequest.error);
+      cursorRequest.addEventListener('error', () => {
+        reject(
+          cursorRequest.error ??
+            new Error('Unknown indexedDB cursor request error'),
+        );
+      });
     };
 
-    countRequest.onerror = () => reject(countRequest.error);
-    transaction.oncomplete = () => db.close();
+    countRequest.addEventListener('error', () => {
+      reject(
+        countRequest.error ??
+          new Error('Unknown indexedDB count request error'),
+      );
+    });
+    transaction.addEventListener('complete', () => {
+      db.close();
+    });
   });
 }
 

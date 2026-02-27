@@ -1,6 +1,6 @@
 import { Deque } from '@/lib/datastructures/deque';
-import { isValidInteger } from '@/lib/validation/numbers';
 import { ValueError } from '@/lib/errors';
+import { isValidInteger } from '@/lib/validation/numbers';
 
 // #region Types
 // =============================================================================

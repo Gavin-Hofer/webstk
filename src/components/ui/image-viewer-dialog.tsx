@@ -1,30 +1,32 @@
+/* eslint-disable @typescript-eslint/no-unsafe-type-assertion */
 'use client';
 
 import React, {
-  useState,
-  useMemo,
-  useRef,
   useCallback,
   useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from 'react';
+
 import {
   Maximize2,
   Minimize2,
-  ZoomIn,
-  ZoomOut,
   RotateCcw,
   XIcon,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 import { useRefCallback } from '@/hooks/use-ref-callback';
+import { cn } from '@/lib/utils';
 
 // #region Constants
 // =============================================================================
@@ -74,7 +76,9 @@ function useImageViewer() {
   const zoomOut = useCallback(() => {
     setZoom((prev) => {
       const next = clampZoom(prev - ZOOM_STEP);
-      if (next <= 1) setPan({ x: 0, y: 0 });
+      if (next <= 1) {
+        setPan({ x: 0, y: 0 });
+      }
       return next;
     });
   }, [clampZoom]);
@@ -85,7 +89,9 @@ function useImageViewer() {
       const factor = 1 - e.deltaY * SCROLL_ZOOM_SENSITIVITY;
       setZoom((prev) => {
         const next = clampZoom(prev * factor);
-        if (next <= 1) setPan({ x: 0, y: 0 });
+        if (next <= 1) {
+          setPan({ x: 0, y: 0 });
+        }
         return next;
       });
     },
@@ -246,30 +252,38 @@ export const ImageViewerDialog: React.FC<ImageViewerDialogProps> = ({
 
   // Keyboard shortcuts while the dialog is open
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      return;
+    }
     const onKeyDown = (e: KeyboardEvent) => {
       switch (e.key) {
         case '=':
-        case '+':
+        case '+': {
           e.preventDefault();
           zoomIn();
           break;
-        case '-':
+        }
+        case '-': {
           e.preventDefault();
           zoomOut();
           break;
-        case '0':
+        }
+        case '0': {
           e.preventDefault();
           resetView();
           break;
-        case 'f':
+        }
+        case 'f': {
           e.preventDefault();
           toggleFullscreen();
           break;
+        }
       }
     };
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+    };
   }, [open, zoomIn, zoomOut, resetView, toggleFullscreen]);
 
   const zoomPercent = Math.round(zoom * 100);
@@ -289,7 +303,9 @@ export const ImageViewerDialog: React.FC<ImageViewerDialogProps> = ({
           transition:
             'width 300ms ease-out, height 300ms ease-out, max-width e00ms ease-out',
         }}
-        onOpenAutoFocus={(e) => e.preventDefault()}
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+        }}
       >
         {/* Toolbar */}
         <div
@@ -323,7 +339,9 @@ export const ImageViewerDialog: React.FC<ImageViewerDialogProps> = ({
               : <Maximize2 className='h-4 w-4' />}
             </ToolbarButton>
             <ToolbarButton
-              onClick={() => handleOpenChange(false)}
+              onClick={() => {
+                handleOpenChange(false);
+              }}
               label='Close'
             >
               <XIcon className='h-4 w-4' />

@@ -2,6 +2,7 @@
   "name": "nextjs",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
@@ -12,7 +13,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "postinstall": "cp node_modules/wasm-vips/lib/vips-es6.js public/vips-es6.js && cp node_modules/wasm-vips/lib/vips.wasm public/vips.wasm && cp node_modules/wasm-vips/lib/vips-heif.wasm public/vips-heif.wasm && cp node_modules/wasm-vips/lib/vips-jxl.wasm public/vips-jxl.wasm"
+    "postinstall": "cp node_modules/wasm-vips/lib/vips-es6.js public/vips-es6.js && cp node_modules/wasm-vips/lib/vips.wasm public/vips.wasm && cp node_modules/wasm-vips/lib/vips-heif.wasm public/vips-heif.wasm && cp node_modules/wasm-vips/lib/vips-jxl.wasm public/vips-jxl.wasm",
+    "prepare": "husky"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
@@ -58,6 +60,7 @@
   },
   "devDependencies": {
     "@ffmpeg/types": "^0.12.4",
+    "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
     "@playwright/test": "^1.52.0",
     "@tailwindcss/postcss": "^4.0.17",
     "@types/node": "^22.13.16",
@@ -65,28 +68,29 @@
     "@types/react-dom": "^19.0.4",
     "eslint": "^9.39.3",
     "eslint-config-next": "16.1.6",
+    "eslint-plugin-unicorn": "^63.0.0",
+    "eslint-plugin-unused-imports": "^4.4.1",
+    "gitleaks-secret-scanner": "^2.1.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
     "postcss": "^8.5.3",
     "prettier": "^3.5.3",
     "prettier-plugin-tailwindcss": "^0.6.11",
     "tailwindcss": "^4.0.17",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.56.1",
     "vitest": "^4.0.18"
   },
-  "prettier": {
-    "semi": true,
-    "singleQuote": true,
-    "tabWidth": 2,
-    "trailingComma": "all",
-    "jsxSingleQuote": true,
-    "printWidth": 80,
-    "experimentalTernaries": true,
-    "arrowParens": "always",
-    "plugins": [
-      "prettier-plugin-tailwindcss"
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}": [
+      "eslint --fix",
+      "prettier --write"
     ],
-    "ignore": [
-      ".reference",
-      "./public"
+    "*.{json,jsonc,webmanifest,md,mdx,css,html,yml,yaml}": [
+      "prettier --write"
+    ],
+    "*": [
+      "gitleaks-secret-scanner"
     ]
   },
   "pnpm": {

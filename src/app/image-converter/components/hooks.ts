@@ -1,19 +1,25 @@
-import { ManagedImage } from '@/hooks/use-persistent-images';
-import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
-import { useDebounceValue } from 'usehooks-ts';
-import type { QueryFunction } from '@tanstack/react-query';
-import { ImageFormat } from '@/lib/client/image-tools';
 import { useState } from 'react';
-import { downloadFile } from '@/lib/client/download-file';
-import { convertImage } from '@/lib/client/image-tools/convert-image';
+
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { QueryFunction } from '@tanstack/react-query';
+import { useDebounceValue } from 'usehooks-ts';
+
 import { useErrorNotification } from '@/hooks/use-error-notification';
-import { replaceFileExtension } from '@/lib/utils';
+import type { ManagedImage } from '@/hooks/use-persistent-images';
 import { usePreviousValue } from '@/hooks/use-previous-value';
+import { downloadFile } from '@/lib/client/download-file';
+import type { ImageFormat } from '@/lib/client/image-tools';
+import { convertImage } from '@/lib/client/image-tools/convert-image';
+import { replaceFileExtension } from '@/lib/utils';
 
 /** Formats a file size in bytes to a human readable string. */
 function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 

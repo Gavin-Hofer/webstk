@@ -14,7 +14,7 @@ export function replaceFileExtension(
   filetype: string,
 ): string {
   if (filetype.startsWith('.')) {
-    filetype = filetype.substring(1);
+    filetype = filetype.slice(1);
   }
   const parts: string[] = filename.split('.');
   if (parts.length > 1) {

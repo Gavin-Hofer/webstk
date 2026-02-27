@@ -1,8 +1,5 @@
 'use client';
 
-import { IMAGE_FORMATS } from '@/lib/client/image-tools';
-import { cn } from '@/lib/utils';
-
 import {
   Select,
   SelectContent,
@@ -11,13 +8,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { IMAGE_FORMATS, type ImageFormat } from '@/lib/client/image-tools';
+import { cn } from '@/lib/utils';
 
 type ExtraOption = { value: string; label: string };
 
 type FormatSelectProps = {
   children?: React.ReactNode;
   format: string | undefined;
-  setFormat: (format: string) => void;
+  setFormat: (format: ImageFormat) => void;
   className?: string;
   disabled?: boolean;
   extraOptions?: ExtraOption[];

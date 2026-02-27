@@ -1,4 +1,5 @@
-import type { NextPage, Metadata } from 'next';
+import type { Metadata, NextPage } from 'next';
+
 import { Code2 } from 'lucide-react';
 
 import { AutoFormatter } from './components/auto-formatter';

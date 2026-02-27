@@ -1,15 +1,15 @@
 'use client';
 
 import { useMemo } from 'react';
+
 import { FileDownIcon, Loader2 } from 'lucide-react';
 import { useLocalStorage } from 'usehooks-ts';
 
+import { Button } from '@/components/ui/button';
 import type { ManagedImage } from '@/hooks/use-persistent-images';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-
 import { FormatSelect } from './format-select';
-import { type DownloadAllFormat, useDownloadAll } from './hooks';
+import { useDownloadAll, type DownloadAllFormat } from './hooks';
 
 const CURRENT_FORMAT_OPTION = [{ value: 'current', label: 'Current' }] as const;
 
@@ -23,14 +23,18 @@ export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
   const download = useDownloadAll(format);
 
   const formatLabel = useMemo(() => {
-    if (format !== 'current') return undefined;
+    if (format !== 'current') {
+      return undefined;
+    }
     const formats = new Set(images.map((img) => img.format));
-    if (formats.size === 1) return formats.values().next().value!.toUpperCase();
+    if (formats.size === 1) {
+      return formats.values().next().value?.toUpperCase();
+    }
     return 'Mixed';
   }, [format, images]);
 
   const allReady = images.every((image) => image.ready);
-  const disabled = !allReady || !format || download.isPending;
+  const disabled = !allReady || download.isPending;
   const numImages = images.length;
 
   return (
@@ -46,7 +50,9 @@ export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
     >
       <Button
         data-testid='download-all-button'
-        onClick={() => download.mutate(images)}
+        onClick={() => {
+          download.mutate(images);
+        }}
         className={cn(
           'h-11 flex-1 rounded-l-full rounded-r-none sm:w-40',
           'border-none bg-transparent shadow-none',
@@ -73,7 +79,9 @@ export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
       <div className='bg-primary/30 my-2 w-px' />
       <FormatSelect
         format={format}
-        setFormat={(f) => setFormat(f as DownloadAllFormat)}
+        setFormat={(f) => {
+          setFormat(f);
+        }}
         extraOptions={[...CURRENT_FORMAT_OPTION]}
         className={cn(
           'h-11 w-fit min-w-20 rounded-l-none rounded-r-full',
