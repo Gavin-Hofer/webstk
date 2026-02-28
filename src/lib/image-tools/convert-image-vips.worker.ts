@@ -2,8 +2,7 @@ import { replaceFileExtension } from '@/lib/utils';
 import { getVips, imageLoader, VipsImageBuilder } from '@/lib/vips';
 import type { ConvertImageOptions } from './types';
 
-const vips = await getVips();
-const loadImage = imageLoader(vips);
+const vipsPromise = getVips();
 
 // #region Types
 // =============================================================================
@@ -27,6 +26,8 @@ self.addEventListener('message', (e: MessageEvent<WorkerRequest>) => {
   void (async () => {
     const { id, file, options } = e.data;
     try {
+      const vips = await vipsPromise;
+      const loadImage = imageLoader(vips);
       const {
         format = 'webp',
         quality = 85,

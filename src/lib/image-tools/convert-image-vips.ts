@@ -43,6 +43,7 @@ export function convertImageVips(
 
   return new Promise<File>((resolve, reject) => {
     const onAbort = () => {
+      console.error(`Image converter aborted: ${signal?.reason}`);
       w.removeEventListener('message', onMessage);
       // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
       reject(signal?.reason);
