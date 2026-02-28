@@ -1,20 +1,17 @@
 import 'client-only';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { useLocalStorage } from 'usehooks-ts';
 import * as uuid from 'uuid';
 import { z } from 'zod';
 
-import {
-  convertImage,
-  IMAGE_FORMATS,
-  type ImageFormat,
-} from '@/lib/client/image-tools';
+import { convertImage } from '@/lib/image-tools';
 import { IndexedDBCache } from '@/lib/indexeddb';
 import { promisePool } from '@/lib/promises/promise-pool';
+import { IMAGE_FORMATS, type ImageFormat } from '@/lib/vips';
 
-const INDEXEDDB_DB_NAME = 'ImageConverterDB';
+const INDEXEDDB_DB_NAME = 'PersistentImagesDB';
 const DEFAULT_IMAGE_QUALITY = 85;
 
 // #region Types and Schemas
@@ -41,6 +38,18 @@ export type ManagedImage = ImageType & {
 };
 
 export type ImageID = ManagedImage['id'];
+
+// #endregion
+
+// #region IndexedDB Cache
+// =============================================================================
+
+const imageCache = new IndexedDBCache({
+  dbName: INDEXEDDB_DB_NAME,
+  dbVersion: 2,
+  storeName: 'images',
+  schema: ImageSchema,
+});
 
 // #endregion
 
@@ -96,53 +105,8 @@ function fileToImageType(file: File, preferredFormat: ImageFormat) {
 
 // #endregion
 
-// #region Image cache hooks
+// #region Hooks
 // =============================================================================
-
-function useImageCache() {
-  const cacheRef = useRef(
-    new IndexedDBCache({
-      dbName: INDEXEDDB_DB_NAME,
-      dbVersion: 2,
-      storeName: 'images',
-      schema: ImageSchema,
-    }),
-  );
-
-  const getAllFromCache = useCallback(() => {
-    const cache = cacheRef.current;
-    return cache.getAll();
-  }, []);
-
-  const removeFromCache = useCallback((id: string) => {
-    const cache = cacheRef.current;
-    return cache.delete(id);
-  }, []);
-
-  const saveToCache = useCallback((image: ImageType) => {
-    const cache = cacheRef.current;
-    return cache.set(image.id, image);
-  }, []);
-
-  const updateCache = useCallback((id: string, data: Partial<ImageType>) => {
-    const cache = cacheRef.current;
-    return cache.$db(async () => {
-      const existing = await cache.get(id);
-      if (!existing) {
-        return;
-      }
-      const newData = { ...existing, ...data, id };
-      await cache.set(id, newData);
-    });
-  }, []);
-
-  return {
-    getAllFromCache,
-    removeFromCache,
-    saveToCache,
-    updateCache,
-  };
-}
 
 /**
  * Requests persistent storage from the browser if available.
@@ -194,13 +158,16 @@ export function usePersistentImages(): [
     'preferred-image-format',
     'png',
   );
-  const { getAllFromCache, saveToCache, removeFromCache, updateCache } =
-    useImageCache();
 
-  /** Renames an image and reflects change in IndexedDB. */
+  /** Updates an image and reflects change in IndexedDB. */
   const updateImageById = useCallback(
     (id: string, data: Partial<ImageType>): void => {
-      void updateCache(id, data);
+      void imageCache.get(id).then((previousData) => {
+        if (!previousData) {
+          return;
+        }
+        void imageCache.set(id, { ...previousData, ...data, id });
+      });
       setImages((prevState) => {
         const nextState = { ...prevState };
         if (!(id in nextState)) {
@@ -210,21 +177,18 @@ export function usePersistentImages(): [
         return nextState;
       });
     },
-    [updateCache],
+    [],
   );
 
   /** Removes an image from state and IndexedDB. */
-  const removeImageById = useCallback(
-    (id: string): void => {
-      void removeFromCache(id);
-      setImages((prevState) => {
-        return Object.fromEntries(
-          Object.entries(prevState).filter(([key]) => key !== id),
-        );
-      });
-    },
-    [removeFromCache],
-  );
+  const removeImageById = useCallback((id: string): void => {
+    void imageCache.delete(id);
+    setImages((prevState) => {
+      return Object.fromEntries(
+        Object.entries(prevState).filter(([key]) => key !== id),
+      );
+    });
+  }, []);
 
   /** Adds remove and rename functions to the ImageFile object. */
   const resolveImage = useCallback(
@@ -251,7 +215,7 @@ export function usePersistentImages(): [
   // Retrieve files from storage on load.
   useEffect(() => {
     enablePersistentStorage();
-    void getAllFromCache().then((imagesFromCache) => {
+    void imageCache.getAll().then((imagesFromCache) => {
       setImages((prevState) => {
         const nextState = { ...prevState };
         imagesFromCache.forEach((image) => {
@@ -260,7 +224,7 @@ export function usePersistentImages(): [
         return nextState;
       });
     });
-  }, [resolveImage, getAllFromCache]);
+  }, [resolveImage]);
 
   /** Adds uploaded image files to state and IndexedDB. */
   const addFiles = useCallback(
@@ -297,7 +261,7 @@ export function usePersistentImages(): [
               height: 128,
             });
             const updatedImage = { ...image, file, preview, ready: true };
-            void saveToCache(updatedImage);
+            void imageCache.set(updatedImage.id, updatedImage);
             setImages((prevState) => ({
               ...prevState,
               [image.id]: updatedImage,
@@ -309,7 +273,7 @@ export function usePersistentImages(): [
       });
       void promisePool(tasks, 10);
     },
-    [saveToCache, resolveImage, preferredFormat],
+    [resolveImage, preferredFormat],
   );
 
   // Convert images to an array sorted by id

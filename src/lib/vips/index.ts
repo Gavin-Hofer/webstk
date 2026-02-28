@@ -104,16 +104,6 @@ export async function loadVipsImage(file: File) {
 // #region Utilities
 // =============================================================================
 
-export const COMPRESSION_SUPPORTED = {
-  avif: false,
-  bmp: false,
-  gif: false,
-  jpeg: true,
-  png: false,
-  tiff: false,
-  webp: true,
-} as const satisfies Record<ImageFormat, boolean>;
-
 function encodeBmp(img: Vips.Image): Uint8Array<ArrayBuffer> {
   const { width, height, bands } = img;
   const raw = img.writeToMemory();
@@ -164,6 +154,16 @@ function encodeBmp(img: Vips.Image): Uint8Array<ArrayBuffer> {
 
 // #region ImageBuilder
 // =============================================================================
+
+export const COMPRESSION_SUPPORTED = {
+  avif: true,
+  bmp: false,
+  gif: false,
+  jpeg: true,
+  png: true,
+  tiff: false,
+  webp: true,
+} as const satisfies Record<ImageFormat, boolean>;
 
 export class VipsImageBuilder {
   private readonly image: Vips.Image;
@@ -219,7 +219,10 @@ export class VipsImageBuilder {
         // Note: PNG compression doesn't reduce image quality, it just makes the
         // encoder work harder.
         return this.image.pngsaveBuffer({
+          // Note: PNG is lossless when palette is false
+          palette: quality < 100,
           compression: 9,
+          Q: quality,
         });
       }
       case 'webp': {
@@ -232,7 +235,7 @@ export class VipsImageBuilder {
         return this.image.gifsaveBuffer();
       }
       case 'tiff': {
-        return this.image.tiffsaveBuffer();
+        return this.image.tiffsaveBuffer({ compression: 'deflate', level: 9 });
       }
       case 'bmp': {
         return encodeBmp(this.image);

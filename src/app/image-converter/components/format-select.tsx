@@ -8,8 +8,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { IMAGE_FORMATS, type ImageFormat } from '@/lib/client/image-tools';
 import { cn } from '@/lib/utils';
+import { IMAGE_FORMATS, type ImageFormat } from '@/lib/vips';
 
 type ExtraOption = { value: string; label: string };
 

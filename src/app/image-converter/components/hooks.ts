@@ -7,10 +7,10 @@ import { useDebounceValue } from 'usehooks-ts';
 import { useErrorNotification } from '@/hooks/use-error-notification';
 import type { ManagedImage } from '@/hooks/use-persistent-images';
 import { usePreviousValue } from '@/hooks/use-previous-value';
-import { downloadFile } from '@/lib/client/download-file';
-import type { ImageFormat } from '@/lib/client/image-tools';
-import { convertImage } from '@/lib/client/image-tools/convert-image';
+import { downloadFile } from '@/lib/download-file';
+import { convertImage } from '@/lib/image-tools';
 import { replaceFileExtension } from '@/lib/utils';
+import type { ImageFormat } from '@/lib/vips';
 
 /** Formats a file size in bytes to a human readable string. */
 function formatFileSize(bytes: number): string {
