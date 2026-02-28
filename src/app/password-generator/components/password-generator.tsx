@@ -10,7 +10,7 @@ import {
   EyeOffIcon,
   RefreshCw,
 } from 'lucide-react';
-import { useForm, type UseFormReturn } from 'react-hook-form';
+import { useForm, useWatch, type UseFormReturn } from 'react-hook-form';
 import { z } from 'zod';
 
 import { Button } from '@/components/ui/button';
@@ -199,19 +199,25 @@ const GeneratePasswordButton: React.FC<GeneratePasswordButtonProps> = ({
   form,
   animationKey,
 }) => {
+  const [includeLowercase, includeUppercase, includeNumbers, includeSymbols] =
+    useWatch({
+      control: form.control,
+      name: [
+        'includeLowercase',
+        'includeUppercase',
+        'includeNumbers',
+        'includeSymbols',
+      ],
+    });
+
+  const hasCharacterType =
+    includeLowercase || includeUppercase || includeNumbers || includeSymbols;
+
   return (
     <Button
       type='submit'
       className='w-full'
-      disabled={
-        !form.formState.isValid ||
-        !(
-          form.getValues('includeLowercase') ||
-          form.getValues('includeUppercase') ||
-          form.getValues('includeNumbers') ||
-          form.getValues('includeSymbols')
-        )
-      }
+      disabled={!form.formState.isValid || !hasCharacterType}
     >
       <RefreshCw
         key={animationKey}
