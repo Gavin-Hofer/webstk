@@ -70,6 +70,47 @@ test.describe('Image Converter', () => {
     ).toBeVisible();
   });
 
+  test('individual download button transitions from loading to ready state', async ({
+    page,
+  }) => {
+    await page.getByTestId('file-input').setInputFiles(testImage.png);
+
+    const firstCard = page.getByTestId('image-card').first();
+    const downloadButton = firstCard.getByTestId('download-button');
+
+    await expect(downloadButton).toBeDisabled();
+    await expect(firstCard.getByTestId('file-size')).toBeVisible({
+      timeout: 60_000,
+    });
+    await expect(downloadButton).toBeEnabled();
+  });
+
+  test('individual download button downloads the converted file', async ({
+    page,
+  }) => {
+    await page.getByTestId('file-input').setInputFiles(testImage.png);
+
+    const firstCard = page.getByTestId('image-card').first();
+    await expect(firstCard.getByTestId('file-size')).toBeVisible({
+      timeout: 60_000,
+    });
+
+    await firstCard.getByTestId('format-select').click();
+    await page.getByRole('option', { name: 'JPEG' }).click();
+    await expect(firstCard.getByTestId('format-select')).toContainText('JPEG');
+    await page.waitForTimeout(300);
+    await expect(firstCard.getByTestId('file-size')).toBeVisible({
+      timeout: 60_000,
+    });
+
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      firstCard.getByTestId('download-button').click(),
+    ]);
+
+    expect(download.suggestedFilename()).toMatch(/\.jpe?g$/i);
+  });
+
   test('download all can download multiple converted files with the same format', async ({
     page,
   }) => {
