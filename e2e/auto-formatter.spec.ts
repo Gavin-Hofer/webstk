@@ -1,12 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const fillEditor = async (page: Page, code: string) => {
-  const editorInput = page.locator('.monaco-editor textarea.inputarea').first();
-  await editorInput.click();
-  await editorInput.press(
+  const editor = page.locator('.monaco-editor').first();
+  await editor.click({ position: { x: 24, y: 24 }, force: true });
+  await page.keyboard.press(
     process.platform === 'darwin' ? 'Meta+A' : 'Control+A',
   );
-  await editorInput.fill(code);
+  await page.keyboard.type(code);
 };
 
 const waitForEditorState = async (page: Page) => {

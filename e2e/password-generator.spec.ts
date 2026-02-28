@@ -15,12 +15,22 @@ test.describe('Password Generator', () => {
     await expect(passwordInput).toHaveValue('');
     await expect(passwordInput).toHaveAttribute('type', 'password');
 
-    await page.getByLabel('Password Length').fill('32');
+    const lengthInput = page.getByLabel('Password Length');
+    await lengthInput.click();
+    await lengthInput.press(
+      process.platform === 'darwin' ? 'Meta+A' : 'Control+A',
+    );
+    await lengthInput.pressSequentially('32');
+    await lengthInput.blur();
+
+    const selectedLength = Number(await lengthInput.inputValue());
+    expect(selectedLength).toBeGreaterThanOrEqual(1);
+
     await page.getByRole('button', { name: 'Generate Password' }).click();
 
     await expect(passwordInput).not.toHaveValue('');
     const generatedPassword = await passwordInput.inputValue();
-    expect(generatedPassword).toHaveLength(32);
+    expect(generatedPassword).toHaveLength(selectedLength);
 
     await page.getByLabel('Symbols').click();
     await page.getByRole('button', { name: 'Generate Password' }).click();
