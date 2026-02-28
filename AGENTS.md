@@ -102,6 +102,7 @@ In fresh or restricted environments, e2e can fail for two common setup reasons:
 - Do not commit binary files.
 - Research the latest official docs and best-practice guidance when making framework/tooling decisions.
 - Document any non-obvious environment/tooling issue you hit and the working resolution in your PR summary and/or this `AGENTS.md` (when it is generally reusable).
+- Prefer to avoid mocking in test cases when possible. If you do need to mock, mock the lowest level possible.
 
 ## Test-Driven Development Workflow
 

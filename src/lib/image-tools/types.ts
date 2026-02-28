@@ -1,4 +1,4 @@
-import type { ImageFormat } from './image-formats';
+import type { ImageFormat } from '@/lib/vips';
 
 export type ConvertImageOptions = {
   format?: ImageFormat;

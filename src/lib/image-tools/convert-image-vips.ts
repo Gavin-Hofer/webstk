@@ -43,23 +43,39 @@ export function convertImageVips(
 
   return new Promise<File>((resolve, reject) => {
     const onAbort = () => {
+      console.error(`Image converter aborted: ${signal?.reason}`);
       w.removeEventListener('message', onMessage);
       // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
       reject(signal?.reason);
     };
 
     const onMessage = (e: MessageEvent<WorkerResponse>) => {
-      if (e.data.id !== id) {
+      const payload = e.data as {
+        id?: unknown;
+        file?: unknown;
+        error?: unknown;
+      };
+      if (payload.id !== id) {
         return;
       }
+      if (payload.error === undefined && !(payload.file instanceof File)) {
+        return;
+      }
+
       w.removeEventListener('message', onMessage);
       signal?.removeEventListener('abort', onAbort);
 
-      if ('error' in e.data) {
-        reject(new Error(e.data.error));
-      } else {
-        resolve(e.data.file);
+      if (typeof payload.error === 'string') {
+        reject(new Error(payload.error));
+        return;
       }
+
+      if (payload.file instanceof File) {
+        resolve(payload.file);
+        return;
+      }
+
+      reject(new Error('Worker returned an unexpected response payload'));
     };
 
     signal?.addEventListener('abort', onAbort, { once: true });

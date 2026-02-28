@@ -19,8 +19,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import type { ManagedImage } from '@/hooks/use-persistent-images';
-import { COMPRESSION_SUPPORTED } from '@/lib/client/image-tools/vips';
 import { cn } from '@/lib/utils';
+import { COMPRESSION_SUPPORTED } from '@/lib/vips';
 import { FormatSelect } from './format-select';
 import { useConvertImage } from './hooks';
 import { QualitySlider } from './quality-slider';

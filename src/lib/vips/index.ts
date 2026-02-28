@@ -1,19 +1,74 @@
 import type Vips from 'wasm-vips';
 
-import { IMAGE_FORMAT_MIME_TYPES } from './image-formats';
-import type { ImageFormat } from './image-formats';
+import { PUBLIC_VIPS_PATH, PUBLIC_VIPS_PATH_NODE } from './__generated__';
+
+// #region Image Formats
+// =============================================================================
+
+/**
+ * Supported image formats for wasm-vips conversion.
+ */
+export const IMAGE_FORMATS = [
+  'png',
+  'jpeg',
+  'webp',
+  'gif',
+  'bmp',
+  'tiff',
+  'avif',
+] as const;
+
+/** Supported image format. */
+export type ImageFormat = (typeof IMAGE_FORMATS)[number];
+
+/** Maps image format to its MIME type. */
+export const IMAGE_FORMAT_MIME_TYPES: Record<ImageFormat, string> = {
+  png: 'image/png',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  bmp: 'image/bmp',
+  tiff: 'image/tiff',
+  avif: 'image/avif',
+};
+
+// #endregion
 
 // #region Vips initialization
 // =============================================================================
 
 let vipsPromise: Promise<typeof Vips> | null = null;
 
-async function getVips() {
-  // @ts-expect-error — loaded from public/ at runtime, types come from wasm-vips
-  vipsPromise ??= import(/* webpackIgnore: true */ '/vips-es6.js').then(
-    (m: { default: typeof Vips }) => m.default(),
-  );
+function isVipsInstance(value: unknown): value is typeof Vips {
+  return typeof value === 'object' && value !== null && 'Image' in value;
+}
+
+export async function getVips() {
+  vipsPromise ??= (async () => {
+    const isNode = typeof window === 'undefined';
+    const publicVipsPath = isNode ? PUBLIC_VIPS_PATH_NODE : PUBLIC_VIPS_PATH;
+    const publicVipsModule = await import(
+      /* webpackIgnore: true */ /* @vite-ignore */ publicVipsPath
+    );
+    const initVips =
+      'default' in publicVipsModule ? publicVipsModule.default : undefined;
+    if (typeof initVips !== 'function') {
+      throw new TypeError('Invalid vips module loaded from public assets');
+    }
+    const vips = await initVips();
+    if (!isVipsInstance(vips)) {
+      throw new TypeError('Invalid vips instance loaded from public assets');
+    }
+    return vips;
+  })();
   return vipsPromise;
+}
+
+export function imageLoader(vips: typeof Vips) {
+  return async (file: File) => {
+    const data = await fileToBuffer(file);
+    return vips.Image.newFromBuffer(data);
+  };
 }
 
 const BMP_MIME_TYPES = new Set(['image/bmp', 'image/x-ms-bmp']);
@@ -45,26 +100,10 @@ async function fileToBuffer(file: File): Promise<Uint8Array> {
   return new Uint8Array(await file.arrayBuffer());
 }
 
-export async function loadVipsImage(file: File) {
-  const vips = await getVips();
-  const data = await fileToBuffer(file);
-  return vips.Image.newFromBuffer(data);
-}
-
 // #endregion
 
 // #region Utilities
 // =============================================================================
-
-export const COMPRESSION_SUPPORTED = {
-  avif: false,
-  bmp: false,
-  gif: false,
-  jpeg: true,
-  png: false,
-  tiff: false,
-  webp: true,
-} as const satisfies Record<ImageFormat, boolean>;
 
 function encodeBmp(img: Vips.Image): Uint8Array<ArrayBuffer> {
   const { width, height, bands } = img;
@@ -117,6 +156,16 @@ function encodeBmp(img: Vips.Image): Uint8Array<ArrayBuffer> {
 // #region ImageBuilder
 // =============================================================================
 
+export const COMPRESSION_SUPPORTED = {
+  avif: true,
+  bmp: false,
+  gif: false,
+  jpeg: true,
+  png: true,
+  tiff: false,
+  webp: true,
+} as const satisfies Record<ImageFormat, boolean>;
+
 export class VipsImageBuilder {
   private readonly image: Vips.Image;
   private readonly allocated: Vips.Image[];
@@ -126,13 +175,6 @@ export class VipsImageBuilder {
     this.allocated = allocated ?? [];
     this.allocated.push(image);
   }
-
-  public static readonly fromFile = async (file: File) => {
-    const vips = await getVips();
-    const data = await fileToBuffer(file);
-    const img = vips.Image.newFromBuffer(data);
-    return new VipsImageBuilder(img);
-  };
 
   public readonly resize = (size: { width?: number; height?: number }) => {
     const width = size.width ?? this.image.width;
@@ -171,7 +213,10 @@ export class VipsImageBuilder {
         // Note: PNG compression doesn't reduce image quality, it just makes the
         // encoder work harder.
         return this.image.pngsaveBuffer({
+          // Note: PNG is lossless when palette is false
+          palette: quality < 100,
           compression: 9,
+          Q: quality,
         });
       }
       case 'webp': {
@@ -184,7 +229,7 @@ export class VipsImageBuilder {
         return this.image.gifsaveBuffer();
       }
       case 'tiff': {
-        return this.image.tiffsaveBuffer();
+        return this.image.tiffsaveBuffer({ compression: 'deflate', level: 9 });
       }
       case 'bmp': {
         return encodeBmp(this.image);

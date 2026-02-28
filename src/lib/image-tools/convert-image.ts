@@ -1,4 +1,7 @@
-import { cacheGet, cacheSet } from '@/lib/client/cache';
+import stableHash from 'stable-hash';
+import { z } from 'zod';
+
+import { IndexedDBCache } from '@/lib/indexeddb';
 import { retry } from '@/lib/utils';
 import { convertImageVips } from './convert-image-vips';
 import type { ConvertImageOptions } from './types';
@@ -6,12 +9,27 @@ import type { ConvertImageOptions } from './types';
 // #region Types
 // =============================================================================
 
-type CachedFile = {
-  data: ArrayBuffer;
-  name: string;
-  type: string;
-  lastModified: number;
-};
+const CachedFileSchema = z.object({
+  data: z.instanceof(ArrayBuffer),
+  name: z.string(),
+  type: z.string(),
+  lastModified: z.number(),
+});
+
+type CachedFile = z.infer<typeof CachedFileSchema>;
+
+// #endregion
+
+// #region Cache
+// =============================================================================
+
+const cache = new IndexedDBCache<CachedFile>({
+  dbName: 'ImageConverterCache',
+  dbVersion: 2,
+  storeName: 'images',
+  schema: CachedFileSchema,
+  maxEntries: 1000,
+});
 
 // #endregion
 
@@ -35,14 +53,7 @@ async function serializeFile(file: File): Promise<CachedFile> {
 }
 
 function isCachedFile(value: unknown): value is CachedFile {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'data' in value &&
-    'name' in value &&
-    'type' in value &&
-    value.data instanceof ArrayBuffer
-  );
+  return CachedFileSchema.safeParse(value).success;
 }
 
 function deserializeFile(cached: CachedFile): File {
@@ -78,8 +89,8 @@ export async function convertImage(
   { signal }: { signal?: AbortSignal } = {},
 ): Promise<File> {
   const checksum = await computeHash(file);
-  const cacheKey = JSON.stringify({ options, checksum });
-  const cached = await cacheGet<CachedFile>(cacheKey);
+  const cacheKey = stableHash({ options, checksum });
+  const cached = await cache.get(cacheKey);
   if (isCachedFile(cached)) {
     return deserializeFile(cached);
   }
@@ -110,7 +121,7 @@ export async function convertImage(
       onFailure,
     },
   );
-  await cacheSet(cacheKey, await serializeFile(convertedFile));
+  await cache.set(cacheKey, await serializeFile(convertedFile));
   return convertedFile;
 }
 
