@@ -116,8 +116,12 @@ const ImagePreview: React.FC<{ image: ManagedImage }> = ({ image }) => {
 
   return (
     <ImageViewerDialog file={image.file}>
-      <button className='hover:border-glow cursor-pointer rounded-lg border transition-all duration-500 ease-out hover:opacity-80'>
+      <button
+        data-testid='image-preview-trigger'
+        className='hover:border-glow cursor-pointer rounded-lg border transition-all duration-500 ease-out hover:opacity-80'
+      >
         <img
+          data-testid='image-preview-thumbnail'
           src={previewUrl}
           alt={image.file.name}
           className='h-10 w-10 flex-shrink-0 rounded-md object-cover'
