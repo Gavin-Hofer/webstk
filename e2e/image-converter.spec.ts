@@ -1,12 +1,6 @@
-import path from 'node:path';
-
 import { expect, test } from '@playwright/test';
 
-const FIXTURE_IMAGE = path.join(
-  import.meta.dirname,
-  'fixtures',
-  'test-image.png',
-);
+import { testImage } from './data/images';
 
 // Each test gets a fresh browser context (fresh IndexedDB) by default.
 test.describe('Image Converter', () => {
@@ -21,19 +15,19 @@ test.describe('Image Converter', () => {
   test('accepts an uploaded image and shows it in the list', async ({
     page,
   }) => {
-    await page.getByTestId('file-input').setInputFiles(FIXTURE_IMAGE);
+    await page.getByTestId('file-input').setInputFiles(testImage.png);
     await expect(page.getByTestId('image-card')).toBeVisible();
   });
 
   test('converts to PNG by default and shows file size', async ({ page }) => {
-    await page.getByTestId('file-input').setInputFiles(FIXTURE_IMAGE);
+    await page.getByTestId('file-input').setInputFiles(testImage.png);
     await expect(page.getByTestId('file-size')).toBeVisible({
       timeout: 60_000,
     });
   });
 
   test('changing format to JPEG triggers reconversion', async ({ page }) => {
-    await page.getByTestId('file-input').setInputFiles(FIXTURE_IMAGE);
+    await page.getByTestId('file-input').setInputFiles(testImage.png);
     await expect(page.getByTestId('image-card')).toBeVisible();
 
     await page.getByTestId('format-select').click();
@@ -45,7 +39,7 @@ test.describe('Image Converter', () => {
   });
 
   test('changing format to PNG triggers reconversion', async ({ page }) => {
-    await page.getByTestId('file-input').setInputFiles(FIXTURE_IMAGE);
+    await page.getByTestId('file-input').setInputFiles(testImage.png);
     await expect(page.getByTestId('image-card')).toBeVisible();
 
     // Switch to JPEG first, then back to PNG to trigger reconversion
@@ -63,7 +57,7 @@ test.describe('Image Converter', () => {
   });
 
   test('changing format to AVIF triggers reconversion', async ({ page }) => {
-    await page.getByTestId('file-input').setInputFiles(FIXTURE_IMAGE);
+    await page.getByTestId('file-input').setInputFiles(testImage.png);
     await expect(page.getByTestId('image-card')).toBeVisible();
 
     await page.getByTestId('format-select').click();
@@ -77,7 +71,7 @@ test.describe('Image Converter', () => {
   test('download button downloads a file with the correct MIME type', async ({
     page,
   }) => {
-    await page.getByTestId('file-input').setInputFiles(FIXTURE_IMAGE);
+    await page.getByTestId('file-input').setInputFiles(testImage.png);
     await expect(page.getByTestId('file-size')).toBeVisible({
       timeout: 60_000,
     });
@@ -93,7 +87,7 @@ test.describe('Image Converter', () => {
   test('"Download All" button downloads the converted file', async ({
     page,
   }) => {
-    await page.getByTestId('file-input').setInputFiles(FIXTURE_IMAGE);
+    await page.getByTestId('file-input').setInputFiles(testImage.png);
     await expect(page.getByTestId('file-size')).toBeVisible({
       timeout: 60_000,
     });
