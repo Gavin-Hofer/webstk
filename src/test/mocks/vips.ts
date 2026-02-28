@@ -6,8 +6,9 @@ vi.mock('@/lib/vips', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/vips')>();
   return {
     ...actual,
-    getVips: () => {
-      return Vips();
+    getVips: async () => {
+      const vips = await Vips();
+      return vips;
     },
   };
 });

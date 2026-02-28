@@ -1,37 +1,20 @@
 // @vitest-environment jsdom
 import { act } from 'react';
 
-import fs from 'node:fs/promises';
-import path from 'node:path';
-
 import { renderHook, waitFor } from '@testing-library/react';
 
 import '@vitest/web-worker';
 import 'vitest-localstorage-mock';
 import '@/test/mocks/navigator';
-import 'fake-indexeddb/auto';
 import '@/test/mocks/vips';
+import 'fake-indexeddb/auto';
 
+import superjson from 'superjson';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { imageCache, usePersistentImages } from './use-persistent-images';
 
 vi.mock('client-only', () => ({}));
-
-// React 19 act() environment flag for test runners.
-(
-  globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
-).IS_REACT_ACT_ENVIRONMENT = true;
-
-vi.mock('uuid', () => {
-  let counter = 0;
-  return {
-    v4: () => {
-      counter += 1;
-      return `00000000-0000-4000-8000-${String(counter).padStart(12, '0')}`;
-    },
-  };
-});
 
 class MockFileList implements FileList {
   [index: number]: File;
@@ -68,70 +51,20 @@ function createPngFile(name: string): File {
   return new File([png1x1Transparent], name, { type: 'image/png' });
 }
 
-const originalStructuredClone = globalThis.structuredClone;
-const originalSharedArrayBuffer = globalThis.SharedArrayBuffer;
-
-const originalFetch = globalThis.fetch;
-
-async function createVipsWasmResponse(url: string): Promise<Response | null> {
-  const fileName = ['vips.wasm', 'vips-heif.wasm', 'vips-jxl.wasm'].find(
-    (candidate) => url.endsWith(candidate),
-  );
-  if (!fileName) {
-    return null;
-  }
-  const filePath = path.resolve(
-    process.cwd(),
-    'node_modules/wasm-vips/lib',
-    fileName,
-  );
-  const bytes = await fs.readFile(filePath);
-  return new Response(new Uint8Array(bytes), {
-    status: 200,
-    headers: {
-      'content-type': 'application/wasm',
-    },
-  });
+// Supports cloning file objects, like structuredClone does in the browser
+function superjsonClone<T>(value: T): T {
+  return superjson.deserialize(superjson.serialize(value));
 }
 
 describe('usePersistentImages', () => {
   beforeEach(async () => {
-    globalThis.structuredClone = (<T>(value: T): T =>
-      value) as typeof structuredClone;
+    vi.stubGlobal('structuredClone', superjsonClone);
     vi.clearAllMocks();
-    Object.defineProperty(globalThis, 'SharedArrayBuffer', {
-      value: undefined,
-      configurable: true,
-    });
-    Object.defineProperty(globalThis.navigator, 'storage', {
-      value: {
-        persist: vi.fn(async () => true),
-      },
-      configurable: true,
-    });
-    localStorage.clear();
-    localStorage.setItem('preferred-image-format', JSON.stringify('png'));
-    globalThis.fetch = vi.fn(async (input: URL | RequestInfo) => {
-      const url =
-        typeof input === 'string' ? input
-        : input instanceof URL ? input.toString()
-        : input.url;
-      const wasmResponse = await createVipsWasmResponse(url);
-      if (wasmResponse) {
-        return wasmResponse;
-      }
-      return originalFetch(input);
-    });
     await imageCache.clear();
   });
 
   afterEach(() => {
-    globalThis.structuredClone = originalStructuredClone;
-    globalThis.fetch = originalFetch;
-    Object.defineProperty(globalThis, 'SharedArrayBuffer', {
-      value: originalSharedArrayBuffer,
-      configurable: true,
-    });
+    vi.unstubAllGlobals();
   });
 
   test('loads persisted images sorted by timestamp and updates filename in IndexedDB', async () => {
@@ -162,7 +95,8 @@ describe('usePersistentImages', () => {
     const { result } = renderHook(() => usePersistentImages());
 
     await waitFor(() => {
-      expect(result.current[0]).toHaveLength(2);
+      const [images] = result.current;
+      expect(images).toHaveLength(2);
     });
 
     expect(result.current[0][0].filename).toBe('old.png');
@@ -173,15 +107,20 @@ describe('usePersistentImages', () => {
     });
 
     await waitFor(() => {
-      expect(result.current[0][0].filename).toBe('renamed.png');
+      const [images] = result.current;
+      expect(images[0].filename).toBe('renamed.png');
     });
 
-    const renamedImage = await imageCache.get('1');
-    expect(renamedImage?.filename).toBe('renamed.png');
+    await waitFor(async () => {
+      const renamedImage = await imageCache.get('1');
+      expect(renamedImage?.filename).toBe('renamed.png');
+    });
   });
 
   test('attempts real conversion with wasm-vips and keeps item removable on conversion failure', async () => {
-    globalThis.structuredClone = originalStructuredClone;
+    vi.mock('@/lib/image-tools', () => ({
+      convertImage: vi.fn().mockRejectedValue(new Error('Conversion failed')),
+    }));
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { result } = renderHook(() => usePersistentImages());
 
