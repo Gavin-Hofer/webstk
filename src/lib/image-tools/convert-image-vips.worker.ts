@@ -1,6 +1,9 @@
 import { replaceFileExtension } from '@/lib/utils';
-import { VipsImageBuilder } from '@/lib/vips';
+import { getVips, imageLoader, VipsImageBuilder } from '@/lib/vips';
 import type { ConvertImageOptions } from './types';
+
+const vips = await getVips();
+const loadImage = imageLoader(vips);
 
 // #region Types
 // =============================================================================
@@ -31,8 +34,8 @@ self.addEventListener('message', (e: MessageEvent<WorkerRequest>) => {
         width,
         height,
       } = options;
-
-      const imageBuilder = await VipsImageBuilder.fromFile(file);
+      const image = await loadImage(file);
+      const imageBuilder = new VipsImageBuilder(image);
       try {
         const result = imageBuilder
           .resize({ width, height })

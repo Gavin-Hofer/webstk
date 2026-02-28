@@ -44,7 +44,7 @@ export type ImageID = ManagedImage['id'];
 // #region IndexedDB Cache
 // =============================================================================
 
-const imageCache = new IndexedDBCache({
+export const imageCache = new IndexedDBCache({
   dbName: INDEXEDDB_DB_NAME,
   dbVersion: 2,
   storeName: 'images',

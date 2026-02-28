@@ -77,6 +77,10 @@ export class IndexedDBObjectStore {
     return promisifyRequest(this.store.count());
   };
 
+  public readonly clear = (): Promise<void> => {
+    return promisifyRequest(this.store.clear());
+  };
+
   public readonly openCursor = (
     indexName: string,
     handler: (
@@ -125,7 +129,10 @@ export class IndexedDBCache<T> {
   public readonly $db = async <U>(
     callback: (db: IDBDatabase) => Promise<U>,
   ) => {
-    this._db ??= await openDatabase(this.config);
+    this._db ??= await navigator.locks.request(
+      `IndexedDB:${this.config.dbName}`,
+      () => openDatabase(this.config),
+    );
     this._db_depth += 1;
     try {
       return await callback(this._db);
@@ -206,6 +213,12 @@ export class IndexedDBCache<T> {
     });
   };
 
+  public readonly count = (): Promise<number> => {
+    return this.$transaction((store) => {
+      return store.count();
+    });
+  };
+
   public readonly getAll = (): Promise<T[]> => {
     return this.$transaction(async (store) => {
       const values = await store.getAll();
@@ -218,6 +231,12 @@ export class IndexedDBCache<T> {
   public readonly delete = (key: string): Promise<void> => {
     return this.$transaction(async (store) => {
       await store.delete(key);
+    });
+  };
+
+  public readonly clear = (): Promise<void> => {
+    return this.$transaction((store) => {
+      return store.clear();
     });
   };
 

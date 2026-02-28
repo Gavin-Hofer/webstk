@@ -1,4 +1,5 @@
 import 'fake-indexeddb/auto';
+import '@/test/mocks/navigator';
 
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { z } from 'zod';
@@ -186,6 +187,27 @@ describe('IndexedDBCache', () => {
         { id: 2, label: 'two' },
       ]),
     );
+  });
+
+  // --- concurrent access ---
+
+  test('concurrent operations reuse a single database connection', async () => {
+    const openSpy = vi.spyOn(indexedDB, 'open');
+    const cache = makeCache({ dbName: 'race-condition-db' });
+
+    await Promise.all([
+      cache.set('k1', 'v1'),
+      cache.set('k2', 'v2'),
+      cache.set('k3', 'v3'),
+      cache.set('k4', 'v4'),
+      cache.set('k5', 'v5'),
+    ]);
+
+    expect(openSpy).toHaveBeenCalledTimes(1);
+
+    const all = await cache.getAll();
+    expect(all).toHaveLength(5);
+    expect(all).toEqual(expect.arrayContaining(['v1', 'v2', 'v3', 'v4', 'v5']));
   });
 
   // --- isolation between instances ---

@@ -8,11 +8,13 @@ import { renderHook, waitFor } from '@testing-library/react';
 
 import '@vitest/web-worker';
 import 'vitest-localstorage-mock';
+import '@/test/mocks/navigator';
+import 'fake-indexeddb/auto';
+import '@/test/mocks/vips';
 
-import { indexedDB as fakeIndexedDB } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import { usePersistentImages } from './use-persistent-images';
+import { imageCache, usePersistentImages } from './use-persistent-images';
 
 vi.mock('client-only', () => ({}));
 
@@ -66,165 +68,8 @@ function createPngFile(name: string): File {
   return new File([png1x1Transparent], name, { type: 'image/png' });
 }
 
-type StoredImage = {
-  id: string;
-  timestamp: Date;
-  file: File;
-  preview: File;
-  ready: boolean;
-  filename: string;
-  format: 'png' | 'jpeg' | 'webp' | 'gif' | 'avif';
-  quality: number;
-};
-
-function isStoredImage(value: unknown): value is StoredImage {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  return (
-    'id' in value &&
-    typeof value.id === 'string' &&
-    'timestamp' in value &&
-    value.timestamp instanceof Date &&
-    'file' in value &&
-    value.file instanceof File &&
-    'preview' in value &&
-    value.preview instanceof File &&
-    'ready' in value &&
-    typeof value.ready === 'boolean' &&
-    'filename' in value &&
-    typeof value.filename === 'string' &&
-    'format' in value &&
-    typeof value.format === 'string' &&
-    'quality' in value &&
-    typeof value.quality === 'number'
-  );
-}
-
-async function resetDatabase(): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const request = indexedDB.open('ImageConverterDB', 1);
-    request.onupgradeneeded = () => {
-      request.result.createObjectStore('files', { keyPath: 'id' });
-    };
-    request.onsuccess = () => {
-      const transaction = request.result.transaction(['files'], 'readwrite');
-      const store = transaction.objectStore('files');
-      store.clear();
-      transaction.addEventListener('complete', () => {
-        request.result.close();
-        resolve();
-      });
-      transaction.addEventListener('error', () => {
-        reject(transaction.error ?? new Error('Failed to clear database'));
-      });
-    };
-    request.addEventListener('error', () => {
-      reject(request.error ?? new Error('Failed to open database'));
-    });
-  });
-}
-
-async function seedDatabase(records: StoredImage[]): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const request = indexedDB.open('ImageConverterDB', 1);
-    request.onupgradeneeded = () => {
-      request.result.createObjectStore('files', { keyPath: 'id' });
-    };
-    request.onsuccess = () => {
-      const transaction = request.result.transaction(['files'], 'readwrite');
-      const store = transaction.objectStore('files');
-      records.forEach((record) => {
-        store.put(record);
-      });
-      transaction.addEventListener('complete', () => {
-        request.result.close();
-        resolve();
-      });
-      transaction.addEventListener('error', () => {
-        reject(transaction.error ?? new Error('Failed to seed database'));
-      });
-    };
-    request.addEventListener('error', () => {
-      reject(request.error ?? new Error('Failed to open database'));
-    });
-  });
-}
-
-async function getAllStoredImages(): Promise<StoredImage[]> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open('ImageConverterDB', 1);
-    request.onupgradeneeded = () => {
-      request.result.createObjectStore('files', { keyPath: 'id' });
-    };
-    request.onsuccess = () => {
-      const transaction = request.result.transaction(['files'], 'readonly');
-      const getAllRequest = transaction.objectStore('files').getAll();
-      getAllRequest.onsuccess = () => {
-        request.result.close();
-        const images = getAllRequest.result.filter((value) =>
-          isStoredImage(value),
-        );
-        resolve(images);
-      };
-      getAllRequest.addEventListener('error', () => {
-        reject(getAllRequest.error ?? new Error('Failed to read images'));
-      });
-    };
-    request.addEventListener('error', () => {
-      reject(request.error ?? new Error('Failed to open database'));
-    });
-  });
-}
-
-async function getStoredImageCount(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open('ImageConverterDB', 1);
-    request.onupgradeneeded = () => {
-      request.result.createObjectStore('files', { keyPath: 'id' });
-    };
-    request.onsuccess = () => {
-      const getAllRequest = request.result
-        .transaction(['files'], 'readonly')
-        .objectStore('files')
-        .getAll();
-      getAllRequest.onsuccess = () => {
-        request.result.close();
-        resolve(getAllRequest.result.length);
-      };
-      getAllRequest.addEventListener('error', () => {
-        reject(getAllRequest.error ?? new Error('Failed to read image count'));
-      });
-    };
-    request.addEventListener('error', () => {
-      reject(request.error ?? new Error('Failed to open database'));
-    });
-  });
-}
-
 const originalStructuredClone = globalThis.structuredClone;
 const originalSharedArrayBuffer = globalThis.SharedArrayBuffer;
-
-async function linkVipsAssetsToRoot(): Promise<void> {
-  const assets = [
-    'vips-es6.js',
-    'vips.wasm',
-    'vips-heif.wasm',
-    'vips-jxl.wasm',
-  ];
-  await Promise.all(
-    assets.map(async (asset) => {
-      const source = path.resolve(process.cwd(), 'public', asset);
-      const destination = path.resolve('/', asset);
-      try {
-        await fs.unlink(destination);
-      } catch {
-        // no-op if destination does not exist
-      }
-      await fs.symlink(source, destination);
-    }),
-  );
-}
 
 const originalFetch = globalThis.fetch;
 
@@ -254,10 +99,6 @@ describe('usePersistentImages', () => {
     globalThis.structuredClone = (<T>(value: T): T =>
       value) as typeof structuredClone;
     vi.clearAllMocks();
-    Object.defineProperty(globalThis, 'indexedDB', {
-      value: fakeIndexedDB,
-      configurable: true,
-    });
     Object.defineProperty(globalThis, 'SharedArrayBuffer', {
       value: undefined,
       configurable: true,
@@ -270,7 +111,6 @@ describe('usePersistentImages', () => {
     });
     localStorage.clear();
     localStorage.setItem('preferred-image-format', JSON.stringify('png'));
-    await linkVipsAssetsToRoot();
     globalThis.fetch = vi.fn(async (input: URL | RequestInfo) => {
       const url =
         typeof input === 'string' ? input
@@ -282,7 +122,7 @@ describe('usePersistentImages', () => {
       }
       return originalFetch(input);
     });
-    await resetDatabase();
+    await imageCache.clear();
   });
 
   afterEach(() => {
@@ -295,31 +135,29 @@ describe('usePersistentImages', () => {
   });
 
   test('loads persisted images sorted by timestamp and updates filename in IndexedDB', async () => {
-    const oldFile = new File(['old'], 'old.png', { type: 'image/png' });
-    const newFile = new File(['new'], 'new.png', { type: 'image/png' });
+    const oldFile = createPngFile('old.png');
+    const newFile = createPngFile('new.png');
 
-    await seedDatabase([
-      {
-        id: '11111111-1111-4111-8111-111111111111',
-        timestamp: new Date('2024-01-01T00:00:00.000Z'),
-        file: oldFile,
-        preview: oldFile,
-        ready: true,
-        filename: 'old.png',
-        format: 'png',
-        quality: 85,
-      },
-      {
-        id: '22222222-2222-4222-8222-222222222222',
-        timestamp: new Date('2024-01-02T00:00:00.000Z'),
-        file: newFile,
-        preview: newFile,
-        ready: true,
-        filename: 'new.png',
-        format: 'png',
-        quality: 85,
-      },
-    ]);
+    await imageCache.set('1', {
+      id: '1',
+      timestamp: new Date('2024-01-01T00:00:00.000Z'),
+      file: oldFile,
+      preview: oldFile,
+      ready: true,
+      filename: 'old.png',
+      format: 'png',
+      quality: 85,
+    });
+    await imageCache.set('2', {
+      id: '2',
+      timestamp: new Date('2024-01-02T00:00:00.000Z'),
+      file: newFile,
+      preview: newFile,
+      ready: true,
+      filename: 'new.png',
+      format: 'png',
+      quality: 85,
+    });
 
     const { result } = renderHook(() => usePersistentImages());
 
@@ -338,11 +176,7 @@ describe('usePersistentImages', () => {
       expect(result.current[0][0].filename).toBe('renamed.png');
     });
 
-    const storedImages = await getAllStoredImages();
-    const renamedImage = storedImages.find(
-      (image) => image.id === '11111111-1111-4111-8111-111111111111',
-    );
-
+    const renamedImage = await imageCache.get('1');
     expect(renamedImage?.filename).toBe('renamed.png');
   });
 
@@ -375,7 +209,7 @@ describe('usePersistentImages', () => {
     expect(image.ready).toBe(false);
 
     await waitFor(async () => {
-      expect(await getStoredImageCount()).toBe(0);
+      expect(await imageCache.count()).toBe(0);
     });
 
     act(() => {
@@ -391,7 +225,7 @@ describe('usePersistentImages', () => {
     });
 
     await waitFor(async () => {
-      expect(await getStoredImageCount()).toBe(0);
+      expect(await imageCache.count()).toBe(0);
     });
 
     errorSpy.mockRestore();

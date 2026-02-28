@@ -28,6 +28,7 @@ const cache = new IndexedDBCache<CachedFile>({
   dbVersion: 2,
   storeName: 'images',
   schema: CachedFileSchema,
+  maxEntries: 1000,
 });
 
 // #endregion

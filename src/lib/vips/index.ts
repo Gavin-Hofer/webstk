@@ -43,7 +43,7 @@ function isVipsInstance(value: unknown): value is typeof Vips {
   return typeof value === 'object' && value !== null && 'Image' in value;
 }
 
-async function getVips() {
+export async function getVips() {
   vipsPromise ??= (async () => {
     const isNode = typeof window === 'undefined';
     const publicVipsPath = isNode ? PUBLIC_VIPS_PATH_NODE : PUBLIC_VIPS_PATH;
@@ -62,6 +62,13 @@ async function getVips() {
     return vips;
   })();
   return vipsPromise;
+}
+
+export function imageLoader(vips: typeof Vips) {
+  return async (file: File) => {
+    const data = await fileToBuffer(file);
+    return vips.Image.newFromBuffer(data);
+  };
 }
 
 const BMP_MIME_TYPES = new Set(['image/bmp', 'image/x-ms-bmp']);
@@ -91,12 +98,6 @@ async function fileToBuffer(file: File): Promise<Uint8Array> {
     return decodeViaBrowser(file);
   }
   return new Uint8Array(await file.arrayBuffer());
-}
-
-export async function loadVipsImage(file: File) {
-  const vips = await getVips();
-  const data = await fileToBuffer(file);
-  return vips.Image.newFromBuffer(data);
 }
 
 // #endregion
@@ -174,13 +175,6 @@ export class VipsImageBuilder {
     this.allocated = allocated ?? [];
     this.allocated.push(image);
   }
-
-  public static readonly fromFile = async (file: File) => {
-    const vips = await getVips();
-    const data = await fileToBuffer(file);
-    const img = vips.Image.newFromBuffer(data);
-    return new VipsImageBuilder(img);
-  };
 
   public readonly resize = (size: { width?: number; height?: number }) => {
     const width = size.width ?? this.image.width;
