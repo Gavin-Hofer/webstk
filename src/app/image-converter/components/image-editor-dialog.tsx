@@ -1,5 +1,7 @@
 'use client';
 
+// #region Imports
+// =============================================================================
 import React, {
   useCallback,
   useEffect,
@@ -38,6 +40,11 @@ import type { ManagedImage } from '@/hooks/use-persistent-images';
 import type { ImageEditOptions } from '@/lib/image-tools/types';
 import { cn } from '@/lib/utils';
 
+// #endregion
+
+// #region Types
+// =============================================================================
+
 type NormalizedCropRect = {
   x: number;
   y: number;
@@ -66,6 +73,11 @@ type DragHandle = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw' | 'move';
 type ResizeDragHandle = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 type EditMode = 'crop' | 'resize';
 type TouchupControl = 'brightness' | 'contrast' | 'saturation' | 'sharpen';
+
+// #endregion
+
+// #region Constants
+// =============================================================================
 
 const MIN_CROP_SIZE = 0.05;
 const MIN_RESIZE_DIMENSION = 1;
@@ -127,6 +139,11 @@ const touchupControls: {
   },
 ];
 
+// #endregion
+
+// #region Helper functions
+// =============================================================================
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
@@ -182,6 +199,11 @@ function getHandlePosition(handle: ResizeDragHandle | DragHandle) {
   }
   return 'bottom-0 left-0 -translate-x-1/2 translate-y-1/2 cursor-nesw-resize';
 }
+
+// #endregion
+
+// #region Hooks
+// =============================================================================
 
 function useObjectUrl(file: File) {
   const [sourceUrl, setSourceUrl] = useState<string | undefined>(undefined);
@@ -400,6 +422,11 @@ function useImageEditLifecycle(params: {
 
   return { handleResetToOriginal };
 }
+
+// #endregion
+
+// #region Subcomponents
+// =============================================================================
 
 type PreviewCanvasProps = {
   open: boolean;
@@ -1060,6 +1087,11 @@ const TouchupControls: React.FC<TouchupControlsProps> = ({
   );
 };
 
+// #endregion
+
+// #region Main component
+// =============================================================================
+
 export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
   image,
 }) => {
@@ -1183,3 +1215,5 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
     </Dialog>
   );
 };
+
+// #endregion
