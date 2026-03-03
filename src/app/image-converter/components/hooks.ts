@@ -7,7 +7,7 @@ import { useDebounceValue } from 'usehooks-ts';
 import { useErrorNotification } from '@/hooks/use-error-notification';
 import type { ManagedImage } from '@/hooks/use-persistent-images';
 import { usePreviousValue } from '@/hooks/use-previous-value';
-import { downloadFile } from '@/lib/download-file';
+import { downloadFile, downloadFiles } from '@/lib/download-file';
 import { convertImage } from '@/lib/image-tools';
 import { replaceFileExtension } from '@/lib/utils';
 import type { ImageFormat } from '@/lib/vips';
@@ -62,7 +62,7 @@ export function useConvertImage(image: ManagedImage) {
   const downloadMutation = useMutation({
     async mutationFn() {
       const file = await queryClient.ensureQueryData({ queryKey, queryFn });
-      downloadFile(file);
+      await downloadFile(file);
     },
   });
   useErrorNotification(downloadMutation.error);
@@ -92,6 +92,7 @@ export function useDownloadAll(format: DownloadAllFormat) {
         console.warn('Images not ready');
         return;
       }
+      const files: File[] = [];
       await Promise.allSettled(
         images.map(async (image) => {
           const resolvedFormat = format === 'current' ? image.format : format;
@@ -99,10 +100,11 @@ export function useDownloadAll(format: DownloadAllFormat) {
           const queryKey = getQueryKey(imageWithFormat);
           const queryFn = getQueryFn(imageWithFormat);
           const file = await queryClient.ensureQueryData({ queryKey, queryFn });
-          downloadFile(file);
+          files.push(file);
           setProgress((prev) => prev + 1);
         }),
       );
+      await downloadFiles(files);
     },
     onSettled() {
       setProgress(0);

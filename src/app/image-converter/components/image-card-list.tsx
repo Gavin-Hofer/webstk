@@ -157,7 +157,7 @@ const DownloadImageButton: React.FC<{ image: ManagedImage }> = ({ image }) => {
             }}
             className={cn(
               'relative w-32 sm:w-36',
-              status !== 'ready' && 'animate-racetrack',
+              status === 'converting' && 'animate-racetrack',
             )}
           >
             <div
@@ -187,11 +187,6 @@ const DownloadImageButton: React.FC<{ image: ManagedImage }> = ({ image }) => {
                 </>
               }
             </div>
-            {download.isPending && (
-              <div className='absolute inset-0 flex items-center justify-center'>
-                <Loader2 className='h-3 w-3 animate-spin' />
-              </div>
-            )}
           </Button>
         </span>
       </TooltipTrigger>
