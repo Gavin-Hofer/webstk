@@ -103,6 +103,7 @@ const PREVIEW_MIN_ZOOM = 0.5;
 const PREVIEW_MAX_ZOOM = 8;
 const PREVIEW_ZOOM_STEP = 0.25;
 const PREVIEW_SCROLL_ZOOM_SENSITIVITY = 0.002;
+const PREVIEW_RENDER_DEBOUNCE_MS = 350;
 
 const handles: DragHandle[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
 const resizeHandles: ResizeDragHandle[] = [
@@ -663,7 +664,9 @@ function useImageEditLifecycle(params: {
 
 type PreviewCanvasProps = {
   open: boolean;
+  originalSourceUrl?: string;
   sourceUrl?: string;
+  isUsingOriginalPreview: boolean;
   filename: string;
   naturalSize: { width: number; height: number };
   resizeConfig: ResizeConfig;
@@ -728,7 +731,9 @@ type PreviewCanvasProviderProps = PreviewCanvasProps & {
 
 const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = ({
   open,
+  originalSourceUrl,
   sourceUrl,
+  isUsingOriginalPreview,
   filename,
   naturalSize,
   resizeConfig,
@@ -884,7 +889,9 @@ const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = ({
   const contextValue = useMemo<PreviewCanvasContextValue>(
     () => ({
       open,
+      originalSourceUrl,
       sourceUrl,
+      isUsingOriginalPreview,
       filename,
       naturalSize,
       resizeConfig,
@@ -919,6 +926,8 @@ const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = ({
       naturalSize,
       onImageLoad,
       open,
+      originalSourceUrl,
+      isUsingOriginalPreview,
       previewBounds,
       previewZoom,
       previewTransform,
@@ -1144,7 +1153,7 @@ const PreviewZoomControls: React.FC = () => {
 
 const PreviewCropStage: React.FC = () => {
   const {
-    sourceUrl,
+    originalSourceUrl,
     filename,
     naturalSize,
     transformedNaturalSize,
@@ -1269,19 +1278,20 @@ const PreviewCropStage: React.FC = () => {
       availableHeight / Math.max(scaledTransformedHeight, Number.EPSILON),
     );
     const scale = baseScale * previewZoom;
+    const imageStyle = {
+      ...filterStyle,
+      width: `${safeNaturalWidth * resizeConfig.scaleX * scale}px`,
+      height: `${safeNaturalHeight * resizeConfig.scaleY * scale}px`,
+      transform: `translate(-50%, -50%) ${previewTransform}`,
+      transformOrigin: 'center',
+    } satisfies React.CSSProperties;
 
     return {
       frameStyle: {
         width: `${scaledTransformedWidth * scale}px`,
         height: `${scaledTransformedHeight * scale}px`,
       },
-      imageStyle: {
-        ...filterStyle,
-        width: `${safeNaturalWidth * resizeConfig.scaleX * scale}px`,
-        height: `${safeNaturalHeight * resizeConfig.scaleY * scale}px`,
-        transform: `translate(-50%, -50%) ${previewTransform}`,
-        transformOrigin: 'center',
-      } satisfies React.CSSProperties,
+      imageStyle,
     };
   }, [
     filterStyle,
@@ -1291,13 +1301,11 @@ const PreviewCropStage: React.FC = () => {
     previewBounds.width,
     previewZoom,
     previewTransform,
-    resizeConfig.scaleX,
-    resizeConfig.scaleY,
-    transformedNaturalSize.height,
-    transformedNaturalSize.width,
+    resizeConfig,
+    transformedNaturalSize,
   ]);
 
-  if (!sourceUrl) {
+  if (!originalSourceUrl) {
     return null;
   }
 
@@ -1317,7 +1325,7 @@ const PreviewCropStage: React.FC = () => {
     >
       <div className='relative overflow-hidden' style={cropPreview.frameStyle}>
         <img
-          src={sourceUrl}
+          src={originalSourceUrl}
           alt={filename}
           className='absolute top-1/2 left-1/2 max-h-none max-w-none select-none'
           style={cropPreview.imageStyle}
@@ -1361,6 +1369,7 @@ const PreviewCropStage: React.FC = () => {
 const PreviewResizeStage: React.FC = () => {
   const {
     sourceUrl,
+    isUsingOriginalPreview,
     filename,
     naturalSize,
     transformedNaturalSize,
@@ -1506,6 +1515,20 @@ const PreviewResizeStage: React.FC = () => {
     const imageHeight = safeNaturalHeight * scaleY * scale;
     const transformedPlaneWidth = safeTransformedWidth * scaleX * scale;
     const transformedPlaneHeight = safeTransformedHeight * scaleY * scale;
+    const defaultPreviewImageStyle = {
+      width: '100%',
+      height: '100%',
+      objectFit: 'fill',
+      transform: 'translate(-50%, -50%)',
+      transformOrigin: 'center',
+    } satisfies React.CSSProperties;
+    const editingPreviewImageStyle = {
+      ...filterStyle,
+      width: `${imageWidth}px`,
+      height: `${imageHeight}px`,
+      transform: `translate(-50%, -50%) ${previewTransform}`,
+      transformOrigin: 'center',
+    } satisfies React.CSSProperties;
 
     return {
       stageStyle: {
@@ -1517,21 +1540,28 @@ const PreviewResizeStage: React.FC = () => {
         height: `${displayFrameHeight}px`,
       },
       transformedPlaneStyle: {
-        width: `${transformedPlaneWidth}px`,
-        height: `${transformedPlaneHeight}px`,
-        transform: `translate(${-cropRect.x * transformedPlaneWidth}px, ${-cropRect.y * transformedPlaneHeight}px)`,
+        width:
+          isUsingOriginalPreview ?
+            `${transformedPlaneWidth}px`
+          : `${displayFrameWidth}px`,
+        height:
+          isUsingOriginalPreview ?
+            `${transformedPlaneHeight}px`
+          : `${displayFrameHeight}px`,
+        transform:
+          isUsingOriginalPreview ?
+            `translate(${-cropRect.x * transformedPlaneWidth}px, ${-cropRect.y * transformedPlaneHeight}px)`
+          : 'none',
       },
-      imageStyle: {
-        ...filterStyle,
-        width: `${imageWidth}px`,
-        height: `${imageHeight}px`,
-        transform: `translate(-50%, -50%) ${previewTransform}`,
-        transformOrigin: 'center',
-      },
+      imageStyle:
+        isUsingOriginalPreview ?
+          editingPreviewImageStyle
+        : defaultPreviewImageStyle,
     };
   }, [
     cropRect,
     filterStyle,
+    isUsingOriginalPreview,
     naturalSize.height,
     naturalSize.width,
     transformedNaturalSize,
@@ -1581,7 +1611,12 @@ const PreviewResizeStage: React.FC = () => {
                 alt={filename}
                 className='absolute top-1/2 left-1/2 max-h-none max-w-none select-none'
                 style={resizePreview.imageStyle}
-                onLoad={onImageLoad}
+                onLoad={(event) => {
+                  if (!isUsingOriginalPreview) {
+                    return;
+                  }
+                  onImageLoad(event);
+                }}
                 draggable={false}
               />
             </div>
@@ -1944,7 +1979,8 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
   image,
 }) => {
   const [open, setOpen] = useState(false);
-  const sourceUrl = useObjectUrl(image.originalFile);
+  const originalSourceUrl = useObjectUrl(image.originalFile);
+  const renderedSourceUrl = useObjectUrl(image.file);
   const [naturalSize, setNaturalSize] = useState({ width: 0, height: 0 });
   const [resizeConfig, setResizeConfig] = useState<ResizeConfig>({
     scaleX: 1,
@@ -1967,6 +2003,39 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
     flipHorizontal: false,
     flipVertical: false,
   });
+  const [isEditingPreview, setIsEditingPreview] = useState(true);
+
+  const editSignature = useMemo(
+    () =>
+      JSON.stringify({
+        cropRect,
+        resizeConfig,
+        touchup,
+        transform,
+      }),
+    [cropRect, resizeConfig, touchup, transform],
+  );
+
+  useEffect(() => {
+    if (!open) {
+      setIsEditingPreview(true);
+      return;
+    }
+
+    setIsEditingPreview(true);
+    const timeout = window.setTimeout(() => {
+      setIsEditingPreview(false);
+    }, PREVIEW_RENDER_DEBOUNCE_MS);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [editSignature, open]);
+
+  const isUsingOriginalPreview =
+    isEditingPreview || !image.ready || !renderedSourceUrl;
+  const sourceUrl =
+    isUsingOriginalPreview ? originalSourceUrl : renderedSourceUrl;
 
   const filterStyle = useMemo(() => {
     return {
@@ -2026,7 +2095,9 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
 
         <PreviewCanvas
           open={open}
+          originalSourceUrl={originalSourceUrl}
           sourceUrl={sourceUrl}
+          isUsingOriginalPreview={isUsingOriginalPreview}
           filename={image.filename}
           naturalSize={naturalSize}
           resizeConfig={resizeConfig}
