@@ -280,9 +280,11 @@ export class VipsImageBuilder {
 
     // brightness and contrast are combined in a single linear transform:
     // output = input * contrast + offset.
-    if (brightness !== 1 || contrast !== 1) {
-      const offset = 128 * (1 - contrast) + (brightness - 1) * 255;
-      const adjusted = nextImage.linear(contrast, offset);
+    if (brightness !== 1) {
+      const adjusted = nextImage.linear(
+        [brightness, brightness, brightness],
+        [0, 0, 0],
+      );
       nextImage = adjusted;
       this.allocated.push(nextImage);
     }

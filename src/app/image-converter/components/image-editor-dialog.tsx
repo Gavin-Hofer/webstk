@@ -46,6 +46,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import type { ManagedImage } from '@/hooks/use-persistent-images';
+import { convertImage } from '@/lib/image-tools';
 import type { ImageEditOptions } from '@/lib/image-tools/types';
 import { cn } from '@/lib/utils';
 
@@ -329,10 +330,14 @@ function isDefaultResizeScale(resizeConfig: ResizeConfig) {
 // #region Hooks
 // =============================================================================
 
-function useObjectUrl(file: File) {
+function useObjectUrl(file?: File) {
   const [sourceUrl, setSourceUrl] = useState<string | undefined>(undefined);
 
   useEffect(() => {
+    if (!file) {
+      setSourceUrl(undefined);
+      return;
+    }
     const nextUrl = URL.createObjectURL(file);
     setSourceUrl(nextUrl);
     return () => {
@@ -341,6 +346,126 @@ function useObjectUrl(file: File) {
   }, [file]);
 
   return sourceUrl;
+}
+
+function useCropDraftSourceUrl(params: {
+  open: boolean;
+  image: ManagedImage;
+  naturalSize: { width: number; height: number };
+  resizeConfig: ResizeConfig;
+  touchup: TouchupConfig;
+  isEditingPreview: boolean;
+}) {
+  const { open, image, naturalSize, resizeConfig, touchup, isEditingPreview } =
+    params;
+  const [draftFile, setDraftFile] = useState<File | undefined>(undefined);
+  const requestSignatureRef = useRef<string | null>(null);
+
+  const draftSignature = useMemo(
+    () =>
+      JSON.stringify({
+        fileName: image.originalFile.name,
+        fileSize: image.originalFile.size,
+        fileLastModified: image.originalFile.lastModified,
+        naturalSize,
+        resizeConfig,
+        touchup,
+      }),
+    [image.originalFile, naturalSize, resizeConfig, touchup],
+  );
+
+  useEffect(() => {
+    if (!open) {
+      setDraftFile(undefined);
+      requestSignatureRef.current = null;
+      return;
+    }
+
+    if (
+      isEditingPreview ||
+      naturalSize.width <= 0 ||
+      naturalSize.height <= 0 ||
+      draftSignature === requestSignatureRef.current
+    ) {
+      return;
+    }
+
+    requestSignatureRef.current = draftSignature;
+    const abortController = new AbortController();
+    const nextEdits: ImageEditOptions = {};
+
+    if (!isDefaultResizeScale(resizeConfig)) {
+      nextEdits.resize = {
+        width: clamp(
+          Math.round(naturalSize.width * resizeConfig.scaleX),
+          MIN_RESIZE_DIMENSION,
+          MAX_RESIZE_DIMENSION,
+        ),
+        height: clamp(
+          Math.round(naturalSize.height * resizeConfig.scaleY),
+          MIN_RESIZE_DIMENSION,
+          MAX_RESIZE_DIMENSION,
+        ),
+      };
+    }
+
+    const brightness = touchup.brightness / 100;
+    const contrast = touchup.contrast / 100;
+    const saturation = touchup.saturation / 100;
+    const sharpen = touchup.sharpen / 100;
+    if (
+      brightness !== 1 ||
+      contrast !== 1 ||
+      saturation !== 1 ||
+      sharpen !== 0
+    ) {
+      nextEdits.touchup = {
+        brightness,
+        contrast,
+        saturation,
+        sharpen,
+      };
+    }
+
+    if (!nextEdits.resize && !nextEdits.touchup) {
+      setDraftFile(undefined);
+      return () => {
+        abortController.abort();
+      };
+    }
+
+    void convertImage(
+      image.originalFile,
+      { edits: nextEdits, quality: 100 },
+      { signal: abortController.signal },
+    )
+      .then((file) => {
+        if (abortController.signal.aborted) {
+          return;
+        }
+        setDraftFile(file);
+      })
+      .catch((error: unknown) => {
+        if (!abortController.signal.aborted) {
+          console.error('Failed to build crop draft preview:', error);
+        }
+      });
+
+    return () => {
+      abortController.abort();
+    };
+  }, [
+    draftSignature,
+    image.originalFile,
+    isEditingPreview,
+    naturalSize.height,
+    naturalSize.width,
+    open,
+    resizeConfig,
+    touchup,
+  ]);
+
+  return useObjectUrl(draftFile);
 }
 
 function usePreviewBounds(open: boolean) {
@@ -667,6 +792,7 @@ type PreviewCanvasProps = {
   originalSourceUrl?: string;
   sourceUrl?: string;
   isUsingOriginalPreview: boolean;
+  isUsingCropDraft: boolean;
   filename: string;
   naturalSize: { width: number; height: number };
   resizeConfig: ResizeConfig;
@@ -734,6 +860,7 @@ const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = ({
   originalSourceUrl,
   sourceUrl,
   isUsingOriginalPreview,
+  isUsingCropDraft,
   filename,
   naturalSize,
   resizeConfig,
@@ -892,6 +1019,7 @@ const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = ({
       originalSourceUrl,
       sourceUrl,
       isUsingOriginalPreview,
+      isUsingCropDraft,
       filename,
       naturalSize,
       resizeConfig,
@@ -928,6 +1056,7 @@ const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = ({
       open,
       originalSourceUrl,
       isUsingOriginalPreview,
+      isUsingCropDraft,
       previewBounds,
       previewZoom,
       previewTransform,
@@ -1154,6 +1283,7 @@ const PreviewZoomControls: React.FC = () => {
 const PreviewCropStage: React.FC = () => {
   const {
     originalSourceUrl,
+    isUsingCropDraft,
     filename,
     naturalSize,
     transformedNaturalSize,
@@ -1279,7 +1409,7 @@ const PreviewCropStage: React.FC = () => {
     );
     const scale = baseScale * previewZoom;
     const imageStyle = {
-      ...filterStyle,
+      ...(isUsingCropDraft ? {} : filterStyle),
       width: `${safeNaturalWidth * resizeConfig.scaleX * scale}px`,
       height: `${safeNaturalHeight * resizeConfig.scaleY * scale}px`,
       transform: `translate(-50%, -50%) ${previewTransform}`,
@@ -1295,6 +1425,7 @@ const PreviewCropStage: React.FC = () => {
     };
   }, [
     filterStyle,
+    isUsingCropDraft,
     naturalSize.height,
     naturalSize.width,
     previewBounds.maxHeight,
@@ -1329,7 +1460,12 @@ const PreviewCropStage: React.FC = () => {
           alt={filename}
           className='absolute top-1/2 left-1/2 max-h-none max-w-none select-none'
           style={cropPreview.imageStyle}
-          onLoad={onImageLoad}
+          onLoad={(event) => {
+            if (isUsingCropDraft) {
+              return;
+            }
+            onImageLoad(event);
+          }}
           draggable={false}
         />
       </div>
@@ -2036,6 +2172,19 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
     isEditingPreview || !image.ready || !renderedSourceUrl;
   const sourceUrl =
     isUsingOriginalPreview ? originalSourceUrl : renderedSourceUrl;
+  const cropDraftSourceUrl = useCropDraftSourceUrl({
+    open,
+    image,
+    naturalSize,
+    resizeConfig,
+    touchup,
+    isEditingPreview,
+  });
+  const cropSourceUrl =
+    isEditingPreview || !cropDraftSourceUrl ? originalSourceUrl : (
+      cropDraftSourceUrl
+    );
+  const isUsingCropDraft = !isEditingPreview && Boolean(cropDraftSourceUrl);
 
   const filterStyle = useMemo(() => {
     return {
@@ -2095,9 +2244,10 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
 
         <PreviewCanvas
           open={open}
-          originalSourceUrl={originalSourceUrl}
+          originalSourceUrl={cropSourceUrl}
           sourceUrl={sourceUrl}
           isUsingOriginalPreview={isUsingOriginalPreview}
+          isUsingCropDraft={isUsingCropDraft}
           filename={image.filename}
           naturalSize={naturalSize}
           resizeConfig={resizeConfig}
