@@ -26,6 +26,8 @@ import {
   RotateCw,
   SunIcon,
   WandSparkles,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -97,6 +99,10 @@ const MIN_RESIZE_DIMENSION = 1;
 const MAX_RESIZE_DIMENSION = 10_000;
 const PREVIEW_MAX_VIEWPORT_HEIGHT_RATIO = 0.5;
 const PREVIEW_STAGE_PADDING = 16;
+const PREVIEW_MIN_ZOOM = 0.5;
+const PREVIEW_MAX_ZOOM = 8;
+const PREVIEW_ZOOM_STEP = 0.25;
+const PREVIEW_SCROLL_ZOOM_SENSITIVITY = 0.002;
 
 const handles: DragHandle[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
 const resizeHandles: ResizeDragHandle[] = [
@@ -378,6 +384,61 @@ function usePreviewBounds(open: boolean) {
   return { previewViewportRef, previewBounds };
 }
 
+function usePreviewZoom(open: boolean) {
+  const [previewZoom, setPreviewZoom] = useState(1);
+
+  useEffect(() => {
+    if (!open) {
+      setPreviewZoom(1);
+    }
+  }, [open]);
+
+  const clampPreviewZoom = useCallback((value: number) => {
+    return clamp(value, PREVIEW_MIN_ZOOM, PREVIEW_MAX_ZOOM);
+  }, []);
+
+  const zoomInPreview = useCallback(() => {
+    setPreviewZoom((prev) => clampPreviewZoom(prev + PREVIEW_ZOOM_STEP));
+  }, [clampPreviewZoom]);
+
+  const zoomOutPreview = useCallback(() => {
+    setPreviewZoom((prev) => clampPreviewZoom(prev - PREVIEW_ZOOM_STEP));
+  }, [clampPreviewZoom]);
+
+  const resetPreviewZoom = useCallback(() => {
+    setPreviewZoom(1);
+  }, []);
+
+  const handlePreviewWheel = useCallback(
+    (event: React.WheelEvent<HTMLDivElement>) => {
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest('button, input, [role="slider"]')
+      ) {
+        return;
+      }
+      event.preventDefault();
+      const factor = 1 - event.deltaY * PREVIEW_SCROLL_ZOOM_SENSITIVITY;
+      setPreviewZoom((prev) => clampPreviewZoom(prev * factor));
+    },
+    [clampPreviewZoom],
+  );
+
+  const handlePreviewDoubleClick = useCallback(() => {
+    setPreviewZoom((prev) => (prev > 1 ? 1 : 2));
+  }, []);
+
+  return {
+    previewZoom,
+    zoomInPreview,
+    zoomOutPreview,
+    resetPreviewZoom,
+    handlePreviewWheel,
+    handlePreviewDoubleClick,
+  };
+}
+
 function useImageEditLifecycle(params: {
   open: boolean;
   image: ManagedImage;
@@ -633,6 +694,12 @@ type PreviewCanvasContextValue = PreviewCanvasProps & {
   } | null>;
   previewViewportRef: React.RefObject<HTMLDivElement | null>;
   previewBounds: { width: number; maxHeight: number };
+  previewZoom: number;
+  zoomInPreview: () => void;
+  zoomOutPreview: () => void;
+  resetPreviewZoom: () => void;
+  handlePreviewWheel: (event: React.WheelEvent<HTMLDivElement>) => void;
+  handlePreviewDoubleClick: () => void;
   transformedNaturalSize: { width: number; height: number };
   previewTransform: string;
   updateResizeDimensions: (
@@ -689,6 +756,14 @@ const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = ({
     startHeight: number;
   } | null>(null);
   const { previewViewportRef, previewBounds } = usePreviewBounds(open);
+  const {
+    previewZoom,
+    zoomInPreview,
+    zoomOutPreview,
+    resetPreviewZoom,
+    handlePreviewWheel,
+    handlePreviewDoubleClick,
+  } = usePreviewZoom(open);
 
   useEffect(() => {
     if (!open) {
@@ -826,6 +901,12 @@ const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = ({
       resizeDragRef,
       previewViewportRef,
       previewBounds,
+      previewZoom,
+      zoomInPreview,
+      zoomOutPreview,
+      resetPreviewZoom,
+      handlePreviewWheel,
+      handlePreviewDoubleClick,
       transformedNaturalSize,
       previewTransform,
       updateResizeDimensions,
@@ -839,9 +920,12 @@ const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = ({
       onImageLoad,
       open,
       previewBounds,
+      previewZoom,
       previewTransform,
       resizeConfig,
+      resetPreviewZoom,
       setCropRect,
+      setMode,
       setResizeConfig,
       setTransform,
       sourceUrl,
@@ -849,6 +933,10 @@ const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = ({
       transformedNaturalSize,
       updateResizeDimensions,
       previewViewportRef,
+      zoomInPreview,
+      zoomOutPreview,
+      handlePreviewWheel,
+      handlePreviewDoubleClick,
     ],
   );
 
@@ -1006,6 +1094,54 @@ const PreviewModeControls: React.FC = () => {
   );
 };
 
+const PreviewZoomControls: React.FC = () => {
+  const { previewZoom, zoomInPreview, zoomOutPreview, resetPreviewZoom } =
+    usePreviewCanvasContext();
+
+  const zoomPercent = Math.round(previewZoom * 100);
+
+  return (
+    <div className='absolute top-2 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-md border bg-black/40 px-2 py-1 backdrop-blur-sm'>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant='ghost'
+            size='icon'
+            className='h-8 w-8'
+            aria-label='Zoom out'
+            onClick={zoomOutPreview}
+          >
+            <ZoomOut className='h-4 w-4' />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side='top'>Zoom out</TooltipContent>
+      </Tooltip>
+      <Button
+        variant='ghost'
+        className='h-8 min-w-[4.5rem] px-2 text-xs tabular-nums'
+        onClick={resetPreviewZoom}
+        aria-label='Reset zoom'
+      >
+        {zoomPercent}%
+      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant='ghost'
+            size='icon'
+            className='h-8 w-8'
+            aria-label='Zoom in'
+            onClick={zoomInPreview}
+          >
+            <ZoomIn className='h-4 w-4' />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side='top'>Zoom in</TooltipContent>
+      </Tooltip>
+    </div>
+  );
+};
+
 const PreviewCropStage: React.FC = () => {
   const {
     sourceUrl,
@@ -1014,6 +1150,7 @@ const PreviewCropStage: React.FC = () => {
     transformedNaturalSize,
     resizeConfig,
     previewBounds,
+    previewZoom,
     filterStyle,
     previewTransform,
     onImageLoad,
@@ -1126,11 +1263,12 @@ const PreviewCropStage: React.FC = () => {
       : fallbackViewportHeight * PREVIEW_MAX_VIEWPORT_HEIGHT_RATIO,
       1,
     );
-    const scale = Math.min(
+    const baseScale = Math.min(
       1,
       availableWidth / Math.max(scaledTransformedWidth, Number.EPSILON),
       availableHeight / Math.max(scaledTransformedHeight, Number.EPSILON),
     );
+    const scale = baseScale * previewZoom;
 
     return {
       frameStyle: {
@@ -1151,6 +1289,7 @@ const PreviewCropStage: React.FC = () => {
     naturalSize.width,
     previewBounds.maxHeight,
     previewBounds.width,
+    previewZoom,
     previewTransform,
     resizeConfig.scaleX,
     resizeConfig.scaleY,
@@ -1226,6 +1365,7 @@ const PreviewResizeStage: React.FC = () => {
     naturalSize,
     transformedNaturalSize,
     previewBounds,
+    previewZoom,
     filterStyle,
     previewTransform,
     onImageLoad,
@@ -1273,15 +1413,17 @@ const PreviewResizeStage: React.FC = () => {
       1,
     );
 
-    return Math.min(
+    const baseScale = Math.min(
       1,
       availableWidth / stageLogicalWidth,
       availableHeight / stageLogicalHeight,
     );
+    return baseScale * previewZoom;
   }, [
     cropRect,
     previewBounds.maxHeight,
     previewBounds.width,
+    previewZoom,
     resizePixelDimensions.height,
     resizePixelDimensions.width,
     transformedNaturalSize,
@@ -1626,7 +1768,12 @@ const PreviewDimensionsIndicator: React.FC = () => {
 };
 
 const PreviewCanvasViewport: React.FC = () => {
-  const { mode, previewViewportRef } = usePreviewCanvasContext();
+  const {
+    mode,
+    previewViewportRef,
+    handlePreviewWheel,
+    handlePreviewDoubleClick,
+  } = usePreviewCanvasContext();
 
   return (
     <div className='space-y-3'>
@@ -1634,8 +1781,20 @@ const PreviewCanvasViewport: React.FC = () => {
         <div
           ref={previewViewportRef}
           className='bg-background relative flex min-h-[55vh] items-center justify-center overflow-auto rounded-md border p-2 pt-14 sm:pt-16'
+          onWheel={handlePreviewWheel}
+          onDoubleClick={(event) => {
+            const target = event.target;
+            if (
+              target instanceof Element &&
+              target.closest('button, input, [role="slider"]')
+            ) {
+              return;
+            }
+            handlePreviewDoubleClick();
+          }}
         >
           <PreviewTransformControls />
+          <PreviewZoomControls />
           <PreviewModeControls />
           {mode === 'crop' ?
             <PreviewCropStage />
