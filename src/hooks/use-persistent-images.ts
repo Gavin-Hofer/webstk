@@ -7,12 +7,18 @@ import * as uuid from 'uuid';
 import { z } from 'zod';
 
 import { convertImage, imageConverterCache } from '@/lib/image-tools';
+import type { ImageEditOptions } from '@/lib/image-tools/types';
 import { IndexedDBCache } from '@/lib/indexeddb';
 import { promisePool } from '@/lib/promises/promise-pool';
-import { IMAGE_FORMATS, type ImageFormat } from '@/lib/vips';
+import {
+  IMAGE_FORMAT_MIME_TYPES,
+  IMAGE_FORMATS,
+  type ImageFormat,
+} from '@/lib/vips';
 
 const INDEXEDDB_DB_NAME = 'PersistentImagesDB';
 const DEFAULT_IMAGE_QUALITY = 85;
+const IMAGE_FORMAT_SET = new Set<string>(IMAGE_FORMATS);
 
 // #region Types and Schemas
 // =============================================================================
@@ -21,19 +27,24 @@ const ImageSchema = z.object({
   id: z.string(),
   timestamp: z.date(),
   file: z.instanceof(File),
+  originalFile: z.instanceof(File).optional(),
   preview: z.instanceof(File),
   ready: z.boolean(),
   filename: z.string().default('Image.png'),
   format: z.enum(IMAGE_FORMATS).default('png'),
   quality: z.number().int().min(0).max(100).default(DEFAULT_IMAGE_QUALITY),
+  edits: z.custom<ImageEditOptions>().optional(),
 });
 
 type ImageType = z.infer<typeof ImageSchema>;
 
-export type ManagedImage = ImageType & {
+export type ManagedImage = Omit<ImageType, 'originalFile'> & {
+  originalFile: File;
   setFilename: (name: string) => void;
   setFormat: (format: ImageFormat) => void;
   setQuality: (quality: number) => void;
+  setEdits: (edits?: ImageEditOptions) => void;
+  resetEdits: () => void;
   remove: () => void;
 };
 
@@ -46,7 +57,7 @@ export type ImageID = ManagedImage['id'];
 
 export const imageCache = new IndexedDBCache({
   dbName: INDEXEDDB_DB_NAME,
-  dbVersion: 2,
+  dbVersion: 3,
   storeName: 'images',
   schema: ImageSchema,
 });
@@ -94,13 +105,37 @@ function fileToImageType(file: File, preferredFormat: ImageFormat) {
     // Use the current datetime followed by random uuid so images maintain order
     id: `${new Date().toISOString()} ${uuid.v4()}`,
     file,
+    originalFile: file,
     preview: file,
     timestamp: new Date(),
     ready: false,
     filename: file.name,
     format: preferredFormat,
     quality: DEFAULT_IMAGE_QUALITY,
+    edits: undefined,
   } satisfies ImageType;
+}
+
+function getImageFormatFromFile(file: File): ImageFormat {
+  const mimeType = file.type.toLowerCase();
+  for (const format of IMAGE_FORMATS) {
+    const type = IMAGE_FORMAT_MIME_TYPES[format];
+    if (type === mimeType) {
+      return format;
+    }
+  }
+  const extension = file.name.split('.').pop()?.toLowerCase();
+  if (extension === 'jpg') {
+    return 'jpeg';
+  }
+  if (extension && isImageFormat(extension)) {
+    return extension;
+  }
+  return 'png';
+}
+
+function isImageFormat(value: string): value is ImageFormat {
+  return IMAGE_FORMAT_SET.has(value);
 }
 
 // #endregion
@@ -185,6 +220,42 @@ export function usePersistentImages(): [
     [],
   );
 
+  const applyEditsById = useCallback(
+    async (id: string, edits?: ImageEditOptions) => {
+      updateImageById(id, { ready: false, edits });
+      try {
+        const current = await imageCache.get(id);
+        if (!current) {
+          return;
+        }
+        const originalFile = current.originalFile ?? current.file;
+        const editingFormat = getImageFormatFromFile(originalFile);
+        const editedFile = await convertImage(originalFile, {
+          format: editingFormat,
+          quality: 100,
+          filename: originalFile.name,
+          edits,
+        });
+        const preview = await convertImage(editedFile, {
+          format: 'webp',
+          quality: 50,
+          width: 128,
+          height: 128,
+        });
+        updateImageById(id, {
+          file: editedFile,
+          preview,
+          edits,
+          ready: true,
+        });
+      } catch (error) {
+        console.error('Failed to apply image edits:', error);
+        updateImageById(id, { ready: true });
+      }
+    },
+    [updateImageById],
+  );
+
   /** Removes an image from state and IndexedDB. */
   const removeImageById = useCallback((id: string): void => {
     void imageCache.delete(id);
@@ -195,11 +266,13 @@ export function usePersistentImages(): [
     });
   }, []);
 
-  /** Adds remove and rename functions to the ImageFile object. */
+  /** Adds image operation functions to the stored image object. */
   const resolveImage = useCallback(
     (image: ImageType): ManagedImage => {
+      const originalFile = image.originalFile ?? image.file;
       return {
         ...image,
+        originalFile,
         remove: () => {
           removeImageById(image.id);
         },
@@ -212,9 +285,15 @@ export function usePersistentImages(): [
         setQuality: (quality) => {
           updateImageById(image.id, { quality });
         },
+        setEdits: (edits) => {
+          void applyEditsById(image.id, edits);
+        },
+        resetEdits: () => {
+          void applyEditsById(image.id, undefined);
+        },
       };
     },
-    [removeImageById, updateImageById],
+    [removeImageById, updateImageById, applyEditsById],
   );
 
   // Retrieve files from storage on load.
@@ -265,7 +344,14 @@ export function usePersistentImages(): [
               width: 128,
               height: 128,
             });
-            const updatedImage = { ...image, file, preview, ready: true };
+            const updatedImage = {
+              ...image,
+              file,
+              originalFile: file,
+              edits: undefined,
+              preview,
+              ready: true,
+            };
             void imageCache.set(updatedImage.id, updatedImage);
             setImages((prevState) => ({
               ...prevState,

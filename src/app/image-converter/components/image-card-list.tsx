@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 import { COMPRESSION_SUPPORTED } from '@/lib/vips';
 import { FormatSelect } from './format-select';
 import { useConvertImage } from './hooks';
+import { ImageEditorDialog } from './image-editor-dialog';
 import { QualitySlider } from './quality-slider';
 
 // #region Subcomponents
@@ -255,6 +256,7 @@ const ImageRow: React.FC<{
             : `Quality adjustment is not supported for ${image.format}`
           }
         />
+        <ImageEditorDialog image={image} />
         <DownloadImageButton image={image} />
         <RemoveImageButton
           onClick={() => {

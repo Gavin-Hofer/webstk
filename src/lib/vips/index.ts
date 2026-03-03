@@ -1,5 +1,9 @@
 import type Vips from 'wasm-vips';
 
+import type {
+  ImageCropOptions,
+  ImageTouchupOptions,
+} from '../image-tools/types';
 import { PUBLIC_VIPS_PATH, PUBLIC_VIPS_PATH_NODE } from './__generated__';
 
 // #region Image Formats
@@ -151,6 +155,34 @@ function encodeBmp(img: Vips.Image): Uint8Array<ArrayBuffer> {
   return out;
 }
 
+function isVipsImage(value: unknown): value is Vips.Image {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'width' in value &&
+    'height' in value &&
+    'delete' in value
+  );
+}
+
+function runImageOperation(
+  image: Vips.Image,
+  names: string[],
+  args: unknown[],
+): Vips.Image | undefined {
+  for (const name of names) {
+    const operation: unknown = Reflect.get(image as object, name);
+    if (!(typeof operation === 'function')) {
+      continue;
+    }
+    const output = operation.apply(image as object, args);
+    if (isVipsImage(output)) {
+      return output;
+    }
+  }
+  return undefined;
+}
+
 // #endregion
 
 // #region ImageBuilder
@@ -196,6 +228,95 @@ export class VipsImageBuilder {
     const width = Math.round(this.image.width * scaleFactor);
     const image = this.image.thumbnailImage(width);
     return new VipsImageBuilder(image, this.allocated);
+  };
+
+  public readonly crop = (crop: ImageCropOptions) => {
+    const left = Math.max(0, Math.round(crop.left));
+    const top = Math.max(0, Math.round(crop.top));
+    const width = Math.max(1, Math.round(crop.width));
+    const height = Math.max(1, Math.round(crop.height));
+    if (
+      left === 0 &&
+      top === 0 &&
+      width === this.image.width &&
+      height === this.image.height
+    ) {
+      return this;
+    }
+    const safeWidth = Math.min(width, this.image.width - left);
+    const safeHeight = Math.min(height, this.image.height - top);
+    const cropped = runImageOperation(
+      this.image,
+      ['crop', 'extractArea'],
+      [left, top, safeWidth, safeHeight],
+    );
+    if (!cropped) {
+      throw new Error('Cropping is not supported by this vips build');
+    }
+    return new VipsImageBuilder(cropped, this.allocated);
+  };
+
+  public readonly touchup = (touchup: ImageTouchupOptions) => {
+    const brightness = touchup.brightness ?? 1;
+    const contrast = touchup.contrast ?? 1;
+    const saturation = touchup.saturation ?? 1;
+    const sharpen = touchup.sharpen ?? 0;
+
+    const hasTouchup =
+      brightness !== 1 || contrast !== 1 || saturation !== 1 || sharpen > 0;
+    if (!hasTouchup) {
+      return this;
+    }
+
+    let nextImage = this.image;
+
+    // brightness and contrast are combined in a single linear transform:
+    // output = input * contrast + offset.
+    if (brightness !== 1 || contrast !== 1) {
+      const offset = 128 * (1 - contrast) + (brightness - 1) * 255;
+      const adjusted = runImageOperation(
+        nextImage,
+        ['linear'],
+        [contrast, offset],
+      );
+      if (!adjusted) {
+        throw new TypeError(
+          'Brightness/contrast adjustments are not supported by this vips build',
+        );
+      }
+      nextImage = adjusted;
+      this.allocated.push(nextImage);
+    }
+
+    if (saturation !== 1) {
+      const saturated = runImageOperation(
+        nextImage,
+        ['modulate'],
+        [{ saturation }],
+      );
+      if (!saturated) {
+        throw new TypeError(
+          'Saturation adjustment is not supported by this vips build',
+        );
+      }
+      nextImage = saturated;
+      this.allocated.push(nextImage);
+    }
+
+    if (sharpen > 0) {
+      const sharpened = runImageOperation(
+        nextImage,
+        ['sharpen'],
+        [{ sigma: sharpen }],
+      );
+      if (!sharpened) {
+        throw new TypeError('Sharpening is not supported by this vips build');
+      }
+      nextImage = sharpened;
+      this.allocated.push(nextImage);
+    }
+
+    return new VipsImageBuilder(nextImage, this.allocated);
   };
 
   public readonly encode = ({

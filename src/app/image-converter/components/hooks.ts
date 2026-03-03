@@ -24,7 +24,12 @@ function formatFileSize(bytes: number): string {
 }
 
 function getQueryKey(image: ManagedImage) {
-  return [[image.id, image.format, image.quality]];
+  const sourceKey = [
+    image.file.name,
+    image.file.size,
+    image.file.lastModified,
+  ].join(':');
+  return [[image.id, sourceKey, image.format, image.quality]];
 }
 
 function getQueryFn(image: ManagedImage): QueryFunction<File> {
