@@ -60,6 +60,29 @@ In fresh or restricted environments, e2e can fail for two common setup reasons:
      ```
    - This repository also sets that variable in `playwright.config.ts` under `webServer.env` so `pnpm test:e2e` works consistently.
 
+### Auto Formatter Monaco loading reliability
+
+In restricted environments, Monaco can stay in an infinite loading state if
+`@monaco-editor/react` relies on CDN-hosted runtime assets and egress is
+blocked.
+
+Use the local Monaco bundle instead of CDN loading:
+
+1. Ensure the auto-formatter configures Monaco loader with the local package:
+
+   ```ts
+   import Editor, { loader } from '@monaco-editor/react';
+   import * as monaco from 'monaco-editor';
+
+   loader.config({ monaco });
+   ```
+
+2. Keep a UI timeout/fallback in the editor container so users see an
+   actionable error state with retry instead of a perpetual loading spinner.
+
+If you need to test older commits that still use CDN loading, allow outbound
+access to `cdn.jsdelivr.net` and/or `unpkg.com` for Monaco assets.
+
 ### Build and quality commands
 
 - Lint:

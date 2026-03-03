@@ -1,8 +1,8 @@
 'use client';
 
-import { useContext, useMemo, useRef, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 
-import Editor from '@monaco-editor/react';
+import Editor, { loader } from '@monaco-editor/react';
 import hljs from 'highlight.js';
 import { CheckIcon, ChevronsUpDown, Loader2, WandSparkles } from 'lucide-react';
 import type { BuiltInParserName, Plugin } from 'prettier';
@@ -281,6 +281,50 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   const themeContext = useContext(ThemeContext);
   const monacoTheme = themeContext?.theme === 'dark' ? 'vs-dark' : 'light';
   const containerRef = useRef<HTMLDivElement>(null);
+  const [editorStatus, setEditorStatus] = useState<
+    'loading' | 'ready' | 'failed'
+  >('loading');
+  const [editorInstanceKey, setEditorInstanceKey] = useState(0);
+  const [isMonacoConfigured, setIsMonacoConfigured] = useState(false);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    void import('monaco-editor')
+      .then((monacoRuntime) => {
+        if (isCancelled) {
+          return;
+        }
+
+        loader.config({ monaco: monacoRuntime });
+        setIsMonacoConfigured(true);
+      })
+      .catch(() => {
+        if (isCancelled) {
+          return;
+        }
+
+        setEditorStatus('failed');
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (editorStatus !== 'loading') {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setEditorStatus('failed');
+    }, 10_000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [editorStatus, editorInstanceKey]);
   const monacoEditorLanguage =
     selectedLanguageId === 'auto' ?
       detectedLanguageId === 'auto' ?
@@ -307,71 +351,112 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         <PrettierSettingsModal className='bg-background h-8 w-8 rounded-none rounded-tr-md border-t-0 border-r-0 border-l-0' />
       </div>
       <div className='absolute inset-0 pt-8'>
-        <Editor
-          height='100%'
-          value={value}
-          onChange={(val) => {
-            onChange(val ?? '');
-          }}
-          language={monacoEditorLanguage}
-          theme={monacoTheme}
-          options={{
-            minimap: { enabled: true },
-            fontSize: 14,
-            fontFamily:
-              'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
-            lineNumbers: 'on',
-            scrollBeyondLastLine: false,
-            automaticLayout: true,
-            tabSize: 2,
-            wordWrap: 'on',
-            padding: { top: 12, bottom: 12 },
-          }}
-          beforeMount={(monaco) => {
-            // Enable JSX support in the TypeScript compiler
-            monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
-              jsx: monaco.languages.typescript.JsxEmit.React,
-              jsxFactory: 'React.createElement',
-              reactNamespace: 'React',
-              allowNonTsExtensions: true,
-              allowJs: true,
-              target: monaco.languages.typescript.ScriptTarget.Latest,
-            });
-            monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
-              jsx: monaco.languages.typescript.JsxEmit.React,
-              jsxFactory: 'React.createElement',
-              reactNamespace: 'React',
-              allowNonTsExtensions: true,
-              allowJs: true,
-              target: monaco.languages.typescript.ScriptTarget.Latest,
-            });
+        {editorStatus === 'failed' ?
+          <div
+            data-testid='editor-load-error'
+            className='bg-muted/30 text-muted-foreground flex h-full flex-col items-center justify-center gap-3 p-6 text-center'
+          >
+            <p className='max-w-xl text-sm'>
+              The code editor failed to load. Check your network or dependency
+              setup, then retry.
+            </p>
+            <Button
+              type='button'
+              size='sm'
+              variant='outline'
+              onClick={() => {
+                setEditorStatus('loading');
+                setEditorInstanceKey((current) => current + 1);
+              }}
+            >
+              Retry editor
+            </Button>
+          </div>
+        : isMonacoConfigured ?
+          <Editor
+            key={editorInstanceKey}
+            height='100%'
+            loading={
+              <div className='text-muted-foreground p-4 text-sm'>
+                Loading editor...
+              </div>
+            }
+            value={value}
+            onMount={() => {
+              setEditorStatus('ready');
+            }}
+            onChange={(val) => {
+              onChange(val ?? '');
+            }}
+            language={monacoEditorLanguage}
+            theme={monacoTheme}
+            options={{
+              minimap: { enabled: true },
+              fontSize: 14,
+              fontFamily:
+                'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
+              lineNumbers: 'on',
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
+              tabSize: 2,
+              wordWrap: 'on',
+              padding: { top: 12, bottom: 12 },
+            }}
+            beforeMount={(monacoInstance) => {
+              // Enable JSX support in the TypeScript compiler
+              monacoInstance.languages.typescript.typescriptDefaults.setCompilerOptions(
+                {
+                  jsx: monacoInstance.languages.typescript.JsxEmit.React,
+                  jsxFactory: 'React.createElement',
+                  reactNamespace: 'React',
+                  allowNonTsExtensions: true,
+                  allowJs: true,
+                  target:
+                    monacoInstance.languages.typescript.ScriptTarget.Latest,
+                },
+              );
+              monacoInstance.languages.typescript.javascriptDefaults.setCompilerOptions(
+                {
+                  jsx: monacoInstance.languages.typescript.JsxEmit.React,
+                  jsxFactory: 'React.createElement',
+                  reactNamespace: 'React',
+                  allowNonTsExtensions: true,
+                  allowJs: true,
+                  target:
+                    monacoInstance.languages.typescript.ScriptTarget.Latest,
+                },
+              );
 
-            // Disable semantic validation, keep syntax errors
-            // Ignore 80xx codes (TypeScript-only feature errors when in JS mode)
-            const diagnosticCodesToIgnore = [
-              8006, // 'import type' can only be used in TypeScript files
-              8008, // 'type aliases' can only be used in TypeScript files
-              8010, // 'export type' can only be used in TypeScript files
-              8011, // Property access modifiers can only be used in TypeScript files
-              8016, // Type annotation can only be used in TypeScript files
-              8017, // 'interface' can only be used in TypeScript files
-            ];
-            monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions(
-              {
-                noSemanticValidation: true,
-                noSyntaxValidation: false,
-                diagnosticCodesToIgnore,
-              },
-            );
-            monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions(
-              {
-                noSemanticValidation: true,
-                noSyntaxValidation: false,
-                diagnosticCodesToIgnore,
-              },
-            );
-          }}
-        />
+              // Disable semantic validation, keep syntax errors
+              // Ignore 80xx codes (TypeScript-only feature errors when in JS mode)
+              const diagnosticCodesToIgnore = [
+                8006, // 'import type' can only be used in TypeScript files
+                8008, // 'type aliases' can only be used in TypeScript files
+                8010, // 'export type' can only be used in TypeScript files
+                8011, // Property access modifiers can only be used in TypeScript files
+                8016, // Type annotation can only be used in TypeScript files
+                8017, // 'interface' can only be used in TypeScript files
+              ];
+              monacoInstance.languages.typescript.typescriptDefaults.setDiagnosticsOptions(
+                {
+                  noSemanticValidation: true,
+                  noSyntaxValidation: false,
+                  diagnosticCodesToIgnore,
+                },
+              );
+              monacoInstance.languages.typescript.javascriptDefaults.setDiagnosticsOptions(
+                {
+                  noSemanticValidation: true,
+                  noSyntaxValidation: false,
+                  diagnosticCodesToIgnore,
+                },
+              );
+            }}
+          />
+        : <div className='text-muted-foreground p-4 text-sm'>
+            Loading editor...
+          </div>
+        }
       </div>
     </div>
   );

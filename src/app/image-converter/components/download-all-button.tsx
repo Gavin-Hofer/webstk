@@ -78,6 +78,7 @@ export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
       </Button>
       <div className='bg-primary/30 my-2 w-px' />
       <FormatSelect
+        data-testid='download-all-format-select'
         format={format}
         setFormat={(f) => {
           setFormat(f);

@@ -160,12 +160,14 @@ type ToolbarButtonProps = {
   onClick: () => void;
   label: string;
   children: React.ReactNode;
+  testId?: string;
 };
 
 const ToolbarButton: React.FC<ToolbarButtonProps> = ({
   onClick,
   label,
   children,
+  testId,
 }) => {
   return (
     <Button
@@ -174,6 +176,7 @@ const ToolbarButton: React.FC<ToolbarButtonProps> = ({
       onClick={onClick}
       className='h-8 w-8'
       aria-label={label}
+      data-testid={testId}
     >
       {children}
     </Button>
@@ -321,19 +324,34 @@ export const ImageViewerDialog: React.FC<ImageViewerDialogProps> = ({
             <ToolbarButton onClick={zoomOut} label='Zoom out'>
               <ZoomOut className='h-4 w-4' />
             </ToolbarButton>
-            <span className='text-muted-foreground min-w-[3.5rem] text-center text-xs tabular-nums'>
+            <span
+              data-testid='image-viewer-zoom-percent'
+              className='text-muted-foreground min-w-[3.5rem] text-center text-xs tabular-nums'
+            >
               {zoomPercent}%
             </span>
-            <ToolbarButton onClick={zoomIn} label='Zoom in'>
+            <ToolbarButton
+              onClick={zoomIn}
+              label='Zoom in'
+              testId='image-viewer-zoom-in'
+            >
               <ZoomIn className='h-4 w-4' />
             </ToolbarButton>
-            <ToolbarButton onClick={resetView} label='Reset view'>
+            <ToolbarButton
+              onClick={resetView}
+              label='Reset view'
+              testId='image-viewer-reset-view'
+            >
               <RotateCcw className='h-4 w-4' />
             </ToolbarButton>
 
             <div className='bg-border mx-1 h-4 w-px' />
 
-            <ToolbarButton onClick={toggleFullscreen} label='Toggle fullscreen'>
+            <ToolbarButton
+              onClick={toggleFullscreen}
+              label='Toggle fullscreen'
+              testId='image-viewer-toggle-fullscreen'
+            >
               {fullscreen ?
                 <Minimize2 className='h-4 w-4' />
               : <Maximize2 className='h-4 w-4' />}
@@ -343,6 +361,7 @@ export const ImageViewerDialog: React.FC<ImageViewerDialogProps> = ({
                 handleOpenChange(false);
               }}
               label='Close'
+              testId='image-viewer-close'
             >
               <XIcon className='h-4 w-4' />
             </ToolbarButton>
@@ -352,6 +371,7 @@ export const ImageViewerDialog: React.FC<ImageViewerDialogProps> = ({
         {/* Image viewport */}
         <div
           ref={containerRef}
+          data-testid='image-viewer-dialog'
           className={cn(
             'relative flex-1 overflow-hidden',
             '[background-image:linear-gradient(45deg,theme(colors.muted)_25%,transparent_25%),linear-gradient(-45deg,theme(colors.muted)_25%,transparent_25%),linear-gradient(45deg,transparent_75%,theme(colors.muted)_75%),linear-gradient(-45deg,transparent_75%,theme(colors.muted)_75%)] bg-[length:20px_20px] [background-position:0_0,0_10px,10px_-10px,-10px_0]',
@@ -372,6 +392,7 @@ export const ImageViewerDialog: React.FC<ImageViewerDialogProps> = ({
           >
             {imageUrl && (
               <img
+                data-testid='image-viewer-image'
                 src={imageUrl}
                 alt={file.name}
                 className='max-h-full max-w-full object-contain select-none'
