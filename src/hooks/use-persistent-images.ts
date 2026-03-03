@@ -1,6 +1,6 @@
 import 'client-only';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useLocalStorage } from 'usehooks-ts';
 import * as uuid from 'uuid';
@@ -189,6 +189,10 @@ export function usePersistentImages(): [
   (files: FileList | null) => void,
 ] {
   const [images, setImages] = useState<Record<string, ManagedImage>>({});
+  const latestEditRequestByIdRef = useRef<Record<string, number>>({});
+  const editAbortControllerByIdRef = useRef<
+    Partial<Record<string, AbortController>>
+  >({});
   const [preferredFormat] = useLocalStorage<ImageFormat>(
     'preferred-image-format',
     'png',
@@ -222,27 +226,50 @@ export function usePersistentImages(): [
 
   const applyEditsById = useCallback(
     async (id: string, edits?: ImageEditOptions) => {
+      const nextRequestId = (latestEditRequestByIdRef.current[id] ?? 0) + 1;
+      latestEditRequestByIdRef.current[id] = nextRequestId;
+      const existingAbortController = editAbortControllerByIdRef.current[id];
+      if (existingAbortController) {
+        existingAbortController.abort();
+      }
+      const abortController = new AbortController();
+      editAbortControllerByIdRef.current[id] = abortController;
+
       updateImageById(id, { ready: false, edits });
       try {
         const current = await imageCache.get(id);
-        if (!current) {
+        if (!current || abortController.signal.aborted) {
           return;
         }
         const originalFile = current.originalFile ?? current.file;
         const editingFormat = getImageFormatFromFile(originalFile);
-        const editedFile = await convertImage(originalFile, {
-          format: editingFormat,
-          quality: 100,
-          filename: originalFile.name,
-          edits,
-        });
-        const preview = await convertImage(editedFile, {
-          format: 'webp',
-          quality: 50,
-          width: 128,
-          height: 128,
-          thumbnail: true,
-        });
+        const editedFile = await convertImage(
+          originalFile,
+          {
+            format: editingFormat,
+            quality: 100,
+            filename: originalFile.name,
+            edits,
+          },
+          { signal: abortController.signal },
+        );
+        if (latestEditRequestByIdRef.current[id] !== nextRequestId) {
+          return;
+        }
+        const preview = await convertImage(
+          editedFile,
+          {
+            format: 'webp',
+            quality: 50,
+            width: 128,
+            height: 128,
+            thumbnail: true,
+          },
+          { signal: abortController.signal },
+        );
+        if (latestEditRequestByIdRef.current[id] !== nextRequestId) {
+          return;
+        }
         updateImageById(id, {
           file: editedFile,
           preview,
@@ -250,12 +277,33 @@ export function usePersistentImages(): [
           ready: true,
         });
       } catch (error) {
+        if (abortController.signal.aborted) {
+          return;
+        }
         console.error('Failed to apply image edits:', error);
-        updateImageById(id, { ready: true });
+        if (latestEditRequestByIdRef.current[id] === nextRequestId) {
+          updateImageById(id, { ready: true });
+        }
+      } finally {
+        if (latestEditRequestByIdRef.current[id] === nextRequestId) {
+          editAbortControllerByIdRef.current[id] = undefined;
+        }
       }
     },
     [updateImageById],
   );
+
+  useEffect(() => {
+    const abortControllersById = editAbortControllerByIdRef.current;
+    return () => {
+      Object.values(abortControllersById).forEach((controller) => {
+        if (!controller) {
+          return;
+        }
+        controller.abort();
+      });
+    };
+  }, []);
 
   /** Removes an image from state and IndexedDB. */
   const removeImageById = useCallback((id: string): void => {

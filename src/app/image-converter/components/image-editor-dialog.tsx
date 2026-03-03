@@ -13,7 +13,6 @@ import React, {
 } from 'react';
 
 import {
-  Aperture,
   ContrastIcon,
   CropIcon,
   Droplets,
@@ -149,14 +148,6 @@ const touchupControls: {
     max: 200,
     formatValue: (value) => `${value}%`,
     icon: Droplets,
-  },
-  {
-    id: 'sharpen',
-    label: 'Sharpen',
-    min: 0,
-    max: 300,
-    formatValue: (value) => (value / 100).toFixed(2),
-    icon: Aperture,
   },
 ];
 
@@ -390,6 +381,9 @@ function useCropDraftSourceUrl(params: {
       return;
     }
 
+    // Invalidate the previous draft immediately so we keep using the
+    // CSS-transformed original preview until the new draft finishes.
+    setDraftFile(undefined);
     requestSignatureRef.current = draftSignature;
     const abortController = new AbortController();
     const nextEdits: ImageEditOptions = {};
@@ -803,6 +797,12 @@ type PreviewCanvasProps = {
   setTransform: React.Dispatch<React.SetStateAction<TransformConfig>>;
   filterStyle: React.CSSProperties;
   onImageLoad: (event: React.SyntheticEvent<HTMLImageElement>) => void;
+  previewZoom: number;
+  zoomInPreview: () => void;
+  zoomOutPreview: () => void;
+  resetPreviewZoom: () => void;
+  handlePreviewWheel: (event: React.WheelEvent<HTMLDivElement>) => void;
+  handlePreviewDoubleClick: () => void;
 };
 
 type PreviewCanvasContextValue = PreviewCanvasProps & {
@@ -823,12 +823,6 @@ type PreviewCanvasContextValue = PreviewCanvasProps & {
   } | null>;
   previewViewportRef: React.RefObject<HTMLDivElement | null>;
   previewBounds: { width: number; maxHeight: number };
-  previewZoom: number;
-  zoomInPreview: () => void;
-  zoomOutPreview: () => void;
-  resetPreviewZoom: () => void;
-  handlePreviewWheel: (event: React.WheelEvent<HTMLDivElement>) => void;
-  handlePreviewDoubleClick: () => void;
   transformedNaturalSize: { width: number; height: number };
   previewTransform: string;
   updateResizeDimensions: (
@@ -871,6 +865,12 @@ const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = ({
   setTransform,
   filterStyle,
   onImageLoad,
+  previewZoom,
+  zoomInPreview,
+  zoomOutPreview,
+  resetPreviewZoom,
+  handlePreviewWheel,
+  handlePreviewDoubleClick,
   children,
 }) => {
   const [mode, setMode] = useState<EditMode>('crop');
@@ -888,14 +888,6 @@ const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = ({
     startHeight: number;
   } | null>(null);
   const { previewViewportRef, previewBounds } = usePreviewBounds(open);
-  const {
-    previewZoom,
-    zoomInPreview,
-    zoomOutPreview,
-    resetPreviewZoom,
-    handlePreviewWheel,
-    handlePreviewDoubleClick,
-  } = usePreviewZoom(open);
 
   useEffect(() => {
     if (!open) {
@@ -1951,7 +1943,7 @@ const PreviewCanvasViewport: React.FC = () => {
       <div className='relative p-3'>
         <div
           ref={previewViewportRef}
-          className='bg-background relative flex min-h-[55vh] items-center justify-center overflow-auto rounded-md border p-2 pt-14 sm:pt-16'
+          className='bg-background relative flex h-[55vh] items-center justify-center overflow-auto rounded-md border p-2 pt-14 sm:pt-16'
           onWheel={handlePreviewWheel}
           onDoubleClick={(event) => {
             const target = event.target;
@@ -2140,6 +2132,14 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
     flipVertical: false,
   });
   const [isEditingPreview, setIsEditingPreview] = useState(true);
+  const {
+    previewZoom,
+    zoomInPreview,
+    zoomOutPreview,
+    resetPreviewZoom,
+    handlePreviewWheel,
+    handlePreviewDoubleClick,
+  } = usePreviewZoom(open);
 
   const editSignature = useMemo(
     () =>
@@ -2258,6 +2258,12 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
           setTransform={setTransform}
           filterStyle={filterStyle}
           onImageLoad={handlePreviewImageLoad}
+          previewZoom={previewZoom}
+          zoomInPreview={zoomInPreview}
+          zoomOutPreview={zoomOutPreview}
+          resetPreviewZoom={resetPreviewZoom}
+          handlePreviewWheel={handlePreviewWheel}
+          handlePreviewDoubleClick={handlePreviewDoubleClick}
         />
 
         <TouchupControls
@@ -2267,7 +2273,13 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
         />
 
         <DialogFooter className='mt-2 flex-col-reverse gap-2 sm:flex-row sm:justify-between'>
-          <Button variant='ghost' onClick={handleResetToOriginal}>
+          <Button
+            variant='ghost'
+            onClick={() => {
+              handleResetToOriginal();
+              resetPreviewZoom();
+            }}
+          >
             <RotateCcw />
             Revert to Original
           </Button>

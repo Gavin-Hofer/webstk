@@ -278,12 +278,22 @@ export class VipsImageBuilder {
 
     let nextImage = this.image;
 
-    // brightness and contrast are combined in a single linear transform:
-    // output = input * contrast + offset.
+    // Brightness is a multiplicative gain on RGB channels.
     if (brightness !== 1) {
       const adjusted = nextImage.linear(
         [brightness, brightness, brightness],
         [0, 0, 0],
+      );
+      nextImage = adjusted;
+      this.allocated.push(nextImage);
+    }
+
+    // Contrast pivots around mid-gray (128) to mirror CSS contrast():
+    // output = input * contrast + 128 * (1 - contrast).
+    if (contrast !== 1) {
+      const adjusted = nextImage.linear(
+        [contrast, contrast, contrast],
+        [128 * (1 - contrast), 128 * (1 - contrast), 128 * (1 - contrast)],
       );
       nextImage = adjusted;
       this.allocated.push(nextImage);
