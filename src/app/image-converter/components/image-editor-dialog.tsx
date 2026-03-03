@@ -16,7 +16,10 @@ import {
   CropIcon,
   Droplets,
   Expand,
+  FlipHorizontal,
+  FlipVertical,
   RotateCcw,
+  RotateCw,
   SunIcon,
   WandSparkles,
 } from 'lucide-react';
@@ -61,6 +64,12 @@ type TouchupConfig = {
   contrast: number;
   saturation: number;
   sharpen: number;
+};
+
+type TransformConfig = {
+  rotation: 0 | 90 | 180 | 270;
+  flipHorizontal: boolean;
+  flipVertical: boolean;
 };
 
 type ImageEditorDialogProps = {
@@ -144,6 +153,65 @@ const touchupControls: {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function rotateLeft(
+  rotation: TransformConfig['rotation'],
+): TransformConfig['rotation'] {
+  if (rotation === 0) {
+    return 270;
+  }
+  if (rotation === 90) {
+    return 0;
+  }
+  if (rotation === 180) {
+    return 90;
+  }
+  return 180;
+}
+
+function rotateRight(
+  rotation: TransformConfig['rotation'],
+): TransformConfig['rotation'] {
+  if (rotation === 0) {
+    return 90;
+  }
+  if (rotation === 90) {
+    return 180;
+  }
+  if (rotation === 180) {
+    return 270;
+  }
+  return 0;
+}
+
+function getTransformedDimensions(
+  width: number,
+  height: number,
+  rotation: TransformConfig['rotation'],
+) {
+  if (rotation === 90 || rotation === 270) {
+    return { width: height, height: width };
+  }
+  return { width, height };
+}
+
+function rotateCropRectLeft(rect: NormalizedCropRect): NormalizedCropRect {
+  return {
+    x: rect.y,
+    y: 1 - rect.x - rect.width,
+    width: rect.height,
+    height: rect.width,
+  };
+}
+
+function rotateCropRectRight(rect: NormalizedCropRect): NormalizedCropRect {
+  return {
+    x: 1 - rect.y - rect.height,
+    y: rect.x,
+    width: rect.height,
+    height: rect.width,
+  };
 }
 
 function normalizeCropRect(
@@ -266,9 +334,11 @@ function useImageEditLifecycle(params: {
   cropRect: NormalizedCropRect;
   resizeConfig: ResizeConfig;
   touchup: TouchupConfig;
+  transform: TransformConfig;
   setCropRect: React.Dispatch<React.SetStateAction<NormalizedCropRect>>;
   setResizeConfig: React.Dispatch<React.SetStateAction<ResizeConfig>>;
   setTouchup: React.Dispatch<React.SetStateAction<TouchupConfig>>;
+  setTransform: React.Dispatch<React.SetStateAction<TransformConfig>>;
 }) {
   const {
     open,
@@ -277,17 +347,31 @@ function useImageEditLifecycle(params: {
     cropRect,
     resizeConfig,
     touchup,
+    transform,
     setCropRect,
     setResizeConfig,
     setTouchup,
+    setTransform,
   } = params;
   const [isInitialized, setIsInitialized] = useState(false);
   const wasOpenRef = useRef(false);
   const lastAppliedSignatureRef = useRef<string | null>(null);
 
   const restoreFromImage = useCallback(() => {
-    const sourceWidth = naturalSize.width || image.edits?.resize?.width || 1;
-    const sourceHeight = naturalSize.height || image.edits?.resize?.height || 1;
+    const restoredTransform: TransformConfig = {
+      rotation: image.edits?.transform?.rotation ?? 0,
+      flipHorizontal: image.edits?.transform?.flipHorizontal ?? false,
+      flipVertical: image.edits?.transform?.flipVertical ?? false,
+    };
+    const transformedNaturalSize = getTransformedDimensions(
+      naturalSize.width,
+      naturalSize.height,
+      restoredTransform.rotation,
+    );
+    const sourceWidth =
+      transformedNaturalSize.width || image.edits?.resize?.width || 1;
+    const sourceHeight =
+      transformedNaturalSize.height || image.edits?.resize?.height || 1;
     const existingResize = image.edits?.resize;
 
     setResizeConfig({
@@ -303,6 +387,7 @@ function useImageEditLifecycle(params: {
       saturation: Math.round((image.edits?.touchup?.saturation ?? 1) * 100),
       sharpen: Math.round((image.edits?.touchup?.sharpen ?? 0) * 100),
     });
+    setTransform(restoredTransform);
   }, [
     image,
     naturalSize.height,
@@ -310,6 +395,7 @@ function useImageEditLifecycle(params: {
     setCropRect,
     setResizeConfig,
     setTouchup,
+    setTransform,
   ]);
 
   useEffect(() => {
@@ -329,19 +415,24 @@ function useImageEditLifecycle(params: {
       return undefined;
     }
 
+    const transformedNaturalSize = getTransformedDimensions(
+      naturalSize.width,
+      naturalSize.height,
+      transform.rotation,
+    );
     const edits: ImageEditOptions = {};
     if (!isDefaultCrop(cropRect)) {
       edits.crop = {
-        left: Math.round(cropRect.x * naturalSize.width),
-        top: Math.round(cropRect.y * naturalSize.height),
-        width: Math.round(cropRect.width * naturalSize.width),
-        height: Math.round(cropRect.height * naturalSize.height),
+        left: Math.round(cropRect.x * transformedNaturalSize.width),
+        top: Math.round(cropRect.y * transformedNaturalSize.height),
+        width: Math.round(cropRect.width * transformedNaturalSize.width),
+        height: Math.round(cropRect.height * transformedNaturalSize.height),
       };
     }
 
     const shouldResize =
-      resizeConfig.width !== naturalSize.width ||
-      resizeConfig.height !== naturalSize.height;
+      resizeConfig.width !== transformedNaturalSize.width ||
+      resizeConfig.height !== transformedNaturalSize.height;
     if (shouldResize) {
       edits.resize = {
         width: resizeConfig.width,
@@ -364,8 +455,29 @@ function useImageEditLifecycle(params: {
       };
     }
 
-    return edits.crop || edits.resize || edits.touchup ? edits : undefined;
-  }, [cropRect, naturalSize.height, naturalSize.width, resizeConfig, touchup]);
+    const hasTransform =
+      transform.rotation !== 0 ||
+      transform.flipHorizontal ||
+      transform.flipVertical;
+    if (hasTransform) {
+      edits.transform = {
+        rotation: transform.rotation,
+        flipHorizontal: transform.flipHorizontal,
+        flipVertical: transform.flipVertical,
+      };
+    }
+
+    return edits.crop || edits.resize || edits.touchup || edits.transform ?
+        edits
+      : undefined;
+  }, [
+    cropRect,
+    naturalSize.height,
+    naturalSize.width,
+    resizeConfig,
+    touchup,
+    transform,
+  ]);
 
   useEffect(() => {
     if (
@@ -395,6 +507,11 @@ function useImageEditLifecycle(params: {
   ]);
 
   const handleResetToOriginal = useCallback(() => {
+    const transformedNaturalSize = getTransformedDimensions(
+      naturalSize.width,
+      naturalSize.height,
+      0,
+    );
     setCropRect({ x: 0, y: 0, width: 1, height: 1 });
     setTouchup({
       brightness: 100,
@@ -403,8 +520,13 @@ function useImageEditLifecycle(params: {
       sharpen: 0,
     });
     setResizeConfig({
-      width: Math.max(naturalSize.width, 1),
-      height: Math.max(naturalSize.height, 1),
+      width: Math.max(transformedNaturalSize.width, 1),
+      height: Math.max(transformedNaturalSize.height, 1),
+    });
+    setTransform({
+      rotation: 0,
+      flipHorizontal: false,
+      flipVertical: false,
     });
     image.resetEdits();
   }, [
@@ -413,6 +535,7 @@ function useImageEditLifecycle(params: {
     naturalSize.width,
     setCropRect,
     setResizeConfig,
+    setTransform,
     setTouchup,
   ]);
 
@@ -433,6 +556,8 @@ type PreviewCanvasProps = {
   setResizeConfig: React.Dispatch<React.SetStateAction<ResizeConfig>>;
   cropRect: NormalizedCropRect;
   setCropRect: React.Dispatch<React.SetStateAction<NormalizedCropRect>>;
+  transform: TransformConfig;
+  setTransform: React.Dispatch<React.SetStateAction<TransformConfig>>;
   filterStyle: React.CSSProperties;
   onImageLoad: (event: React.SyntheticEvent<HTMLImageElement>) => void;
 };
@@ -446,6 +571,8 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   setResizeConfig,
   cropRect,
   setCropRect,
+  transform,
+  setTransform,
   filterStyle,
   onImageLoad,
 }) => {
@@ -473,6 +600,22 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       resizeDragRef.current = null;
     }
   }, [open]);
+
+  const previewTransform = useMemo(() => {
+    const scaleX = transform.flipHorizontal ? -1 : 1;
+    const scaleY = transform.flipVertical ? -1 : 1;
+    return `rotate(${transform.rotation}deg) scaleX(${scaleX}) scaleY(${scaleY})`;
+  }, [transform.flipHorizontal, transform.flipVertical, transform.rotation]);
+
+  const transformedNaturalSize = useMemo(
+    () =>
+      getTransformedDimensions(
+        naturalSize.width,
+        naturalSize.height,
+        transform.rotation,
+      ),
+    [naturalSize.height, naturalSize.width, transform.rotation],
+  );
 
   const cropStyle = useMemo(() => {
     return {
@@ -558,8 +701,8 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       preserveAspectRatio = false,
     ) => {
       setResizeConfig((prev) => {
-        const safeNaturalWidth = Math.max(naturalSize.width, 1);
-        const safeNaturalHeight = Math.max(naturalSize.height, 1);
+        const safeNaturalWidth = Math.max(transformedNaturalSize.width, 1);
+        const safeNaturalHeight = Math.max(transformedNaturalSize.height, 1);
         const cropPixelWidth = Math.max(cropRect.width * safeNaturalWidth, 1);
         const cropPixelHeight = Math.max(
           cropRect.height * safeNaturalHeight,
@@ -641,15 +784,15 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     [
       cropRect.height,
       cropRect.width,
-      naturalSize.height,
-      naturalSize.width,
       setResizeConfig,
+      transformedNaturalSize.height,
+      transformedNaturalSize.width,
     ],
   );
 
   const resizePreviewScale = useMemo(() => {
-    const safeNaturalWidth = Math.max(naturalSize.width, 1);
-    const safeNaturalHeight = Math.max(naturalSize.height, 1);
+    const safeNaturalWidth = Math.max(transformedNaturalSize.width, 1);
+    const safeNaturalHeight = Math.max(transformedNaturalSize.height, 1);
     const cropPixelWidth = Math.max(cropRect.width * safeNaturalWidth, 1);
     const cropPixelHeight = Math.max(cropRect.height * safeNaturalHeight, 1);
     const frameLogicalWidth = Math.max(resizeConfig.width, 1);
@@ -683,12 +826,65 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   }, [
     cropRect.height,
     cropRect.width,
-    naturalSize.height,
-    naturalSize.width,
     previewBounds.maxHeight,
     previewBounds.width,
     resizeConfig.height,
     resizeConfig.width,
+    transformedNaturalSize.height,
+    transformedNaturalSize.width,
+  ]);
+
+  const cropPreview = useMemo(() => {
+    const safeNaturalWidth = Math.max(naturalSize.width, 1);
+    const safeNaturalHeight = Math.max(naturalSize.height, 1);
+    const safeTransformedWidth = Math.max(transformedNaturalSize.width, 1);
+    const safeTransformedHeight = Math.max(transformedNaturalSize.height, 1);
+    const fallbackViewportWidth =
+      typeof window === 'undefined' ? 1024 : window.innerWidth;
+    const fallbackViewportHeight =
+      typeof window === 'undefined' ? 768 : window.innerHeight;
+    const hasMeasuredWidth = previewBounds.width > PREVIEW_STAGE_PADDING;
+    const hasMeasuredHeight = previewBounds.maxHeight > 0;
+    const availableWidth = Math.max(
+      hasMeasuredWidth ?
+        previewBounds.width - PREVIEW_STAGE_PADDING
+      : fallbackViewportWidth - PREVIEW_STAGE_PADDING,
+      1,
+    );
+    const availableHeight = Math.max(
+      hasMeasuredHeight ?
+        previewBounds.maxHeight
+      : fallbackViewportHeight * PREVIEW_MAX_VIEWPORT_HEIGHT_RATIO,
+      1,
+    );
+    const scale = Math.min(
+      1,
+      availableWidth / safeTransformedWidth,
+      availableHeight / safeTransformedHeight,
+    );
+
+    return {
+      frameStyle: {
+        width: `${safeTransformedWidth * scale}px`,
+        height: `${safeTransformedHeight * scale}px`,
+      },
+      imageStyle: {
+        ...filterStyle,
+        width: `${safeNaturalWidth * scale}px`,
+        height: `${safeNaturalHeight * scale}px`,
+        transform: `translate(-50%, -50%) ${previewTransform}`,
+        transformOrigin: 'center',
+      } satisfies React.CSSProperties,
+    };
+  }, [
+    filterStyle,
+    naturalSize.height,
+    naturalSize.width,
+    previewBounds.maxHeight,
+    previewBounds.width,
+    previewTransform,
+    transformedNaturalSize.height,
+    transformedNaturalSize.width,
   ]);
 
   const onResizePointerDown = useCallback(
@@ -747,8 +943,13 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   const resizePreview = useMemo(() => {
     const safeNaturalWidth = Math.max(naturalSize.width, 1);
     const safeNaturalHeight = Math.max(naturalSize.height, 1);
-    const cropPixelWidth = Math.max(cropRect.width * safeNaturalWidth, 1);
-    const cropPixelHeight = Math.max(cropRect.height * safeNaturalHeight, 1);
+    const safeTransformedWidth = Math.max(transformedNaturalSize.width, 1);
+    const safeTransformedHeight = Math.max(transformedNaturalSize.height, 1);
+    const cropPixelWidth = Math.max(cropRect.width * safeTransformedWidth, 1);
+    const cropPixelHeight = Math.max(
+      cropRect.height * safeTransformedHeight,
+      1,
+    );
     const scaleX = resizeConfig.width / cropPixelWidth;
     const scaleY = resizeConfig.height / cropPixelHeight;
     const frameLogicalWidth = Math.max(resizeConfig.width, 1);
@@ -762,6 +963,8 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     const displayFrameHeight = frameLogicalHeight * scale;
     const imageWidth = safeNaturalWidth * scaleX * scale;
     const imageHeight = safeNaturalHeight * scaleY * scale;
+    const transformedPlaneWidth = safeTransformedWidth * scaleX * scale;
+    const transformedPlaneHeight = safeTransformedHeight * scaleY * scale;
 
     return {
       stageStyle: {
@@ -772,11 +975,17 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         width: `${displayFrameWidth}px`,
         height: `${displayFrameHeight}px`,
       },
+      transformedPlaneStyle: {
+        width: `${transformedPlaneWidth}px`,
+        height: `${transformedPlaneHeight}px`,
+        transform: `translate(${-cropRect.x * transformedPlaneWidth}px, ${-cropRect.y * transformedPlaneHeight}px)`,
+      },
       imageStyle: {
         ...filterStyle,
         width: `${imageWidth}px`,
         height: `${imageHeight}px`,
-        transform: `translate(${-cropRect.x * imageWidth}px, ${-cropRect.y * imageHeight}px)`,
+        transform: `translate(-50%, -50%) ${previewTransform}`,
+        transformOrigin: 'center',
       },
     };
   }, [
@@ -784,9 +993,12 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     filterStyle,
     naturalSize.height,
     naturalSize.width,
+    transformedNaturalSize.height,
+    transformedNaturalSize.width,
     resizeConfig.height,
     resizeConfig.width,
     resizePreviewScale,
+    previewTransform,
   ]);
 
   return (
@@ -796,6 +1008,104 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
           ref={previewViewportRef}
           className='bg-background relative flex min-h-[55vh] items-center justify-center overflow-auto rounded-md border p-2 pt-14 sm:pt-16'
         >
+          <div className='absolute top-2 left-2 z-30 flex items-center gap-2 rounded-md p-1'>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant='ghost'
+                  size='icon'
+                  className='h-8 w-8'
+                  aria-label='Rotate left'
+                  onClick={() => {
+                    setCropRect((prev) => rotateCropRectLeft(prev));
+                    setResizeConfig((prev) => ({
+                      ...prev,
+                      width: prev.height,
+                      height: prev.width,
+                    }));
+                    setTransform((prev) => ({
+                      ...prev,
+                      rotation: rotateLeft(prev.rotation),
+                    }));
+                  }}
+                >
+                  <RotateCcw className='h-4 w-4' />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side='top'>Rotate left</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant='ghost'
+                  size='icon'
+                  className='h-8 w-8'
+                  aria-label='Rotate right'
+                  onClick={() => {
+                    setCropRect((prev) => rotateCropRectRight(prev));
+                    setResizeConfig((prev) => ({
+                      ...prev,
+                      width: prev.height,
+                      height: prev.width,
+                    }));
+                    setTransform((prev) => ({
+                      ...prev,
+                      rotation: rotateRight(prev.rotation),
+                    }));
+                  }}
+                >
+                  <RotateCw className='h-4 w-4' />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side='top'>Rotate right</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={transform.flipHorizontal ? 'secondary' : 'ghost'}
+                  size='icon'
+                  className='h-8 w-8'
+                  aria-label='Flip horizontally'
+                  onClick={() => {
+                    setCropRect((prev) => ({
+                      ...prev,
+                      x: 1 - prev.x - prev.width,
+                    }));
+                    setTransform((prev) => ({
+                      ...prev,
+                      flipHorizontal: !prev.flipHorizontal,
+                    }));
+                  }}
+                >
+                  <FlipHorizontal className='h-4 w-4' />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side='top'>Flip horizontal</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={transform.flipVertical ? 'secondary' : 'ghost'}
+                  size='icon'
+                  className='h-8 w-8'
+                  aria-label='Flip vertically'
+                  onClick={() => {
+                    setCropRect((prev) => ({
+                      ...prev,
+                      y: 1 - prev.y - prev.height,
+                    }));
+                    setTransform((prev) => ({
+                      ...prev,
+                      flipVertical: !prev.flipVertical,
+                    }));
+                  }}
+                >
+                  <FlipVertical className='h-4 w-4' />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side='top'>Flip vertical</TooltipContent>
+            </Tooltip>
+          </div>
           <div className='absolute top-2 right-2 z-30 flex items-center gap-2 rounded-md p-1'>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -846,14 +1156,19 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
               }}
             >
               {mode === 'crop' ?
-                <img
-                  src={sourceUrl}
-                  alt={filename}
-                  className='max-h-[50vh] max-w-full object-contain select-none'
-                  style={filterStyle}
-                  onLoad={onImageLoad}
-                  draggable={false}
-                />
+                <div
+                  className='relative overflow-hidden'
+                  style={cropPreview.frameStyle}
+                >
+                  <img
+                    src={sourceUrl}
+                    alt={filename}
+                    className='absolute top-1/2 left-1/2 max-h-none max-w-none select-none'
+                    style={cropPreview.imageStyle}
+                    onLoad={onImageLoad}
+                    draggable={false}
+                  />
+                </div>
               : <div
                   className='relative max-h-[50vh] max-w-full'
                   style={resizePreview.stageStyle}
@@ -867,14 +1182,19 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
                     onPointerMove={onResizePointerMove}
                   >
                     <div className='absolute inset-0 overflow-hidden'>
-                      <img
-                        src={sourceUrl}
-                        alt={filename}
-                        className='absolute top-0 left-0 max-h-none max-w-none select-none'
-                        style={resizePreview.imageStyle}
-                        onLoad={onImageLoad}
-                        draggable={false}
-                      />
+                      <div
+                        className='absolute top-0 left-0'
+                        style={resizePreview.transformedPlaneStyle}
+                      >
+                        <img
+                          src={sourceUrl}
+                          alt={filename}
+                          className='absolute top-1/2 left-1/2 max-h-none max-w-none select-none'
+                          style={resizePreview.imageStyle}
+                          onLoad={onImageLoad}
+                          draggable={false}
+                        />
+                      </div>
                       <div className='pointer-events-none absolute inset-0 border-2 border-white/70' />
                     </div>
                     {resizeHandles.map((handle) => (
@@ -1087,6 +1407,11 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
     saturation: 100,
     sharpen: 0,
   });
+  const [transform, setTransform] = useState<TransformConfig>({
+    rotation: 0,
+    flipHorizontal: false,
+    flipVertical: false,
+  });
 
   const filterStyle = useMemo(() => {
     return {
@@ -1123,9 +1448,11 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
     cropRect,
     resizeConfig,
     touchup,
+    transform,
     setCropRect,
     setResizeConfig,
     setTouchup,
+    setTransform,
   });
 
   return (
@@ -1162,6 +1489,8 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
           setResizeConfig={setResizeConfig}
           cropRect={cropRect}
           setCropRect={setCropRect}
+          transform={transform}
+          setTransform={setTransform}
           filterStyle={filterStyle}
           onImageLoad={handlePreviewImageLoad}
         />

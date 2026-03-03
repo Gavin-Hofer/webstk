@@ -19,10 +19,17 @@ export type ImageTouchupOptions = {
   sharpen?: number;
 };
 
+export type ImageTransformOptions = {
+  rotation?: 0 | 90 | 180 | 270;
+  flipHorizontal?: boolean;
+  flipVertical?: boolean;
+};
+
 export type ImageEditOptions = {
   crop?: ImageCropOptions;
   resize?: ImageResizeOptions;
   touchup?: ImageTouchupOptions;
+  transform?: ImageTransformOptions;
 };
 
 export type ConvertImageOptions = {

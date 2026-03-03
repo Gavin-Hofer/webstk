@@ -3,6 +3,7 @@ import type Vips from 'wasm-vips';
 import type {
   ImageCropOptions,
   ImageTouchupOptions,
+  ImageTransformOptions,
 } from '../image-tools/types';
 import { PUBLIC_VIPS_PATH, PUBLIC_VIPS_PATH_NODE } from './__generated__';
 
@@ -313,6 +314,59 @@ export class VipsImageBuilder {
         throw new TypeError('Sharpening is not supported by this vips build');
       }
       nextImage = sharpened;
+      this.allocated.push(nextImage);
+    }
+
+    return new VipsImageBuilder(nextImage, this.allocated);
+  };
+
+  public readonly transform = (transform: ImageTransformOptions) => {
+    const rotation = transform.rotation ?? 0;
+    const flipHorizontal = transform.flipHorizontal ?? false;
+    const flipVertical = transform.flipVertical ?? false;
+    const hasTransform = rotation !== 0 || flipHorizontal || flipVertical;
+    if (!hasTransform) {
+      return this;
+    }
+
+    let nextImage = this.image;
+
+    if (rotation !== 0) {
+      let angle: Vips.Angle;
+      if (rotation === 90) {
+        angle = 1;
+      } else if (rotation === 180) {
+        angle = 2;
+      } else {
+        angle = 3;
+      }
+      const rotated = runImageOperation(nextImage, ['rot'], [angle]);
+      if (!rotated) {
+        throw new TypeError('Rotation is not supported by this vips build');
+      }
+      nextImage = rotated;
+      this.allocated.push(nextImage);
+    }
+
+    if (flipHorizontal) {
+      const flippedHorizontally = runImageOperation(nextImage, ['flip'], [0]);
+      if (!flippedHorizontally) {
+        throw new TypeError(
+          'Horizontal flip is not supported by this vips build',
+        );
+      }
+      nextImage = flippedHorizontally;
+      this.allocated.push(nextImage);
+    }
+
+    if (flipVertical) {
+      const flippedVertically = runImageOperation(nextImage, ['flip'], [1]);
+      if (!flippedVertically) {
+        throw new TypeError(
+          'Vertical flip is not supported by this vips build',
+        );
+      }
+      nextImage = flippedVertically;
       this.allocated.push(nextImage);
     }
 

@@ -40,11 +40,14 @@ self.addEventListener('message', (e: MessageEvent<WorkerRequest>) => {
       const imageBuilder = new VipsImageBuilder(image);
       try {
         let pipeline = imageBuilder;
-        if (edits?.crop) {
-          pipeline = pipeline.crop(edits.crop);
-        }
         if (edits?.touchup) {
           pipeline = pipeline.touchup(edits.touchup);
+        }
+        if (edits?.transform) {
+          pipeline = pipeline.transform(edits.transform);
+        }
+        if (edits?.crop) {
+          pipeline = pipeline.crop(edits.crop);
         }
         if (edits?.resize) {
           pipeline = pipeline.resize(edits.resize);
