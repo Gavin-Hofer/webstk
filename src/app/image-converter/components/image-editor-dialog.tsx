@@ -3,7 +3,6 @@
 import React, {
   useCallback,
   useEffect,
-  useId,
   useMemo,
   useRef,
   useState,
@@ -15,12 +14,13 @@ import {
   CropIcon,
   Droplets,
   Expand,
+  Lock,
+  LockOpen,
   SunIcon,
   WandSparkles,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -28,8 +28,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import {
   Tooltip,
@@ -103,14 +101,6 @@ function isDefaultCrop(rect: NormalizedCropRect) {
   );
 }
 
-function parseNumberInput(value: string, fallback: number) {
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return fallback;
-  }
-  return parsed;
-}
-
 const handles: DragHandle[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
 const resizeHandles: ResizeDragHandle[] = [
   'n',
@@ -167,7 +157,6 @@ const touchupControls: {
 export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
   image,
 }) => {
-  const preserveAspectId = useId();
   const [open, setOpen] = useState(false);
   const [sourceUrl, setSourceUrl] = useState<string | undefined>(undefined);
   const [mode, setMode] = useState<EditMode>('crop');
@@ -214,6 +203,7 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
       nextWidth: number,
       nextHeight: number,
       targetAxis: 'width' | 'height' | 'auto',
+      forcePreserveAspectRatio = false,
     ) => {
       setResizeConfig((prev) => {
         const safeAspect = Math.max(
@@ -231,7 +221,10 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
           MAX_RESIZE_DIMENSION,
         );
 
-        if (!prev.preserveAspectRatio) {
+        const shouldPreserveAspectRatio =
+          prev.preserveAspectRatio || forcePreserveAspectRatio;
+
+        if (!shouldPreserveAspectRatio) {
           if (clampedWidth === prev.width && clampedHeight === prev.height) {
             return prev;
           }
@@ -451,7 +444,8 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
         targetAxis = targetAxis === 'width' ? 'auto' : 'height';
       }
 
-      updateResizeDimensions(nextWidth, nextHeight, targetAxis);
+      const isCornerHandle = handle.length === 2;
+      updateResizeDimensions(nextWidth, nextHeight, targetAxis, isCornerHandle);
     },
     [updateResizeDimensions],
   );
@@ -587,22 +581,6 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
     resizeConfig.width,
   ]);
 
-  const handleResizeWidthChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      const width = parseNumberInput(event.target.value, resizeConfig.width);
-      updateResizeDimensions(width, resizeConfig.height, 'width');
-    },
-    [resizeConfig.height, resizeConfig.width, updateResizeDimensions],
-  );
-
-  const handleResizeHeightChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      const height = parseNumberInput(event.target.value, resizeConfig.height);
-      updateResizeDimensions(resizeConfig.width, height, 'height');
-    },
-    [resizeConfig.height, resizeConfig.width, updateResizeDimensions],
-  );
-
   const handleResetToOriginal = useCallback(() => {
     setCropRect({ x: 0, y: 0, width: 1, height: 1 });
     setTouchup({
@@ -643,6 +621,39 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
 
         <div className='space-y-3'>
           <div className='bg-muted/20 border-border relative rounded-lg border p-3'>
+            {mode === 'resize' && (
+              <div className='absolute top-4 left-4 z-30 rounded-md p-1 backdrop-blur-sm'>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant='ghost'
+                      size='icon'
+                      className='h-8 w-8'
+                      aria-label={
+                        resizeConfig.preserveAspectRatio ?
+                          'Unlock aspect ratio'
+                        : 'Lock aspect ratio'
+                      }
+                      onClick={() => {
+                        setResizeConfig((prev) => ({
+                          ...prev,
+                          preserveAspectRatio: !prev.preserveAspectRatio,
+                        }));
+                      }}
+                    >
+                      {resizeConfig.preserveAspectRatio ?
+                        <Lock className='h-4 w-4' />
+                      : <LockOpen className='h-4 w-4' />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side='top'>
+                    {resizeConfig.preserveAspectRatio ?
+                      'Unlock aspect ratio'
+                    : 'Lock aspect ratio'}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            )}
             <div className='absolute top-4 right-4 z-30 flex items-center gap-2 rounded-md p-1 backdrop-blur-sm'>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -704,19 +715,21 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
                       draggable={false}
                     />
                   : <div
-                      className='relative overflow-hidden border-2 border-transparent'
+                      className='relative border-2 border-transparent'
                       style={resizePreview.frameStyle}
                       onPointerMove={onResizePointerMove}
                     >
-                      <img
-                        src={sourceUrl}
-                        alt={image.filename}
-                        className='absolute top-0 left-0 max-h-none max-w-none select-none'
-                        style={resizePreview.imageStyle}
-                        onLoad={handlePreviewImageLoad}
-                        draggable={false}
-                      />
-                      <div className='pointer-events-none absolute inset-0 border-2 border-white/70' />
+                      <div className='absolute inset-0 overflow-hidden'>
+                        <img
+                          src={sourceUrl}
+                          alt={image.filename}
+                          className='absolute top-0 left-0 max-h-none max-w-none select-none'
+                          style={resizePreview.imageStyle}
+                          onLoad={handlePreviewImageLoad}
+                          draggable={false}
+                        />
+                        <div className='pointer-events-none absolute inset-0 border-2 border-white/70' />
+                      </div>
                       {resizeHandles.map((handle) => {
                         const position =
                           handle === 'n' ?
@@ -739,7 +752,7 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
                             key={handle}
                             type='button'
                             className={cn(
-                              'bg-primary absolute z-10 h-3 w-3 rounded-full border border-white',
+                              'absolute z-10 flex h-6 w-6 touch-none items-center justify-center rounded-full',
                               position,
                             )}
                             onPointerDown={(event) => {
@@ -747,7 +760,12 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
                               onResizePointerDown(handle, event);
                             }}
                             aria-label={`Adjust resize ${handle}`}
-                          />
+                          >
+                            <span
+                              aria-hidden
+                              className='bg-primary h-3 w-3 rounded-full border border-white'
+                            />
+                          </button>
                         );
                       })}
                     </div>
@@ -784,7 +802,7 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
                               key={handle}
                               type='button'
                               className={cn(
-                                'bg-primary absolute h-3 w-3 rounded-full border border-white',
+                                'absolute z-10 flex h-6 w-6 touch-none items-center justify-center rounded-full',
                                 position,
                               )}
                               onPointerDown={(event) => {
@@ -792,7 +810,12 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
                                 onCropPointerDown(handle, event);
                               }}
                               aria-label={`Adjust crop ${handle}`}
-                            />
+                            >
+                              <span
+                                aria-hidden
+                                className='bg-primary h-3 w-3 rounded-full border border-white'
+                              />
+                            </button>
                           );
                         })}
                       </div>
@@ -801,48 +824,6 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
                 </div>
               )}
             </div>
-            {mode === 'resize' && (
-              <div className='mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2'>
-                <div className='space-y-1'>
-                  <Label htmlFor={`resize-width-${image.id}`}>Width</Label>
-                  <Input
-                    id={`resize-width-${image.id}`}
-                    type='number'
-                    min={1}
-                    value={resizeConfig.width}
-                    onChange={handleResizeWidthChange}
-                  />
-                </div>
-                <div className='space-y-1'>
-                  <Label htmlFor={`resize-height-${image.id}`}>Height</Label>
-                  <Input
-                    id={`resize-height-${image.id}`}
-                    type='number'
-                    min={1}
-                    value={resizeConfig.height}
-                    onChange={handleResizeHeightChange}
-                  />
-                </div>
-                <div className='sm:col-span-2'>
-                  <div className='flex items-center gap-2'>
-                    <Checkbox
-                      id={preserveAspectId}
-                      checked={resizeConfig.preserveAspectRatio}
-                      onCheckedChange={(checked) => {
-                        setResizeConfig((prev) => ({
-                          ...prev,
-                          preserveAspectRatio: checked === true,
-                        }));
-                      }}
-                    />
-                    <Label htmlFor={preserveAspectId}>
-                      Preserve aspect ratio
-                    </Label>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {activeTouchupMeta && (
               <div className='pointer-events-none absolute inset-0 z-20 flex items-center justify-center'>
                 <div className='bg-background pointer-events-auto w-[min(420px,calc(100%-2rem))] rounded-lg border p-4 shadow-xl'>
@@ -904,11 +885,7 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
         </div>
 
         <DialogFooter className='mt-2 flex-col-reverse gap-2 sm:flex-row sm:justify-between'>
-          <Button
-            variant='ghost'
-            onClick={handleResetToOriginal}
-            disabled={!image.ready}
-          >
+          <Button variant='ghost' onClick={handleResetToOriginal}>
             Reset to Original
           </Button>
           <Button
