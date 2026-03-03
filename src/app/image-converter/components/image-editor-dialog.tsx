@@ -16,8 +16,7 @@ import {
   CropIcon,
   Droplets,
   Expand,
-  Lock,
-  LockOpen,
+  RotateCcw,
   SunIcon,
   WandSparkles,
 } from 'lucide-react';
@@ -55,7 +54,6 @@ type NormalizedCropRect = {
 type ResizeConfig = {
   width: number;
   height: number;
-  preserveAspectRatio: boolean;
 };
 
 type TouchupConfig = {
@@ -295,7 +293,6 @@ function useImageEditLifecycle(params: {
     setResizeConfig({
       width: existingResize?.width ?? sourceWidth,
       height: existingResize?.height ?? sourceHeight,
-      preserveAspectRatio: true,
     });
     setCropRect(
       normalizeCropRect(image.edits?.crop, sourceWidth, sourceHeight),
@@ -408,7 +405,6 @@ function useImageEditLifecycle(params: {
     setResizeConfig({
       width: Math.max(naturalSize.width, 1),
       height: Math.max(naturalSize.height, 1),
-      preserveAspectRatio: true,
     });
     image.resetEdits();
   }, [
@@ -559,7 +555,7 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       nextWidth: number,
       nextHeight: number,
       targetAxis: 'width' | 'height' | 'auto',
-      forcePreserveAspectRatio = false,
+      preserveAspectRatio = false,
     ) => {
       setResizeConfig((prev) => {
         const safeNaturalWidth = Math.max(naturalSize.width, 1);
@@ -584,9 +580,7 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
           MAX_RESIZE_DIMENSION,
         );
 
-        const shouldPreserveAspectRatio =
-          prev.preserveAspectRatio || forcePreserveAspectRatio;
-        if (!shouldPreserveAspectRatio) {
+        if (!preserveAspectRatio) {
           if (clampedWidth === prev.width && clampedHeight === prev.height) {
             return prev;
           }
@@ -652,44 +646,6 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       setResizeConfig,
     ],
   );
-
-  useEffect(() => {
-    if (!resizeConfig.preserveAspectRatio) {
-      return;
-    }
-
-    const safeNaturalWidth = Math.max(naturalSize.width, 1);
-    const safeNaturalHeight = Math.max(naturalSize.height, 1);
-    const cropPixelWidth = Math.max(cropRect.width * safeNaturalWidth, 1);
-    const cropPixelHeight = Math.max(cropRect.height * safeNaturalHeight, 1);
-    // Keep locked resize dimensions aligned to the current crop ratio.
-    const cropAspectRatio = Math.max(
-      cropPixelWidth / Math.max(cropPixelHeight, Number.EPSILON),
-      Number.EPSILON,
-    );
-
-    setResizeConfig((prev) => {
-      const nextHeight = clamp(
-        Math.round(prev.width / cropAspectRatio),
-        MIN_RESIZE_DIMENSION,
-        MAX_RESIZE_DIMENSION,
-      );
-      if (nextHeight === prev.height) {
-        return prev;
-      }
-      return {
-        ...prev,
-        height: nextHeight,
-      };
-    });
-  }, [
-    cropRect.height,
-    cropRect.width,
-    naturalSize.height,
-    naturalSize.width,
-    resizeConfig.preserveAspectRatio,
-    setResizeConfig,
-  ]);
 
   const resizePreviewScale = useMemo(() => {
     const safeNaturalWidth = Math.max(naturalSize.width, 1);
@@ -840,41 +796,7 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
           ref={previewViewportRef}
           className='bg-background relative flex min-h-[55vh] items-center justify-center overflow-auto rounded-md border p-2 pt-14 sm:pt-16'
         >
-          {mode === 'resize' && (
-            <div className='absolute top-4 left-4 z-30 rounded-md p-1 backdrop-blur-sm'>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant='ghost'
-                    size='icon'
-                    className='h-8 w-8'
-                    aria-label={
-                      resizeConfig.preserveAspectRatio ?
-                        'Unlock aspect ratio'
-                      : 'Lock aspect ratio'
-                    }
-                    onClick={() => {
-                      setResizeConfig((prev) => ({
-                        ...prev,
-                        preserveAspectRatio: !prev.preserveAspectRatio,
-                      }));
-                    }}
-                  >
-                    {resizeConfig.preserveAspectRatio ?
-                      <Lock className='h-4 w-4' />
-                    : <LockOpen className='h-4 w-4' />}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side='top'>
-                  {resizeConfig.preserveAspectRatio ?
-                    'Unlock aspect ratio'
-                  : 'Lock aspect ratio'}
-                </TooltipContent>
-              </Tooltip>
-            </div>
-          )}
-
-          <div className='absolute top-4 right-4 z-30 flex items-center gap-2 rounded-md p-1 backdrop-blur-sm'>
+          <div className='absolute top-2 right-2 z-30 flex items-center gap-2 rounded-md p-1'>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -1152,7 +1074,6 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
   const [resizeConfig, setResizeConfig] = useState<ResizeConfig>({
     width: 1,
     height: 1,
-    preserveAspectRatio: true,
   });
   const [cropRect, setCropRect] = useState<NormalizedCropRect>({
     x: 0,
@@ -1227,7 +1148,9 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
 
       <DialogContent className='max-h-[90vh] max-w-[95vw] overflow-y-auto p-4 sm:max-w-6xl sm:p-6'>
         <DialogHeader>
-          <DialogTitle className='truncate'>Edit {image.filename}</DialogTitle>
+          <DialogTitle className='truncate pb-2'>
+            Editing {image.filename}
+          </DialogTitle>
         </DialogHeader>
 
         <PreviewCanvas
@@ -1251,7 +1174,8 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
 
         <DialogFooter className='mt-2 flex-col-reverse gap-2 sm:flex-row sm:justify-between'>
           <Button variant='ghost' onClick={handleResetToOriginal}>
-            Reset to Original
+            <RotateCcw />
+            Revert to Original
           </Button>
           <Button
             variant='outline'
