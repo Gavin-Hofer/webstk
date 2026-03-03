@@ -1,1 +1,1 @@
-export { convertImage } from './convert-image';
+export { convertImage, imageConverterCache } from './convert-image';

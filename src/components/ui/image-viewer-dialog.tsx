@@ -4,7 +4,7 @@
 import React, {
   useCallback,
   useEffect,
-  useMemo,
+  useEffectEvent,
   useRef,
   useState,
 } from 'react';
@@ -26,6 +26,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { useRefCallback } from '@/hooks/use-ref-callback';
+import { convertImage } from '@/lib/image-tools/convert-image';
 import { cn } from '@/lib/utils';
 
 // #region Constants
@@ -41,14 +42,24 @@ const SCROLL_ZOOM_SENSITIVITY = 0.002;
 // #region Hooks
 // =============================================================================
 
-function useImageUrl(file: File) {
-  const imageUrl = useMemo(() => URL.createObjectURL(file), [file]);
+function useImageUrl(file: File): string | undefined {
+  const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
+
+  const setImageUrlWrapper = useEffectEvent((previewFile: File) => {
+    const newImageUrl = URL.createObjectURL(previewFile);
+    setImageUrl(newImageUrl);
+    if (imageUrl) {
+      URL.revokeObjectURL(imageUrl);
+    }
+  });
 
   useEffect(() => {
-    return () => {
-      // URL.revokeObjectURL(imageUrl);
-    };
-  }, [imageUrl]);
+    void convertImage(file, { format: 'webp', quality: 85 }).then(
+      (previewFile) => {
+        setImageUrlWrapper(previewFile);
+      },
+    );
+  }, [file]);
 
   return imageUrl;
 }

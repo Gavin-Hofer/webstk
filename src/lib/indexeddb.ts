@@ -126,13 +126,22 @@ export class IndexedDBCache<T> {
     });
   }
 
+  private get lockName() {
+    return `IndexedDB:${this.config.dbName}`;
+  }
+
+  private readonly $lock = <U>(callback: () => U | Promise<U>) => {
+    return navigator.locks.request(this.lockName, () => callback());
+  };
+
+  public readonly create = async () => {
+    await this.$lock(() => openDatabase(this.config));
+  };
+
   public readonly $db = async <U>(
     callback: (db: IDBDatabase) => Promise<U>,
   ) => {
-    this._db ??= await navigator.locks.request(
-      `IndexedDB:${this.config.dbName}`,
-      () => openDatabase(this.config),
-    );
+    this._db ??= await this.$lock(() => openDatabase(this.config));
     this._db_depth += 1;
     try {
       return await callback(this._db);

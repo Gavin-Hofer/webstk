@@ -23,7 +23,7 @@ type CachedFile = z.infer<typeof CachedFileSchema>;
 // #region Cache
 // =============================================================================
 
-const cache = new IndexedDBCache<CachedFile>({
+export const imageConverterCache = new IndexedDBCache<CachedFile>({
   dbName: 'ImageConverterCache',
   dbVersion: 2,
   storeName: 'images',
@@ -90,7 +90,7 @@ export async function convertImage(
 ): Promise<File> {
   const checksum = await computeHash(file);
   const cacheKey = stableHash({ options, checksum });
-  const cached = await cache.get(cacheKey);
+  const cached = await imageConverterCache.get(cacheKey);
   if (isCachedFile(cached)) {
     return deserializeFile(cached);
   }
@@ -121,7 +121,7 @@ export async function convertImage(
       onFailure,
     },
   );
-  await cache.set(cacheKey, await serializeFile(convertedFile));
+  await imageConverterCache.set(cacheKey, await serializeFile(convertedFile));
   return convertedFile;
 }
 

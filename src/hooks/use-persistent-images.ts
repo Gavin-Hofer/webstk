@@ -6,7 +6,7 @@ import { useLocalStorage } from 'usehooks-ts';
 import * as uuid from 'uuid';
 import { z } from 'zod';
 
-import { convertImage } from '@/lib/image-tools';
+import { convertImage, imageConverterCache } from '@/lib/image-tools';
 import { IndexedDBCache } from '@/lib/indexeddb';
 import { promisePool } from '@/lib/promises/promise-pool';
 import { IMAGE_FORMATS, type ImageFormat } from '@/lib/vips';
@@ -158,6 +158,11 @@ export function usePersistentImages(): [
     'preferred-image-format',
     'png',
   );
+  useEffect(() => {
+    // Ensure the IndexedDB caches exist to prevent duplicates
+    void imageCache.create();
+    void imageConverterCache.create();
+  }, []);
 
   /** Updates an image and reflects change in IndexedDB. */
   const updateImageById = useCallback(
