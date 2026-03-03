@@ -20,6 +20,8 @@ import {
   Expand,
   FlipHorizontal,
   FlipVertical,
+  Lock,
+  LockOpen,
   RotateCcw,
   RotateCw,
   SunIcon,
@@ -34,6 +36,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import {
   Tooltip,
@@ -82,6 +85,7 @@ type DragHandle = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw' | 'move';
 type ResizeDragHandle = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 type EditMode = 'crop' | 'resize';
 type TouchupControl = 'brightness' | 'contrast' | 'saturation' | 'sharpen';
+type ResizeTargetAxis = 'width' | 'height' | 'auto';
 
 // #endregion
 
@@ -584,6 +588,14 @@ type PreviewCanvasContextValue = PreviewCanvasProps & {
   previewBounds: { width: number; maxHeight: number };
   transformedNaturalSize: { width: number; height: number };
   previewTransform: string;
+  preserveAspectRatio: boolean;
+  setPreserveAspectRatio: React.Dispatch<React.SetStateAction<boolean>>;
+  updateResizeDimensions: (
+    nextWidth: number,
+    nextHeight: number,
+    targetAxis: ResizeTargetAxis,
+    preserveAspectRatio?: boolean,
+  ) => void;
 };
 
 const PreviewCanvasContext = createContext<PreviewCanvasContextValue | null>(
@@ -618,6 +630,7 @@ const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = ({
   children,
 }) => {
   const [mode, setMode] = useState<EditMode>('crop');
+  const [preserveAspectRatio, setPreserveAspectRatio] = useState(false);
   const cropDragRef = useRef<{
     handle: DragHandle;
     startX: number;
@@ -657,6 +670,103 @@ const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = ({
     return `rotate(${transform.rotation}deg) scaleX(${scaleX}) scaleY(${scaleY})`;
   }, [transform.flipHorizontal, transform.flipVertical, transform.rotation]);
 
+  const updateResizeDimensions = useCallback(
+    (
+      nextWidth: number,
+      nextHeight: number,
+      targetAxis: ResizeTargetAxis,
+      shouldPreserveAspectRatio = false,
+    ) => {
+      setResizeConfig((prev) => {
+        const safeNaturalWidth = Math.max(transformedNaturalSize.width, 1);
+        const safeNaturalHeight = Math.max(transformedNaturalSize.height, 1);
+        const cropPixelWidth = Math.max(cropRect.width * safeNaturalWidth, 1);
+        const cropPixelHeight = Math.max(
+          cropRect.height * safeNaturalHeight,
+          1,
+        );
+        const safeAspect = Math.max(
+          cropPixelWidth / Math.max(cropPixelHeight, Number.EPSILON),
+          Number.EPSILON,
+        );
+        const clampedWidth = clamp(
+          Math.round(nextWidth),
+          MIN_RESIZE_DIMENSION,
+          MAX_RESIZE_DIMENSION,
+        );
+        const clampedHeight = clamp(
+          Math.round(nextHeight),
+          MIN_RESIZE_DIMENSION,
+          MAX_RESIZE_DIMENSION,
+        );
+
+        if (!shouldPreserveAspectRatio) {
+          if (clampedWidth === prev.width && clampedHeight === prev.height) {
+            return prev;
+          }
+          return {
+            ...prev,
+            width: clampedWidth,
+            height: clampedHeight,
+          };
+        }
+
+        let width = clampedWidth;
+        let height = clampedHeight;
+        if (targetAxis === 'width') {
+          height = clamp(
+            Math.round(width / safeAspect),
+            MIN_RESIZE_DIMENSION,
+            MAX_RESIZE_DIMENSION,
+          );
+        } else if (targetAxis === 'height') {
+          width = clamp(
+            Math.round(height * safeAspect),
+            MIN_RESIZE_DIMENSION,
+            MAX_RESIZE_DIMENSION,
+          );
+        } else {
+          const widthFromHeight = clamp(
+            Math.round(clampedHeight * safeAspect),
+            MIN_RESIZE_DIMENSION,
+            MAX_RESIZE_DIMENSION,
+          );
+          const heightFromWidth = clamp(
+            Math.round(clampedWidth / safeAspect),
+            MIN_RESIZE_DIMENSION,
+            MAX_RESIZE_DIMENSION,
+          );
+          const widthError = Math.abs(clampedWidth - widthFromHeight);
+          const heightError = Math.abs(clampedHeight - heightFromWidth);
+          if (widthError <= heightError) {
+            width = clampedWidth;
+            height = heightFromWidth;
+          } else {
+            width = widthFromHeight;
+            height = clampedHeight;
+          }
+        }
+
+        if (width === prev.width && height === prev.height) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          width,
+          height,
+        };
+      });
+    },
+    [
+      cropRect.height,
+      cropRect.width,
+      setResizeConfig,
+      transformedNaturalSize.height,
+      transformedNaturalSize.width,
+    ],
+  );
+
   const contextValue = useMemo<PreviewCanvasContextValue>(
     () => ({
       open,
@@ -679,6 +789,9 @@ const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = ({
       previewBounds,
       transformedNaturalSize,
       previewTransform,
+      preserveAspectRatio,
+      setPreserveAspectRatio,
+      updateResizeDimensions,
     }),
     [
       cropRect,
@@ -690,13 +803,16 @@ const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = ({
       open,
       previewBounds,
       previewTransform,
+      preserveAspectRatio,
       resizeConfig,
       setCropRect,
+      setPreserveAspectRatio,
       setResizeConfig,
       setTransform,
       sourceUrl,
       transform,
       transformedNaturalSize,
+      updateResizeDimensions,
       previewViewportRef,
     ],
   );
@@ -1074,108 +1190,11 @@ const PreviewResizeStage: React.FC = () => {
     previewTransform,
     onImageLoad,
     resizeConfig,
-    setResizeConfig,
     cropRect,
     resizeDragRef,
     cropDragRef,
+    updateResizeDimensions,
   } = usePreviewCanvasContext();
-
-  const updateResizeDimensions = useCallback(
-    (
-      nextWidth: number,
-      nextHeight: number,
-      targetAxis: 'width' | 'height' | 'auto',
-      preserveAspectRatio = false,
-    ) => {
-      setResizeConfig((prev) => {
-        const safeNaturalWidth = Math.max(transformedNaturalSize.width, 1);
-        const safeNaturalHeight = Math.max(transformedNaturalSize.height, 1);
-        const cropPixelWidth = Math.max(cropRect.width * safeNaturalWidth, 1);
-        const cropPixelHeight = Math.max(
-          cropRect.height * safeNaturalHeight,
-          1,
-        );
-        const safeAspect = Math.max(
-          cropPixelWidth / Math.max(cropPixelHeight, Number.EPSILON),
-          Number.EPSILON,
-        );
-        const clampedWidth = clamp(
-          Math.round(nextWidth),
-          MIN_RESIZE_DIMENSION,
-          MAX_RESIZE_DIMENSION,
-        );
-        const clampedHeight = clamp(
-          Math.round(nextHeight),
-          MIN_RESIZE_DIMENSION,
-          MAX_RESIZE_DIMENSION,
-        );
-
-        if (!preserveAspectRatio) {
-          if (clampedWidth === prev.width && clampedHeight === prev.height) {
-            return prev;
-          }
-          return {
-            ...prev,
-            width: clampedWidth,
-            height: clampedHeight,
-          };
-        }
-
-        let width = clampedWidth;
-        let height = clampedHeight;
-        if (targetAxis === 'width') {
-          height = clamp(
-            Math.round(width / safeAspect),
-            MIN_RESIZE_DIMENSION,
-            MAX_RESIZE_DIMENSION,
-          );
-        } else if (targetAxis === 'height') {
-          width = clamp(
-            Math.round(height * safeAspect),
-            MIN_RESIZE_DIMENSION,
-            MAX_RESIZE_DIMENSION,
-          );
-        } else {
-          const widthFromHeight = clamp(
-            Math.round(clampedHeight * safeAspect),
-            MIN_RESIZE_DIMENSION,
-            MAX_RESIZE_DIMENSION,
-          );
-          const heightFromWidth = clamp(
-            Math.round(clampedWidth / safeAspect),
-            MIN_RESIZE_DIMENSION,
-            MAX_RESIZE_DIMENSION,
-          );
-          const widthError = Math.abs(clampedWidth - widthFromHeight);
-          const heightError = Math.abs(clampedHeight - heightFromWidth);
-          if (widthError <= heightError) {
-            width = clampedWidth;
-            height = heightFromWidth;
-          } else {
-            width = widthFromHeight;
-            height = clampedHeight;
-          }
-        }
-
-        if (width === prev.width && height === prev.height) {
-          return prev;
-        }
-
-        return {
-          ...prev,
-          width,
-          height,
-        };
-      });
-    },
-    [
-      cropRect.height,
-      cropRect.width,
-      setResizeConfig,
-      transformedNaturalSize.height,
-      transformedNaturalSize.width,
-    ],
-  );
 
   const resizePreviewScale = useMemo(() => {
     const safeNaturalWidth = Math.max(transformedNaturalSize.width, 1);
@@ -1249,7 +1268,7 @@ const PreviewResizeStage: React.FC = () => {
 
       let nextWidth = startWidth;
       let nextHeight = startHeight;
-      let targetAxis: 'width' | 'height' | 'auto' = 'auto';
+      let targetAxis: ResizeTargetAxis = 'auto';
 
       if (handle.includes('e')) {
         nextWidth = startWidth + dx;
@@ -1405,6 +1424,195 @@ const PreviewResizeStage: React.FC = () => {
   );
 };
 
+const PreviewDimensionsIndicator: React.FC = () => {
+  const {
+    resizeConfig,
+    cropRect,
+    mode,
+    transformedNaturalSize,
+    preserveAspectRatio,
+    setPreserveAspectRatio,
+    updateResizeDimensions,
+  } = usePreviewCanvasContext();
+  const [isOpen, setIsOpen] = useState(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const displayedDimensions = useMemo(() => {
+    const cropPixelWidth = clamp(
+      Math.round(cropRect.width * Math.max(transformedNaturalSize.width, 1)),
+      MIN_RESIZE_DIMENSION,
+      MAX_RESIZE_DIMENSION,
+    );
+    const cropPixelHeight = clamp(
+      Math.round(cropRect.height * Math.max(transformedNaturalSize.height, 1)),
+      MIN_RESIZE_DIMENSION,
+      MAX_RESIZE_DIMENSION,
+    );
+    if (mode === 'crop') {
+      return {
+        width: cropPixelWidth,
+        height: cropPixelHeight,
+      };
+    }
+
+    const hasExplicitResize =
+      resizeConfig.width !== transformedNaturalSize.width ||
+      resizeConfig.height !== transformedNaturalSize.height;
+
+    if (hasExplicitResize) {
+      return {
+        width: resizeConfig.width,
+        height: resizeConfig.height,
+      };
+    }
+
+    return {
+      width: cropPixelWidth,
+      height: cropPixelHeight,
+    };
+  }, [
+    cropRect.height,
+    cropRect.width,
+    mode,
+    resizeConfig.height,
+    resizeConfig.width,
+    transformedNaturalSize.height,
+    transformedNaturalSize.width,
+  ]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      if (popoverRef.current?.contains(target)) {
+        return;
+      }
+
+      if (
+        target instanceof Element &&
+        target.closest('[data-dimensions-indicator-button="true"]')
+      ) {
+        return;
+      }
+
+      setIsOpen(false);
+    };
+
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true);
+    };
+  }, [isOpen]);
+
+  return (
+    <div className='absolute right-2 bottom-2 z-30'>
+      {isOpen && (
+        <div className='pointer-events-none absolute right-0 bottom-full mb-2'>
+          <div
+            ref={popoverRef}
+            className='bg-popover text-popover-foreground pointer-events-auto w-72 rounded-md border p-4 shadow-md'
+          >
+            <div className='space-y-3'>
+              <div className='flex items-center justify-between'>
+                <span className='text-sm font-medium'>Dimensions</span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type='button'
+                      variant={preserveAspectRatio ? 'secondary' : 'ghost'}
+                      size='icon'
+                      className='h-8 w-8'
+                      onClick={() => {
+                        setPreserveAspectRatio((prev) => !prev);
+                      }}
+                      aria-pressed={preserveAspectRatio}
+                      aria-label={
+                        preserveAspectRatio ?
+                          'Unlock aspect ratio'
+                        : 'Lock aspect ratio'
+                      }
+                    >
+                      {preserveAspectRatio ?
+                        <Lock className='h-4 w-4' />
+                      : <LockOpen className='h-4 w-4' />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side='top'>
+                    {preserveAspectRatio ?
+                      'Unlock aspect ratio'
+                    : 'Lock aspect ratio'}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <div className='grid grid-cols-2 gap-2'>
+                <Input
+                  type='number'
+                  min={MIN_RESIZE_DIMENSION}
+                  max={MAX_RESIZE_DIMENSION}
+                  value={displayedDimensions.width}
+                  onChange={(event) => {
+                    const nextWidth = Number(event.target.value);
+                    if (!Number.isFinite(nextWidth)) {
+                      return;
+                    }
+                    updateResizeDimensions(
+                      nextWidth,
+                      displayedDimensions.height,
+                      'width',
+                      preserveAspectRatio,
+                    );
+                  }}
+                  aria-label='Width in pixels'
+                />
+                <Input
+                  type='number'
+                  min={MIN_RESIZE_DIMENSION}
+                  max={MAX_RESIZE_DIMENSION}
+                  value={displayedDimensions.height}
+                  onChange={(event) => {
+                    const nextHeight = Number(event.target.value);
+                    if (!Number.isFinite(nextHeight)) {
+                      return;
+                    }
+                    updateResizeDimensions(
+                      displayedDimensions.width,
+                      nextHeight,
+                      'height',
+                      preserveAspectRatio,
+                    );
+                  }}
+                  aria-label='Height in pixels'
+                />
+              </div>
+              <div className='text-muted-foreground grid grid-cols-2 gap-2 text-xs'>
+                <span>Width (px)</span>
+                <span>Height (px)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      <Button
+        variant='secondary'
+        className='h-8 rounded-md px-2 font-mono text-xs'
+        aria-label='Set image dimensions'
+        data-dimensions-indicator-button='true'
+        onClick={() => {
+          setIsOpen((prev) => !prev);
+        }}
+      >
+        {displayedDimensions.width} x {displayedDimensions.height}px
+      </Button>
+    </div>
+  );
+};
+
 const PreviewCanvasViewport: React.FC = () => {
   const { mode, previewViewportRef } = usePreviewCanvasContext();
 
@@ -1420,6 +1628,7 @@ const PreviewCanvasViewport: React.FC = () => {
           {mode === 'crop' ?
             <PreviewCropStage />
           : <PreviewResizeStage />}
+          <PreviewDimensionsIndicator />
         </div>
       </div>
     </div>
