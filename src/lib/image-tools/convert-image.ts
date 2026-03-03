@@ -80,6 +80,7 @@ function deserializeFile(cached: CachedFile): File {
  * @param options.quality - Quality setting for lossy formats (0-100, defaults to 85)
  * @param options.width - Target width in pixels (preserves aspect ratio if height not specified)
  * @param options.height - Target height in pixels (preserves aspect ratio if width not specified)
+ * @param options.thumbnail - Uses thumbnail sizing behavior for width/height when true
  * @param options.filename - Output filename (defaults to original filename with new extension)
  * @returns A Promise that resolves with the converted image as a File
  */

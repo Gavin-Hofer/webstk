@@ -37,6 +37,7 @@ export type ConvertImageOptions = {
   quality?: number;
   width?: number;
   height?: number;
+  thumbnail?: boolean;
   filename?: string;
   edits?: ImageEditOptions;
 };

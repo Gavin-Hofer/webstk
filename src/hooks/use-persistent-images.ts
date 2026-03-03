@@ -241,6 +241,7 @@ export function usePersistentImages(): [
           quality: 50,
           width: 128,
           height: 128,
+          thumbnail: true,
         });
         updateImageById(id, {
           file: editedFile,
@@ -343,6 +344,7 @@ export function usePersistentImages(): [
               quality: 50,
               width: 128,
               height: 128,
+              thumbnail: true,
             });
             const updatedImage = {
               ...image,

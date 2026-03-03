@@ -182,15 +182,57 @@ export class VipsImageBuilder {
   }
 
   public readonly resize = (size: { width?: number; height?: number }) => {
-    const width = size.width ?? this.image.width;
+    const width = size.width;
     const height = size.height;
+    const hasWidth = typeof width === 'number' && Number.isFinite(width);
+    const hasHeight = typeof height === 'number' && Number.isFinite(height);
+    if (!hasWidth && !hasHeight) {
+      return this;
+    }
+
+    const targetWidth =
+      hasWidth ? Math.max(1, Math.round(width)) : this.image.width;
+    const targetHeight =
+      hasHeight ? Math.max(1, Math.round(height)) : this.image.height;
     if (
-      width === this.image.width &&
-      (height === undefined || height === this.image.height)
+      targetWidth === this.image.width &&
+      targetHeight === this.image.height
     ) {
       return this;
     }
-    const image = this.image.thumbnailImage(width, { height });
+
+    const scaleX = targetWidth / this.image.width;
+    const scaleY = targetHeight / this.image.height;
+    const image =
+      hasWidth && hasHeight ?
+        this.image.resize(scaleX, { vscale: scaleY })
+      : this.image.resize(hasWidth ? scaleX : scaleY);
+    return new VipsImageBuilder(image, this.allocated);
+  };
+
+  public readonly thumbnail = (size: { width?: number; height?: number }) => {
+    const width = size.width;
+    const height = size.height;
+    const hasWidth = typeof width === 'number' && Number.isFinite(width);
+    const hasHeight = typeof height === 'number' && Number.isFinite(height);
+    if (!hasWidth && !hasHeight) {
+      return this;
+    }
+
+    const targetWidth =
+      hasWidth ? Math.max(1, Math.round(width)) : this.image.width;
+    const targetHeight =
+      hasHeight ? Math.max(1, Math.round(height)) : this.image.height;
+    if (
+      targetWidth === this.image.width &&
+      targetHeight === this.image.height
+    ) {
+      return this;
+    }
+
+    const image = this.image.thumbnailImage(targetWidth, {
+      height: hasHeight ? targetHeight : undefined,
+    });
     return new VipsImageBuilder(image, this.allocated);
   };
 

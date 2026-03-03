@@ -34,6 +34,7 @@ self.addEventListener('message', (e: MessageEvent<WorkerRequest>) => {
         filename = replaceFileExtension(file.name, format),
         width,
         height,
+        thumbnail = false,
         edits,
       } = options;
       const image = await loadImage(file);
@@ -53,7 +54,10 @@ self.addEventListener('message', (e: MessageEvent<WorkerRequest>) => {
           pipeline = pipeline.resize(edits.resize);
         }
         if (width || height) {
-          pipeline = pipeline.resize({ width, height });
+          pipeline =
+            thumbnail ?
+              pipeline.thumbnail({ width, height })
+            : pipeline.resize({ width, height });
         }
         const result = pipeline.toFile({ format, quality, filename });
         postMessage({ id, file: result } satisfies WorkerResponse);
