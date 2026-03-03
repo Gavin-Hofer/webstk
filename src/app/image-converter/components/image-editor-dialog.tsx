@@ -3,7 +3,9 @@
 // #region Imports
 // =============================================================================
 import React, {
+  createContext,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -562,7 +564,45 @@ type PreviewCanvasProps = {
   onImageLoad: (event: React.SyntheticEvent<HTMLImageElement>) => void;
 };
 
-const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
+type PreviewCanvasContextValue = PreviewCanvasProps & {
+  mode: EditMode;
+  setMode: React.Dispatch<React.SetStateAction<EditMode>>;
+  cropDragRef: React.RefObject<{
+    handle: DragHandle;
+    startX: number;
+    startY: number;
+    startRect: NormalizedCropRect;
+  } | null>;
+  resizeDragRef: React.RefObject<{
+    handle: ResizeDragHandle;
+    startX: number;
+    startY: number;
+    startWidth: number;
+    startHeight: number;
+  } | null>;
+  previewViewportRef: React.RefObject<HTMLDivElement | null>;
+  previewBounds: { width: number; maxHeight: number };
+  transformedNaturalSize: { width: number; height: number };
+  previewTransform: string;
+};
+
+const PreviewCanvasContext = createContext<PreviewCanvasContextValue | null>(
+  null,
+);
+
+function usePreviewCanvasContext() {
+  const context = useContext(PreviewCanvasContext);
+  if (!context) {
+    throw new Error('PreviewCanvasContext must be used within provider');
+  }
+  return context;
+}
+
+type PreviewCanvasProviderProps = PreviewCanvasProps & {
+  children: React.ReactNode;
+};
+
+const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = ({
   open,
   sourceUrl,
   filename,
@@ -575,9 +615,9 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   setTransform,
   filterStyle,
   onImageLoad,
+  children,
 }) => {
   const [mode, setMode] = useState<EditMode>('crop');
-  const cropContainerRef = useRef<HTMLDivElement>(null);
   const cropDragRef = useRef<{
     handle: DragHandle;
     startX: number;
@@ -601,12 +641,6 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     }
   }, [open]);
 
-  const previewTransform = useMemo(() => {
-    const scaleX = transform.flipHorizontal ? -1 : 1;
-    const scaleY = transform.flipVertical ? -1 : 1;
-    return `rotate(${transform.rotation}deg) scaleX(${scaleX}) scaleY(${scaleY})`;
-  }, [transform.flipHorizontal, transform.flipVertical, transform.rotation]);
-
   const transformedNaturalSize = useMemo(
     () =>
       getTransformedDimensions(
@@ -617,14 +651,236 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     [naturalSize.height, naturalSize.width, transform.rotation],
   );
 
-  const cropStyle = useMemo(() => {
-    return {
+  const previewTransform = useMemo(() => {
+    const scaleX = transform.flipHorizontal ? -1 : 1;
+    const scaleY = transform.flipVertical ? -1 : 1;
+    return `rotate(${transform.rotation}deg) scaleX(${scaleX}) scaleY(${scaleY})`;
+  }, [transform.flipHorizontal, transform.flipVertical, transform.rotation]);
+
+  const contextValue = useMemo<PreviewCanvasContextValue>(
+    () => ({
+      open,
+      sourceUrl,
+      filename,
+      naturalSize,
+      resizeConfig,
+      setResizeConfig,
+      cropRect,
+      setCropRect,
+      transform,
+      setTransform,
+      filterStyle,
+      onImageLoad,
+      mode,
+      setMode,
+      cropDragRef,
+      resizeDragRef,
+      previewViewportRef,
+      previewBounds,
+      transformedNaturalSize,
+      previewTransform,
+    }),
+    [
+      cropRect,
+      filename,
+      filterStyle,
+      mode,
+      naturalSize,
+      onImageLoad,
+      open,
+      previewBounds,
+      previewTransform,
+      resizeConfig,
+      setCropRect,
+      setResizeConfig,
+      setTransform,
+      sourceUrl,
+      transform,
+      transformedNaturalSize,
+      previewViewportRef,
+    ],
+  );
+
+  return (
+    <PreviewCanvasContext.Provider value={contextValue}>
+      {children}
+    </PreviewCanvasContext.Provider>
+  );
+};
+
+const PreviewTransformControls: React.FC = () => {
+  const { setCropRect, setResizeConfig, setTransform, transform } =
+    usePreviewCanvasContext();
+
+  return (
+    <div className='absolute top-2 left-2 z-30 flex items-center gap-2 rounded-md p-1'>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant='ghost'
+            size='icon'
+            className='h-8 w-8'
+            aria-label='Rotate left'
+            onClick={() => {
+              setCropRect((prev) => rotateCropRectLeft(prev));
+              setResizeConfig((prev) => ({
+                ...prev,
+                width: prev.height,
+                height: prev.width,
+              }));
+              setTransform((prev) => ({
+                ...prev,
+                rotation: rotateLeft(prev.rotation),
+              }));
+            }}
+          >
+            <RotateCcw className='h-4 w-4' />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side='top'>Rotate left</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant='ghost'
+            size='icon'
+            className='h-8 w-8'
+            aria-label='Rotate right'
+            onClick={() => {
+              setCropRect((prev) => rotateCropRectRight(prev));
+              setResizeConfig((prev) => ({
+                ...prev,
+                width: prev.height,
+                height: prev.width,
+              }));
+              setTransform((prev) => ({
+                ...prev,
+                rotation: rotateRight(prev.rotation),
+              }));
+            }}
+          >
+            <RotateCw className='h-4 w-4' />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side='top'>Rotate right</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant={transform.flipHorizontal ? 'secondary' : 'ghost'}
+            size='icon'
+            className='h-8 w-8'
+            aria-label='Flip horizontally'
+            onClick={() => {
+              setCropRect((prev) => ({
+                ...prev,
+                x: 1 - prev.x - prev.width,
+              }));
+              setTransform((prev) => ({
+                ...prev,
+                flipHorizontal: !prev.flipHorizontal,
+              }));
+            }}
+          >
+            <FlipHorizontal className='h-4 w-4' />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side='top'>Flip horizontal</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant={transform.flipVertical ? 'secondary' : 'ghost'}
+            size='icon'
+            className='h-8 w-8'
+            aria-label='Flip vertically'
+            onClick={() => {
+              setCropRect((prev) => ({
+                ...prev,
+                y: 1 - prev.y - prev.height,
+              }));
+              setTransform((prev) => ({
+                ...prev,
+                flipVertical: !prev.flipVertical,
+              }));
+            }}
+          >
+            <FlipVertical className='h-4 w-4' />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side='top'>Flip vertical</TooltipContent>
+      </Tooltip>
+    </div>
+  );
+};
+
+const PreviewModeControls: React.FC = () => {
+  const { mode, setMode } = usePreviewCanvasContext();
+
+  return (
+    <div className='absolute top-2 right-2 z-30 flex items-center gap-2 rounded-md p-1'>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant={mode === 'crop' ? 'secondary' : 'ghost'}
+            size='icon'
+            className='h-8 w-8'
+            aria-label='Crop'
+            onClick={() => {
+              setMode('crop');
+            }}
+          >
+            <CropIcon className='h-4 w-4' />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side='top'>Crop</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant={mode === 'resize' ? 'secondary' : 'ghost'}
+            size='icon'
+            className='h-8 w-8'
+            aria-label='Resize'
+            onClick={() => {
+              setMode('resize');
+            }}
+          >
+            <Expand className='h-4 w-4' />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side='top'>Resize</TooltipContent>
+      </Tooltip>
+    </div>
+  );
+};
+
+const PreviewCropStage: React.FC = () => {
+  const {
+    sourceUrl,
+    filename,
+    naturalSize,
+    transformedNaturalSize,
+    previewBounds,
+    filterStyle,
+    previewTransform,
+    onImageLoad,
+    cropRect,
+    setCropRect,
+    cropDragRef,
+    resizeDragRef,
+  } = usePreviewCanvasContext();
+  const cropContainerRef = useRef<HTMLDivElement>(null);
+
+  const cropStyle = useMemo(
+    () => ({
       left: `${cropRect.x * 100}%`,
       top: `${cropRect.y * 100}%`,
       width: `${cropRect.width * 100}%`,
       height: `${cropRect.height * 100}%`,
-    };
-  }, [cropRect]);
+    }),
+    [cropRect],
+  );
 
   const onCropPointerDown = useCallback(
     (handle: DragHandle, event: React.PointerEvent<HTMLElement>) => {
@@ -636,7 +892,7 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       };
       event.currentTarget.setPointerCapture(event.pointerId);
     },
-    [cropRect],
+    [cropDragRef, cropRect],
   );
 
   const onCropPointerMove = useCallback(
@@ -690,8 +946,139 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
 
       setCropRect({ x, y, width: rectWidth, height: rectHeight });
     },
-    [setCropRect],
+    [cropDragRef, setCropRect],
   );
+
+  const cropPreview = useMemo(() => {
+    const safeNaturalWidth = Math.max(naturalSize.width, 1);
+    const safeNaturalHeight = Math.max(naturalSize.height, 1);
+    const safeTransformedWidth = Math.max(transformedNaturalSize.width, 1);
+    const safeTransformedHeight = Math.max(transformedNaturalSize.height, 1);
+    const fallbackViewportWidth =
+      typeof window === 'undefined' ? 1024 : window.innerWidth;
+    const fallbackViewportHeight =
+      typeof window === 'undefined' ? 768 : window.innerHeight;
+    const hasMeasuredWidth = previewBounds.width > PREVIEW_STAGE_PADDING;
+    const hasMeasuredHeight = previewBounds.maxHeight > 0;
+    const availableWidth = Math.max(
+      hasMeasuredWidth ?
+        previewBounds.width - PREVIEW_STAGE_PADDING
+      : fallbackViewportWidth - PREVIEW_STAGE_PADDING,
+      1,
+    );
+    const availableHeight = Math.max(
+      hasMeasuredHeight ?
+        previewBounds.maxHeight
+      : fallbackViewportHeight * PREVIEW_MAX_VIEWPORT_HEIGHT_RATIO,
+      1,
+    );
+    const scale = Math.min(
+      1,
+      availableWidth / safeTransformedWidth,
+      availableHeight / safeTransformedHeight,
+    );
+
+    return {
+      frameStyle: {
+        width: `${safeTransformedWidth * scale}px`,
+        height: `${safeTransformedHeight * scale}px`,
+      },
+      imageStyle: {
+        ...filterStyle,
+        width: `${safeNaturalWidth * scale}px`,
+        height: `${safeNaturalHeight * scale}px`,
+        transform: `translate(-50%, -50%) ${previewTransform}`,
+        transformOrigin: 'center',
+      } satisfies React.CSSProperties,
+    };
+  }, [
+    filterStyle,
+    naturalSize.height,
+    naturalSize.width,
+    previewBounds.maxHeight,
+    previewBounds.width,
+    previewTransform,
+    transformedNaturalSize.height,
+    transformedNaturalSize.width,
+  ]);
+
+  if (!sourceUrl) {
+    return null;
+  }
+
+  return (
+    <div
+      ref={cropContainerRef}
+      className='relative inline-block'
+      onPointerMove={onCropPointerMove}
+      onPointerUp={() => {
+        cropDragRef.current = null;
+        resizeDragRef.current = null;
+      }}
+      onPointerCancel={() => {
+        cropDragRef.current = null;
+        resizeDragRef.current = null;
+      }}
+    >
+      <div className='relative overflow-hidden' style={cropPreview.frameStyle}>
+        <img
+          src={sourceUrl}
+          alt={filename}
+          className='absolute top-1/2 left-1/2 max-h-none max-w-none select-none'
+          style={cropPreview.imageStyle}
+          onLoad={onImageLoad}
+          draggable={false}
+        />
+      </div>
+
+      <div
+        className='border-primary pointer-events-auto absolute border-2 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]'
+        style={cropStyle}
+        onPointerDown={(event) => {
+          onCropPointerDown('move', event);
+        }}
+      >
+        {handles.map((handle) => (
+          <button
+            key={handle}
+            type='button'
+            className={cn(
+              'absolute z-10 flex h-6 w-6 touch-none items-center justify-center rounded-full',
+              getHandlePosition(handle),
+            )}
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              onCropPointerDown(handle, event);
+            }}
+            aria-label={`Adjust crop ${handle}`}
+          >
+            <span
+              aria-hidden
+              className='bg-primary h-3 w-3 rounded-full border border-white'
+            />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const PreviewResizeStage: React.FC = () => {
+  const {
+    sourceUrl,
+    filename,
+    naturalSize,
+    transformedNaturalSize,
+    previewBounds,
+    filterStyle,
+    previewTransform,
+    onImageLoad,
+    resizeConfig,
+    setResizeConfig,
+    cropRect,
+    resizeDragRef,
+    cropDragRef,
+  } = usePreviewCanvasContext();
 
   const updateResizeDimensions = useCallback(
     (
@@ -834,59 +1221,6 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     transformedNaturalSize.width,
   ]);
 
-  const cropPreview = useMemo(() => {
-    const safeNaturalWidth = Math.max(naturalSize.width, 1);
-    const safeNaturalHeight = Math.max(naturalSize.height, 1);
-    const safeTransformedWidth = Math.max(transformedNaturalSize.width, 1);
-    const safeTransformedHeight = Math.max(transformedNaturalSize.height, 1);
-    const fallbackViewportWidth =
-      typeof window === 'undefined' ? 1024 : window.innerWidth;
-    const fallbackViewportHeight =
-      typeof window === 'undefined' ? 768 : window.innerHeight;
-    const hasMeasuredWidth = previewBounds.width > PREVIEW_STAGE_PADDING;
-    const hasMeasuredHeight = previewBounds.maxHeight > 0;
-    const availableWidth = Math.max(
-      hasMeasuredWidth ?
-        previewBounds.width - PREVIEW_STAGE_PADDING
-      : fallbackViewportWidth - PREVIEW_STAGE_PADDING,
-      1,
-    );
-    const availableHeight = Math.max(
-      hasMeasuredHeight ?
-        previewBounds.maxHeight
-      : fallbackViewportHeight * PREVIEW_MAX_VIEWPORT_HEIGHT_RATIO,
-      1,
-    );
-    const scale = Math.min(
-      1,
-      availableWidth / safeTransformedWidth,
-      availableHeight / safeTransformedHeight,
-    );
-
-    return {
-      frameStyle: {
-        width: `${safeTransformedWidth * scale}px`,
-        height: `${safeTransformedHeight * scale}px`,
-      },
-      imageStyle: {
-        ...filterStyle,
-        width: `${safeNaturalWidth * scale}px`,
-        height: `${safeNaturalHeight * scale}px`,
-        transform: `translate(-50%, -50%) ${previewTransform}`,
-        transformOrigin: 'center',
-      } satisfies React.CSSProperties,
-    };
-  }, [
-    filterStyle,
-    naturalSize.height,
-    naturalSize.width,
-    previewBounds.maxHeight,
-    previewBounds.width,
-    previewTransform,
-    transformedNaturalSize.height,
-    transformedNaturalSize.width,
-  ]);
-
   const onResizePointerDown = useCallback(
     (handle: ResizeDragHandle, event: React.PointerEvent<HTMLElement>) => {
       resizeDragRef.current = {
@@ -898,7 +1232,7 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       };
       event.currentTarget.setPointerCapture(event.pointerId);
     },
-    [resizeConfig.height, resizeConfig.width],
+    [resizeConfig.height, resizeConfig.width, resizeDragRef],
   );
 
   const onResizePointerMove = useCallback(
@@ -937,7 +1271,7 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       const isCornerHandle = handle.length === 2;
       updateResizeDimensions(nextWidth, nextHeight, targetAxis, isCornerHandle);
     },
-    [resizePreviewScale, updateResizeDimensions],
+    [resizeDragRef, resizePreviewScale, updateResizeDimensions],
   );
 
   const resizePreview = useMemo(() => {
@@ -1001,6 +1335,79 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     previewTransform,
   ]);
 
+  if (!sourceUrl) {
+    return null;
+  }
+
+  return (
+    <div
+      className='relative inline-block'
+      onPointerUp={() => {
+        cropDragRef.current = null;
+        resizeDragRef.current = null;
+      }}
+      onPointerCancel={() => {
+        cropDragRef.current = null;
+        resizeDragRef.current = null;
+      }}
+    >
+      <div
+        className='relative max-h-[50vh] max-w-full'
+        style={resizePreview.stageStyle}
+      >
+        <div
+          className='absolute top-1/2 left-1/2 border-2 border-transparent'
+          style={{
+            ...resizePreview.frameStyle,
+            transform: 'translate(-50%, -50%)',
+          }}
+          onPointerMove={onResizePointerMove}
+        >
+          <div className='absolute inset-0 overflow-hidden'>
+            <div
+              className='absolute top-0 left-0'
+              style={resizePreview.transformedPlaneStyle}
+            >
+              <img
+                src={sourceUrl}
+                alt={filename}
+                className='absolute top-1/2 left-1/2 max-h-none max-w-none select-none'
+                style={resizePreview.imageStyle}
+                onLoad={onImageLoad}
+                draggable={false}
+              />
+            </div>
+            <div className='pointer-events-none absolute inset-0 border-2 border-white/70' />
+          </div>
+          {resizeHandles.map((handle) => (
+            <button
+              key={handle}
+              type='button'
+              className={cn(
+                'absolute z-10 flex h-6 w-6 touch-none items-center justify-center rounded-full',
+                getHandlePosition(handle),
+              )}
+              onPointerDown={(event) => {
+                event.stopPropagation();
+                onResizePointerDown(handle, event);
+              }}
+              aria-label={`Adjust resize ${handle}`}
+            >
+              <span
+                aria-hidden
+                className='bg-primary h-3 w-3 rounded-full border border-white'
+              />
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const PreviewCanvasViewport: React.FC = () => {
+  const { mode, previewViewportRef } = usePreviewCanvasContext();
+
   return (
     <div className='space-y-3'>
       <div className='relative p-3'>
@@ -1008,254 +1415,22 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
           ref={previewViewportRef}
           className='bg-background relative flex min-h-[55vh] items-center justify-center overflow-auto rounded-md border p-2 pt-14 sm:pt-16'
         >
-          <div className='absolute top-2 left-2 z-30 flex items-center gap-2 rounded-md p-1'>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant='ghost'
-                  size='icon'
-                  className='h-8 w-8'
-                  aria-label='Rotate left'
-                  onClick={() => {
-                    setCropRect((prev) => rotateCropRectLeft(prev));
-                    setResizeConfig((prev) => ({
-                      ...prev,
-                      width: prev.height,
-                      height: prev.width,
-                    }));
-                    setTransform((prev) => ({
-                      ...prev,
-                      rotation: rotateLeft(prev.rotation),
-                    }));
-                  }}
-                >
-                  <RotateCcw className='h-4 w-4' />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side='top'>Rotate left</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant='ghost'
-                  size='icon'
-                  className='h-8 w-8'
-                  aria-label='Rotate right'
-                  onClick={() => {
-                    setCropRect((prev) => rotateCropRectRight(prev));
-                    setResizeConfig((prev) => ({
-                      ...prev,
-                      width: prev.height,
-                      height: prev.width,
-                    }));
-                    setTransform((prev) => ({
-                      ...prev,
-                      rotation: rotateRight(prev.rotation),
-                    }));
-                  }}
-                >
-                  <RotateCw className='h-4 w-4' />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side='top'>Rotate right</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={transform.flipHorizontal ? 'secondary' : 'ghost'}
-                  size='icon'
-                  className='h-8 w-8'
-                  aria-label='Flip horizontally'
-                  onClick={() => {
-                    setCropRect((prev) => ({
-                      ...prev,
-                      x: 1 - prev.x - prev.width,
-                    }));
-                    setTransform((prev) => ({
-                      ...prev,
-                      flipHorizontal: !prev.flipHorizontal,
-                    }));
-                  }}
-                >
-                  <FlipHorizontal className='h-4 w-4' />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side='top'>Flip horizontal</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={transform.flipVertical ? 'secondary' : 'ghost'}
-                  size='icon'
-                  className='h-8 w-8'
-                  aria-label='Flip vertically'
-                  onClick={() => {
-                    setCropRect((prev) => ({
-                      ...prev,
-                      y: 1 - prev.y - prev.height,
-                    }));
-                    setTransform((prev) => ({
-                      ...prev,
-                      flipVertical: !prev.flipVertical,
-                    }));
-                  }}
-                >
-                  <FlipVertical className='h-4 w-4' />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side='top'>Flip vertical</TooltipContent>
-            </Tooltip>
-          </div>
-          <div className='absolute top-2 right-2 z-30 flex items-center gap-2 rounded-md p-1'>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={mode === 'crop' ? 'secondary' : 'ghost'}
-                  size='icon'
-                  className='h-8 w-8'
-                  aria-label='Crop'
-                  onClick={() => {
-                    setMode('crop');
-                  }}
-                >
-                  <CropIcon className='h-4 w-4' />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side='top'>Crop</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={mode === 'resize' ? 'secondary' : 'ghost'}
-                  size='icon'
-                  className='h-8 w-8'
-                  aria-label='Resize'
-                  onClick={() => {
-                    setMode('resize');
-                  }}
-                >
-                  <Expand className='h-4 w-4' />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side='top'>Resize</TooltipContent>
-            </Tooltip>
-          </div>
-
-          {sourceUrl && (
-            <div
-              ref={cropContainerRef}
-              className='relative inline-block'
-              onPointerMove={mode === 'crop' ? onCropPointerMove : undefined}
-              onPointerUp={() => {
-                cropDragRef.current = null;
-                resizeDragRef.current = null;
-              }}
-              onPointerCancel={() => {
-                cropDragRef.current = null;
-                resizeDragRef.current = null;
-              }}
-            >
-              {mode === 'crop' ?
-                <div
-                  className='relative overflow-hidden'
-                  style={cropPreview.frameStyle}
-                >
-                  <img
-                    src={sourceUrl}
-                    alt={filename}
-                    className='absolute top-1/2 left-1/2 max-h-none max-w-none select-none'
-                    style={cropPreview.imageStyle}
-                    onLoad={onImageLoad}
-                    draggable={false}
-                  />
-                </div>
-              : <div
-                  className='relative max-h-[50vh] max-w-full'
-                  style={resizePreview.stageStyle}
-                >
-                  <div
-                    className='absolute top-1/2 left-1/2 border-2 border-transparent'
-                    style={{
-                      ...resizePreview.frameStyle,
-                      transform: 'translate(-50%, -50%)',
-                    }}
-                    onPointerMove={onResizePointerMove}
-                  >
-                    <div className='absolute inset-0 overflow-hidden'>
-                      <div
-                        className='absolute top-0 left-0'
-                        style={resizePreview.transformedPlaneStyle}
-                      >
-                        <img
-                          src={sourceUrl}
-                          alt={filename}
-                          className='absolute top-1/2 left-1/2 max-h-none max-w-none select-none'
-                          style={resizePreview.imageStyle}
-                          onLoad={onImageLoad}
-                          draggable={false}
-                        />
-                      </div>
-                      <div className='pointer-events-none absolute inset-0 border-2 border-white/70' />
-                    </div>
-                    {resizeHandles.map((handle) => (
-                      <button
-                        key={handle}
-                        type='button'
-                        className={cn(
-                          'absolute z-10 flex h-6 w-6 touch-none items-center justify-center rounded-full',
-                          getHandlePosition(handle),
-                        )}
-                        onPointerDown={(event) => {
-                          event.stopPropagation();
-                          onResizePointerDown(handle, event);
-                        }}
-                        aria-label={`Adjust resize ${handle}`}
-                      >
-                        <span
-                          aria-hidden
-                          className='bg-primary h-3 w-3 rounded-full border border-white'
-                        />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              }
-
-              {mode === 'crop' && (
-                <div
-                  className='border-primary pointer-events-auto absolute border-2 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]'
-                  style={cropStyle}
-                  onPointerDown={(event) => {
-                    onCropPointerDown('move', event);
-                  }}
-                >
-                  {handles.map((handle) => (
-                    <button
-                      key={handle}
-                      type='button'
-                      className={cn(
-                        'absolute z-10 flex h-6 w-6 touch-none items-center justify-center rounded-full',
-                        getHandlePosition(handle),
-                      )}
-                      onPointerDown={(event) => {
-                        event.stopPropagation();
-                        onCropPointerDown(handle, event);
-                      }}
-                      aria-label={`Adjust crop ${handle}`}
-                    >
-                      <span
-                        aria-hidden
-                        className='bg-primary h-3 w-3 rounded-full border border-white'
-                      />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          <PreviewTransformControls />
+          <PreviewModeControls />
+          {mode === 'crop' ?
+            <PreviewCropStage />
+          : <PreviewResizeStage />}
         </div>
       </div>
     </div>
+  );
+};
+
+const PreviewCanvas: React.FC<PreviewCanvasProps> = (props) => {
+  return (
+    <PreviewCanvasProvider {...props}>
+      <PreviewCanvasViewport />
+    </PreviewCanvasProvider>
   );
 };
 

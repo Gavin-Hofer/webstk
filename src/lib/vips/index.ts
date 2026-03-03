@@ -156,34 +156,6 @@ function encodeBmp(img: Vips.Image): Uint8Array<ArrayBuffer> {
   return out;
 }
 
-function isVipsImage(value: unknown): value is Vips.Image {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'width' in value &&
-    'height' in value &&
-    'delete' in value
-  );
-}
-
-function runImageOperation(
-  image: Vips.Image,
-  names: string[],
-  args: unknown[],
-): Vips.Image | undefined {
-  for (const name of names) {
-    const operation: unknown = Reflect.get(image as object, name);
-    if (!(typeof operation === 'function')) {
-      continue;
-    }
-    const output = operation.apply(image as object, args);
-    if (isVipsImage(output)) {
-      return output;
-    }
-  }
-  return undefined;
-}
-
 // #endregion
 
 // #region ImageBuilder
@@ -246,14 +218,7 @@ export class VipsImageBuilder {
     }
     const safeWidth = Math.min(width, this.image.width - left);
     const safeHeight = Math.min(height, this.image.height - top);
-    const cropped = runImageOperation(
-      this.image,
-      ['crop', 'extractArea'],
-      [left, top, safeWidth, safeHeight],
-    );
-    if (!cropped) {
-      throw new Error('Cropping is not supported by this vips build');
-    }
+    const cropped = this.image.extractArea(left, top, safeWidth, safeHeight);
     return new VipsImageBuilder(cropped, this.allocated);
   };
 
@@ -275,44 +240,42 @@ export class VipsImageBuilder {
     // output = input * contrast + offset.
     if (brightness !== 1 || contrast !== 1) {
       const offset = 128 * (1 - contrast) + (brightness - 1) * 255;
-      const adjusted = runImageOperation(
-        nextImage,
-        ['linear'],
-        [contrast, offset],
-      );
-      if (!adjusted) {
-        throw new TypeError(
-          'Brightness/contrast adjustments are not supported by this vips build',
-        );
-      }
+      const adjusted = nextImage.linear(contrast, offset);
       nextImage = adjusted;
       this.allocated.push(nextImage);
     }
 
-    if (saturation !== 1) {
-      const saturated = runImageOperation(
-        nextImage,
-        ['modulate'],
-        [{ saturation }],
-      );
-      if (!saturated) {
-        throw new TypeError(
-          'Saturation adjustment is not supported by this vips build',
-        );
+    if (saturation !== 1 && nextImage.bands >= 3) {
+      // Saturation is the chroma channel in LCh colorspace.
+      const interpretation = nextImage.interpretation;
+      if (nextImage.hasAlpha()) {
+        const withoutAlpha = nextImage.extractBand(0, {
+          n: nextImage.bands - 1,
+        });
+        this.allocated.push(withoutAlpha);
+
+        const alpha = nextImage.extractBand(nextImage.bands - 1);
+        this.allocated.push(alpha);
+
+        const saturated = withoutAlpha
+          .colourspace('lch')
+          .linear([1, saturation, 1], [0, 0, 0])
+          .colourspace(interpretation)
+          .bandjoin(alpha);
+        nextImage = saturated;
+        this.allocated.push(nextImage);
+      } else {
+        const saturated = nextImage
+          .colourspace('lch')
+          .linear([1, saturation, 1], [0, 0, 0])
+          .colourspace(interpretation);
+        nextImage = saturated;
+        this.allocated.push(nextImage);
       }
-      nextImage = saturated;
-      this.allocated.push(nextImage);
     }
 
     if (sharpen > 0) {
-      const sharpened = runImageOperation(
-        nextImage,
-        ['sharpen'],
-        [{ sigma: sharpen }],
-      );
-      if (!sharpened) {
-        throw new TypeError('Sharpening is not supported by this vips build');
-      }
+      const sharpened = nextImage.sharpen({ sigma: sharpen });
       nextImage = sharpened;
       this.allocated.push(nextImage);
     }
@@ -340,32 +303,19 @@ export class VipsImageBuilder {
       } else {
         angle = 3;
       }
-      const rotated = runImageOperation(nextImage, ['rot'], [angle]);
-      if (!rotated) {
-        throw new TypeError('Rotation is not supported by this vips build');
-      }
+      const rotated = nextImage.rot(angle);
       nextImage = rotated;
       this.allocated.push(nextImage);
     }
 
     if (flipHorizontal) {
-      const flippedHorizontally = runImageOperation(nextImage, ['flip'], [0]);
-      if (!flippedHorizontally) {
-        throw new TypeError(
-          'Horizontal flip is not supported by this vips build',
-        );
-      }
+      const flippedHorizontally = nextImage.flip(0);
       nextImage = flippedHorizontally;
       this.allocated.push(nextImage);
     }
 
     if (flipVertical) {
-      const flippedVertically = runImageOperation(nextImage, ['flip'], [1]);
-      if (!flippedVertically) {
-        throw new TypeError(
-          'Vertical flip is not supported by this vips build',
-        );
-      }
+      const flippedVertically = nextImage.flip(1);
       nextImage = flippedVertically;
       this.allocated.push(nextImage);
     }
