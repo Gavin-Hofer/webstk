@@ -28,6 +28,7 @@ import {
 import { useRefCallback } from '@/hooks/use-ref-callback';
 import { convertImage } from '@/lib/image-tools/convert-image';
 import { cn } from '@/lib/utils';
+import type { ImageFormat } from '@/lib/vips';
 
 // #region Constants
 // =============================================================================
@@ -42,7 +43,10 @@ const SCROLL_ZOOM_SENSITIVITY = 0.002;
 // #region Hooks
 // =============================================================================
 
-function useImageUrl(file: File): string | undefined {
+function useImageUrl(
+  file: File,
+  options: { format: ImageFormat; quality: number },
+): string | undefined {
   const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
 
   const setImageUrlWrapper = useEffectEvent((previewFile: File) => {
@@ -54,12 +58,17 @@ function useImageUrl(file: File): string | undefined {
   });
 
   useEffect(() => {
-    void convertImage(file, { format: 'webp', quality: 85 }).then(
-      (previewFile) => {
+    void convertImage(file, options)
+      .then((f) => {
+        if (['webp', 'png', 'jpeg'].includes(options.format)) {
+          return f;
+        }
+        return convertImage(f, { format: 'webp' });
+      })
+      .then((previewFile) => {
         setImageUrlWrapper(previewFile);
-      },
-    );
-  }, [file]);
+      });
+  }, [file, options]);
 
   return imageUrl;
 }
@@ -201,6 +210,8 @@ const ToolbarButton: React.FC<ToolbarButtonProps> = ({
 
 type ImageViewerDialogProps = {
   file: File;
+  format: ImageFormat;
+  quality: number;
   children: React.ReactNode;
 };
 
@@ -215,6 +226,8 @@ type ImageViewerDialogProps = {
  */
 export const ImageViewerDialog: React.FC<ImageViewerDialogProps> = ({
   file,
+  format,
+  quality,
   children,
 }) => {
   const [open, setOpen] = useState(false);
@@ -234,7 +247,7 @@ export const ImageViewerDialog: React.FC<ImageViewerDialogProps> = ({
     handleDoubleClick,
   } = useImageViewer();
 
-  const imageUrl = useImageUrl(file);
+  const imageUrl = useImageUrl(file, { format, quality });
 
   const { refCallback: containerRef } = useRefCallback<HTMLDivElement>(
     (node) => {
