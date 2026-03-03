@@ -620,7 +620,9 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
         </DialogHeader>
 
         <div className='space-y-3'>
+          {/* Main editor canvas and overlays. */}
           <div className='bg-muted/20 border-border relative rounded-lg border p-3'>
+            {/* Aspect ratio lock control shown only in resize mode. */}
             {mode === 'resize' && (
               <div className='absolute top-4 left-4 z-30 rounded-md p-1 backdrop-blur-sm'>
                 <Tooltip>
@@ -654,6 +656,7 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
                 </Tooltip>
               </div>
             )}
+            {/* Top-right mode toggle controls for crop/resize. */}
             <div className='absolute top-4 right-4 z-30 flex items-center gap-2 rounded-md p-1 backdrop-blur-sm'>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -688,6 +691,7 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
                 <TooltipContent side='top'>Resize</TooltipContent>
               </Tooltip>
             </div>
+            {/* Image preview viewport where crop/resize interactions happen. */}
             <div className='bg-background relative flex min-h-[55vh] items-center justify-center overflow-auto rounded-md border p-2'>
               {sourceUrl && (
                 <div
@@ -705,6 +709,7 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
                     resizeDragRef.current = null;
                   }}
                 >
+                  {/* Base preview rendering, switches by active mode. */}
                   {mode === 'crop' ?
                     <img
                       src={sourceUrl}
@@ -730,6 +735,7 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
                         />
                         <div className='pointer-events-none absolute inset-0 border-2 border-white/70' />
                       </div>
+                      {/* Resize handles for frame adjustments. */}
                       {resizeHandles.map((handle) => {
                         const position =
                           handle === 'n' ?
@@ -770,9 +776,9 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
                       })}
                     </div>
                   }
+                  {/* Crop overlay with draggable bounds and corner/edge handles. */}
                   {mode === 'crop' && (
                     <>
-                      <div className='pointer-events-none absolute inset-0 bg-black/30' />
                       <div
                         className='border-primary pointer-events-auto absolute border-2 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]'
                         style={cropStyle}
@@ -824,6 +830,7 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
                 </div>
               )}
             </div>
+            {/* Floating slider for the selected touchup adjustment. */}
             {activeTouchupMeta && (
               <div className='pointer-events-none absolute inset-0 z-20 flex items-center justify-center'>
                 <div className='bg-background pointer-events-auto w-[min(420px,calc(100%-2rem))] rounded-lg border p-4 shadow-xl'>
@@ -855,6 +862,7 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
           </div>
         </div>
 
+        {/* Quick-access touchup controls (brightness, contrast, etc.). */}
         <div className='flex items-center justify-center gap-2 p-1'>
           {touchupControls.map((control) => {
             const Icon = control.icon;
@@ -884,6 +892,7 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
           })}
         </div>
 
+        {/* Final actions for reset or closing the editor dialog. */}
         <DialogFooter className='mt-2 flex-col-reverse gap-2 sm:flex-row sm:justify-between'>
           <Button variant='ghost' onClick={handleResetToOriginal}>
             Reset to Original
