@@ -12,6 +12,7 @@ import 'fake-indexeddb/auto';
 import superjson from 'superjson';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
+import * as imageTools from '@/lib/image-tools';
 import { imageCache, usePersistentImages } from './use-persistent-images';
 
 vi.mock('client-only', () => ({}));
@@ -118,9 +119,9 @@ describe('usePersistentImages', () => {
   });
 
   test('attempts real conversion with wasm-vips and keeps item removable on conversion failure', async () => {
-    vi.mock('@/lib/image-tools', () => ({
-      convertImage: vi.fn().mockRejectedValue(new Error('Conversion failed')),
-    }));
+    const convertImageSpy = vi
+      .spyOn(imageTools, 'convertImage')
+      .mockRejectedValue(new Error('Conversion failed'));
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { result } = renderHook(() => usePersistentImages());
 
@@ -168,5 +169,6 @@ describe('usePersistentImages', () => {
     });
 
     errorSpy.mockRestore();
+    convertImageSpy.mockRestore();
   }, 20_000);
 });

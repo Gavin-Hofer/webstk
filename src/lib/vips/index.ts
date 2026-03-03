@@ -1,5 +1,10 @@
 import type Vips from 'wasm-vips';
 
+import type {
+  ImageCropOptions,
+  ImageTouchupOptions,
+  ImageTransformOptions,
+} from '../image-tools/types';
 import { PUBLIC_VIPS_PATH, PUBLIC_VIPS_PATH_NODE } from './__generated__';
 
 // #region Image Formats
@@ -177,15 +182,57 @@ export class VipsImageBuilder {
   }
 
   public readonly resize = (size: { width?: number; height?: number }) => {
-    const width = size.width ?? this.image.width;
+    const width = size.width;
     const height = size.height;
+    const hasWidth = typeof width === 'number' && Number.isFinite(width);
+    const hasHeight = typeof height === 'number' && Number.isFinite(height);
+    if (!hasWidth && !hasHeight) {
+      return this;
+    }
+
+    const targetWidth =
+      hasWidth ? Math.max(1, Math.round(width)) : this.image.width;
+    const targetHeight =
+      hasHeight ? Math.max(1, Math.round(height)) : this.image.height;
     if (
-      width === this.image.width &&
-      (height === undefined || height === this.image.height)
+      targetWidth === this.image.width &&
+      targetHeight === this.image.height
     ) {
       return this;
     }
-    const image = this.image.thumbnailImage(width, { height });
+
+    const scaleX = targetWidth / this.image.width;
+    const scaleY = targetHeight / this.image.height;
+    const image =
+      hasWidth && hasHeight ?
+        this.image.resize(scaleX, { vscale: scaleY })
+      : this.image.resize(hasWidth ? scaleX : scaleY);
+    return new VipsImageBuilder(image, this.allocated);
+  };
+
+  public readonly thumbnail = (size: { width?: number; height?: number }) => {
+    const width = size.width;
+    const height = size.height;
+    const hasWidth = typeof width === 'number' && Number.isFinite(width);
+    const hasHeight = typeof height === 'number' && Number.isFinite(height);
+    if (!hasWidth && !hasHeight) {
+      return this;
+    }
+
+    const targetWidth =
+      hasWidth ? Math.max(1, Math.round(width)) : this.image.width;
+    const targetHeight =
+      hasHeight ? Math.max(1, Math.round(height)) : this.image.height;
+    if (
+      targetWidth === this.image.width &&
+      targetHeight === this.image.height
+    ) {
+      return this;
+    }
+
+    const image = this.image.thumbnailImage(targetWidth, {
+      height: hasHeight ? targetHeight : undefined,
+    });
     return new VipsImageBuilder(image, this.allocated);
   };
 
@@ -196,6 +243,138 @@ export class VipsImageBuilder {
     const width = Math.round(this.image.width * scaleFactor);
     const image = this.image.thumbnailImage(width);
     return new VipsImageBuilder(image, this.allocated);
+  };
+
+  public readonly crop = (crop: ImageCropOptions) => {
+    const left = Math.max(0, Math.round(crop.left));
+    const top = Math.max(0, Math.round(crop.top));
+    const width = Math.max(1, Math.round(crop.width));
+    const height = Math.max(1, Math.round(crop.height));
+    if (
+      left === 0 &&
+      top === 0 &&
+      width === this.image.width &&
+      height === this.image.height
+    ) {
+      return this;
+    }
+    const safeWidth = Math.min(width, this.image.width - left);
+    const safeHeight = Math.min(height, this.image.height - top);
+    const cropped = this.image.extractArea(left, top, safeWidth, safeHeight);
+    return new VipsImageBuilder(cropped, this.allocated);
+  };
+
+  public readonly touchup = (touchup: ImageTouchupOptions) => {
+    const brightness = touchup.brightness ?? 1;
+    const contrast = touchup.contrast ?? 1;
+    const saturation = touchup.saturation ?? 1;
+    const sharpen = touchup.sharpen ?? 0;
+
+    const hasTouchup =
+      brightness !== 1 || contrast !== 1 || saturation !== 1 || sharpen > 0;
+    if (!hasTouchup) {
+      return this;
+    }
+
+    let nextImage = this.image;
+
+    // Brightness is a multiplicative gain on RGB channels.
+    if (brightness !== 1) {
+      const adjusted = nextImage.linear(
+        [brightness, brightness, brightness],
+        [0, 0, 0],
+      );
+      nextImage = adjusted;
+      this.allocated.push(nextImage);
+    }
+
+    // Contrast pivots around mid-gray (128) to mirror CSS contrast():
+    // output = input * contrast + 128 * (1 - contrast).
+    if (contrast !== 1) {
+      const adjusted = nextImage.linear(
+        [contrast, contrast, contrast],
+        [128 * (1 - contrast), 128 * (1 - contrast), 128 * (1 - contrast)],
+      );
+      nextImage = adjusted;
+      this.allocated.push(nextImage);
+    }
+
+    if (saturation !== 1 && nextImage.bands >= 3) {
+      // Saturation is the chroma channel in LCh colorspace.
+      const interpretation = nextImage.interpretation;
+      if (nextImage.hasAlpha()) {
+        const withoutAlpha = nextImage.extractBand(0, {
+          n: nextImage.bands - 1,
+        });
+        this.allocated.push(withoutAlpha);
+
+        const alpha = nextImage.extractBand(nextImage.bands - 1);
+        this.allocated.push(alpha);
+
+        const saturated = withoutAlpha
+          .colourspace('lch')
+          .linear([1, saturation, 1], [0, 0, 0])
+          .colourspace(interpretation)
+          .bandjoin(alpha);
+        nextImage = saturated;
+        this.allocated.push(nextImage);
+      } else {
+        const saturated = nextImage
+          .colourspace('lch')
+          .linear([1, saturation, 1], [0, 0, 0])
+          .colourspace(interpretation);
+        nextImage = saturated;
+        this.allocated.push(nextImage);
+      }
+    }
+
+    if (sharpen > 0) {
+      const sharpened = nextImage.sharpen({ sigma: sharpen });
+      nextImage = sharpened;
+      this.allocated.push(nextImage);
+    }
+
+    return new VipsImageBuilder(nextImage, this.allocated);
+  };
+
+  public readonly transform = (transform: ImageTransformOptions) => {
+    const rotation = transform.rotation ?? 0;
+    const flipHorizontal = transform.flipHorizontal ?? false;
+    const flipVertical = transform.flipVertical ?? false;
+    const hasTransform = rotation !== 0 || flipHorizontal || flipVertical;
+    if (!hasTransform) {
+      return this;
+    }
+
+    let nextImage = this.image;
+
+    if (rotation !== 0) {
+      let angle: Vips.Angle;
+      if (rotation === 90) {
+        angle = 1;
+      } else if (rotation === 180) {
+        angle = 2;
+      } else {
+        angle = 3;
+      }
+      const rotated = nextImage.rot(angle);
+      nextImage = rotated;
+      this.allocated.push(nextImage);
+    }
+
+    if (flipHorizontal) {
+      const flippedHorizontally = nextImage.flip(0);
+      nextImage = flippedHorizontally;
+      this.allocated.push(nextImage);
+    }
+
+    if (flipVertical) {
+      const flippedVertically = nextImage.flip(1);
+      nextImage = flippedVertically;
+      this.allocated.push(nextImage);
+    }
+
+    return new VipsImageBuilder(nextImage, this.allocated);
   };
 
   public readonly encode = ({

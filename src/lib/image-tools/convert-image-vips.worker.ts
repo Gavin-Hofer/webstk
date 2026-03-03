@@ -34,13 +34,32 @@ self.addEventListener('message', (e: MessageEvent<WorkerRequest>) => {
         filename = replaceFileExtension(file.name, format),
         width,
         height,
+        thumbnail = false,
+        edits,
       } = options;
       const image = await loadImage(file);
       const imageBuilder = new VipsImageBuilder(image);
       try {
-        const result = imageBuilder
-          .resize({ width, height })
-          .toFile({ format, quality, filename });
+        let pipeline = imageBuilder;
+        if (edits?.touchup) {
+          pipeline = pipeline.touchup(edits.touchup);
+        }
+        if (edits?.transform) {
+          pipeline = pipeline.transform(edits.transform);
+        }
+        if (edits?.crop) {
+          pipeline = pipeline.crop(edits.crop);
+        }
+        if (edits?.resize) {
+          pipeline = pipeline.resize(edits.resize);
+        }
+        if (width || height) {
+          pipeline =
+            thumbnail ?
+              pipeline.thumbnail({ width, height })
+            : pipeline.resize({ width, height });
+        }
+        const result = pipeline.toFile({ format, quality, filename });
         postMessage({ id, file: result } satisfies WorkerResponse);
       } finally {
         imageBuilder.dispose();
