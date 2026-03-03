@@ -562,8 +562,15 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       forcePreserveAspectRatio = false,
     ) => {
       setResizeConfig((prev) => {
+        const safeNaturalWidth = Math.max(naturalSize.width, 1);
+        const safeNaturalHeight = Math.max(naturalSize.height, 1);
+        const cropPixelWidth = Math.max(cropRect.width * safeNaturalWidth, 1);
+        const cropPixelHeight = Math.max(
+          cropRect.height * safeNaturalHeight,
+          1,
+        );
         const safeAspect = Math.max(
-          prev.width / Math.max(prev.height, Number.EPSILON),
+          cropPixelWidth / Math.max(cropPixelHeight, Number.EPSILON),
           Number.EPSILON,
         );
         const clampedWidth = clamp(
@@ -637,8 +644,52 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
         };
       });
     },
-    [setResizeConfig],
+    [
+      cropRect.height,
+      cropRect.width,
+      naturalSize.height,
+      naturalSize.width,
+      setResizeConfig,
+    ],
   );
+
+  useEffect(() => {
+    if (!resizeConfig.preserveAspectRatio) {
+      return;
+    }
+
+    const safeNaturalWidth = Math.max(naturalSize.width, 1);
+    const safeNaturalHeight = Math.max(naturalSize.height, 1);
+    const cropPixelWidth = Math.max(cropRect.width * safeNaturalWidth, 1);
+    const cropPixelHeight = Math.max(cropRect.height * safeNaturalHeight, 1);
+    // Keep locked resize dimensions aligned to the current crop ratio.
+    const cropAspectRatio = Math.max(
+      cropPixelWidth / Math.max(cropPixelHeight, Number.EPSILON),
+      Number.EPSILON,
+    );
+
+    setResizeConfig((prev) => {
+      const nextHeight = clamp(
+        Math.round(prev.width / cropAspectRatio),
+        MIN_RESIZE_DIMENSION,
+        MAX_RESIZE_DIMENSION,
+      );
+      if (nextHeight === prev.height) {
+        return prev;
+      }
+      return {
+        ...prev,
+        height: nextHeight,
+      };
+    });
+  }, [
+    cropRect.height,
+    cropRect.width,
+    naturalSize.height,
+    naturalSize.width,
+    resizeConfig.preserveAspectRatio,
+    setResizeConfig,
+  ]);
 
   const resizePreviewScale = useMemo(() => {
     const safeNaturalWidth = Math.max(naturalSize.width, 1);
