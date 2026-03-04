@@ -69,9 +69,7 @@ function useFileObjectUrl(file: File) {
     const url = URL.createObjectURL(query.data);
     setSrc(url);
     return () => {
-      setTimeout(() => {
-        URL.revokeObjectURL(url);
-      }, 10);
+      URL.revokeObjectURL(url);
     };
   }, [query.data]);
 
