@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useQuery } from '@tanstack/react-query';
 
@@ -36,10 +36,6 @@ function isWebDisplayable(file: File): boolean {
   return WEB_DISPLAYABLE_MIME_TYPES.has(file.type);
 }
 
-function getFileQueryKey(file: File) {
-  return ['file-image', file.name, file.size, file.lastModified, file.type];
-}
-
 // #endregion
 
 // #region Hooks
@@ -53,10 +49,9 @@ function getFileQueryKey(file: File) {
  */
 function useFileObjectUrl(file: File) {
   const [src, setSrc] = useState<string | undefined>(undefined);
-  const prevUrlRef = useRef<string | undefined>(undefined);
 
   const query = useQuery({
-    queryKey: getFileQueryKey(file),
+    queryKey: ['file-image', file.name, file.type, file.lastModified],
     queryFn: async ({ signal }) => {
       if (isWebDisplayable(file)) {
         return file;
@@ -68,21 +63,23 @@ function useFileObjectUrl(file: File) {
 
   useEffect(() => {
     if (!query.data) {
+      setSrc(undefined);
       return;
     }
     const url = URL.createObjectURL(query.data);
-    if (prevUrlRef.current) {
-      URL.revokeObjectURL(prevUrlRef.current);
-    }
-    prevUrlRef.current = url;
     setSrc(url);
     return () => {
-      URL.revokeObjectURL(url);
-      prevUrlRef.current = undefined;
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 10);
     };
   }, [query.data]);
 
-  return { src, isPending: query.isPending, isLoading: query.isLoading };
+  return {
+    src,
+    isPending: query.isPending,
+    isLoading: query.isLoading,
+  };
 }
 
 // #endregion
