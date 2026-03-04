@@ -817,7 +817,18 @@ const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = (props) => {
     if (!open) {
       cropDragRef.current = null;
       resizeDragRef.current = null;
+      return;
     }
+    const clearDrag = () => {
+      cropDragRef.current = null;
+      resizeDragRef.current = null;
+    };
+    window.addEventListener('pointerup', clearDrag);
+    window.addEventListener('pointercancel', clearDrag);
+    return () => {
+      window.removeEventListener('pointerup', clearDrag);
+      window.removeEventListener('pointercancel', clearDrag);
+    };
   }, [open]);
 
   const transformedNaturalSize = useMemo(
@@ -1179,7 +1190,6 @@ const PreviewCropStage: React.FC = () => {
     filterStyle,
     previewTransform,
     cropDragRef,
-    resizeDragRef,
   } = usePreviewCanvasContext();
   const { cropRect, resizeConfig } = editorState;
   const cropContainerRef = useRef<HTMLDivElement>(null);
@@ -1316,14 +1326,6 @@ const PreviewCropStage: React.FC = () => {
       ref={cropContainerRef}
       className='relative inline-block'
       onPointerMove={onCropPointerMove}
-      onPointerUp={() => {
-        cropDragRef.current = null;
-        resizeDragRef.current = null;
-      }}
-      onPointerCancel={() => {
-        cropDragRef.current = null;
-        resizeDragRef.current = null;
-      }}
     >
       <div className='relative overflow-hidden' style={cropPreview.frameStyle}>
         <FileImage
@@ -1379,7 +1381,6 @@ const PreviewResizeStage: React.FC = () => {
     previewTransform,
     editorState,
     resizeDragRef,
-    cropDragRef,
     updateResizeDimensions,
   } = usePreviewCanvasContext();
   const { resizeConfig, cropRect } = editorState;
@@ -1546,17 +1547,7 @@ const PreviewResizeStage: React.FC = () => {
   ]);
 
   return (
-    <div
-      className='relative inline-block'
-      onPointerUp={() => {
-        cropDragRef.current = null;
-        resizeDragRef.current = null;
-      }}
-      onPointerCancel={() => {
-        cropDragRef.current = null;
-        resizeDragRef.current = null;
-      }}
-    >
+    <div className='relative inline-block'>
       <div
         className='relative max-h-[50vh] max-w-full'
         style={resizePreview.stageStyle}
