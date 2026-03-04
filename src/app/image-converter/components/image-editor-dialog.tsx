@@ -848,8 +848,10 @@ const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = (props) => {
           cropRect: prev.cropRect,
           transformedNaturalSize,
         });
+        const currentWidth = cropPixels.width * prev.resizeConfig.scaleX;
+        const currentHeight = cropPixels.height * prev.resizeConfig.scaleY;
         const safeAspect = Math.max(
-          cropPixels.width / Math.max(cropPixels.height, Number.EPSILON),
+          currentWidth / Math.max(currentHeight, Number.EPSILON),
           Number.EPSILON,
         );
         const clampedWidth = clamp(
