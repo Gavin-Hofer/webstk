@@ -12,6 +12,7 @@ import React, {
   useState,
 } from 'react';
 
+import { useQuery } from '@tanstack/react-query';
 import {
   ContrastIcon,
   CropIcon,
@@ -28,6 +29,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
+import { useDebounceValue } from 'usehooks-ts';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -37,6 +39,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { FileImage } from '@/components/ui/file-image';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import {
@@ -45,6 +48,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import type { ManagedImage } from '@/hooks/use-persistent-images';
+import { getImageFormatFromFile } from '@/hooks/use-persistent-images';
 import { convertImage } from '@/lib/image-tools';
 import type { ImageEditOptions } from '@/lib/image-tools/types';
 import { cn } from '@/lib/utils';
@@ -79,6 +83,20 @@ type TransformConfig = {
   flipVertical: boolean;
 };
 
+/**
+ * Single source of truth for all editor settings. Stored in one useState so
+ * that multi-field mutations (e.g. rotate updates cropRect + resizeConfig +
+ * transform together) are applied atomically in a single render. Splitting
+ * these into separate useState hooks caused intermediate renders where some
+ * fields were stale, leading to desync between crop and resize previews.
+ */
+type EditorState = {
+  cropRect: NormalizedCropRect;
+  resizeConfig: ResizeConfig;
+  touchup: TouchupConfig;
+  transform: TransformConfig;
+};
+
 type ImageEditorDialogProps = {
   image: ManagedImage;
 };
@@ -103,7 +121,14 @@ const PREVIEW_MIN_ZOOM = 0.5;
 const PREVIEW_MAX_ZOOM = 8;
 const PREVIEW_ZOOM_STEP = 0.25;
 const PREVIEW_SCROLL_ZOOM_SENSITIVITY = 0.002;
-const PREVIEW_RENDER_DEBOUNCE_MS = 350;
+const PREVIEW_DEBOUNCE_MS = 350;
+
+const DEFAULT_EDITOR_STATE: EditorState = {
+  cropRect: { x: 0, y: 0, width: 1, height: 1 },
+  resizeConfig: { scaleX: 1, scaleY: 1 },
+  touchup: { brightness: 100, contrast: 100, saturation: 100, sharpen: 0 },
+  transform: { rotation: 0, flipHorizontal: false, flipVertical: false },
+};
 
 const handles: DragHandle[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
 const resizeHandles: ResizeDragHandle[] = [
@@ -227,7 +252,6 @@ function normalizeCropRect(
   if (!crop || width <= 0 || height <= 0) {
     return { x: 0, y: 0, width: 1, height: 1 };
   }
-
   return {
     x: clamp(crop.left / width, 0, 1),
     y: clamp(crop.top / height, 0, 1),
@@ -276,11 +300,15 @@ function getCropPixelDimensions(params: {
   transformedNaturalSize: { width: number; height: number };
 }) {
   const { cropRect, transformedNaturalSize } = params;
-  const safeNaturalWidth = Math.max(transformedNaturalSize.width, 1);
-  const safeNaturalHeight = Math.max(transformedNaturalSize.height, 1);
   return {
-    width: Math.max(cropRect.width * safeNaturalWidth, 1),
-    height: Math.max(cropRect.height * safeNaturalHeight, 1),
+    width: Math.max(
+      cropRect.width * Math.max(transformedNaturalSize.width, 1),
+      1,
+    ),
+    height: Math.max(
+      cropRect.height * Math.max(transformedNaturalSize.height, 1),
+      1,
+    ),
   };
 }
 
@@ -316,150 +344,290 @@ function isDefaultResizeScale(resizeConfig: ResizeConfig) {
   );
 }
 
+/** Builds the full ImageEditOptions for final output (on dialog close). */
+function buildEditsFromState(
+  naturalSize: { width: number; height: number },
+  state: EditorState,
+): ImageEditOptions | undefined {
+  const { cropRect, resizeConfig, touchup, transform } = state;
+  if (naturalSize.width <= 0 || naturalSize.height <= 0) {
+    return undefined;
+  }
+
+  const transformedNaturalSize = getTransformedDimensions(
+    naturalSize.width,
+    naturalSize.height,
+    transform.rotation,
+  );
+  const edits: ImageEditOptions = {};
+  const cropPixelDimensions = getCropPixelDimensions({
+    cropRect,
+    transformedNaturalSize,
+  });
+
+  if (!isDefaultCrop(cropRect)) {
+    edits.crop = {
+      left: Math.round(cropRect.x * transformedNaturalSize.width),
+      top: Math.round(cropRect.y * transformedNaturalSize.height),
+      width: Math.round(cropRect.width * transformedNaturalSize.width),
+      height: Math.round(cropRect.height * transformedNaturalSize.height),
+    };
+  }
+
+  if (!isDefaultResizeScale(resizeConfig)) {
+    edits.resize = {
+      width: clamp(
+        Math.round(cropPixelDimensions.width * resizeConfig.scaleX),
+        MIN_RESIZE_DIMENSION,
+        MAX_RESIZE_DIMENSION,
+      ),
+      height: clamp(
+        Math.round(cropPixelDimensions.height * resizeConfig.scaleY),
+        MIN_RESIZE_DIMENSION,
+        MAX_RESIZE_DIMENSION,
+      ),
+    };
+  }
+
+  const brightness = touchup.brightness / 100;
+  const contrast = touchup.contrast / 100;
+  const saturation = touchup.saturation / 100;
+  const sharpen = touchup.sharpen / 100;
+  if (brightness !== 1 || contrast !== 1 || saturation !== 1 || sharpen !== 0) {
+    edits.touchup = { brightness, contrast, saturation, sharpen };
+  }
+
+  if (
+    transform.rotation !== 0 ||
+    transform.flipHorizontal ||
+    transform.flipVertical
+  ) {
+    edits.transform = {
+      rotation: transform.rotation,
+      flipHorizontal: transform.flipHorizontal,
+      flipVertical: transform.flipVertical,
+    };
+  }
+
+  return edits.crop || edits.resize || edits.touchup || edits.transform ?
+      edits
+    : undefined;
+}
+
+/**
+ * Builds server-side edits for the crop mode preview.
+ *
+ * Only includes sharpen -- everything else is handled client-side:
+ * - brightness/contrast/saturation: CSS `filter` property (via filterStyle)
+ * - rotation/flip: CSS `transform` property (via previewTransform)
+ * - resize: CSS scaling in the layout math
+ * - crop: the interactive overlay
+ *
+ * IMPORTANT: Do NOT add brightness/contrast/saturation here. They must stay
+ * CSS-only so the preview always reflects the live slider values instantly.
+ * Baking them into the server-side draft causes desync when the draft is stale
+ * (during debounce or after a reset).
+ */
+function buildCropPreviewEdits(
+  touchup: TouchupConfig,
+): ImageEditOptions | undefined {
+  const sharpen = touchup.sharpen / 100;
+  if (sharpen === 0) {
+    return undefined;
+  }
+  return { touchup: { brightness: 1, contrast: 1, saturation: 1, sharpen } };
+}
+
+/**
+ * Builds server-side edits for the resize mode preview.
+ *
+ * Includes geometric ops that CSS cannot do: crop, resize, sharpen, and
+ * transform (rotation/flip). The server must apply transform so that crop
+ * coordinates (defined in post-rotation space) are correct.
+ *
+ * IMPORTANT: Do NOT add brightness/contrast/saturation here -- same reason
+ * as buildCropPreviewEdits. CSS filterStyle handles them in both modes so
+ * there is never a mismatch between live state and what the preview shows.
+ */
+function buildResizePreviewEdits(
+  naturalSize: { width: number; height: number },
+  state: EditorState,
+): ImageEditOptions | undefined {
+  const { cropRect, resizeConfig, touchup, transform } = state;
+  if (naturalSize.width <= 0 || naturalSize.height <= 0) {
+    return undefined;
+  }
+
+  const transformedNaturalSize = getTransformedDimensions(
+    naturalSize.width,
+    naturalSize.height,
+    transform.rotation,
+  );
+  const edits: ImageEditOptions = {};
+  const cropPixelDimensions = getCropPixelDimensions({
+    cropRect,
+    transformedNaturalSize,
+  });
+
+  if (!isDefaultCrop(cropRect)) {
+    edits.crop = {
+      left: Math.round(cropRect.x * transformedNaturalSize.width),
+      top: Math.round(cropRect.y * transformedNaturalSize.height),
+      width: Math.round(cropRect.width * transformedNaturalSize.width),
+      height: Math.round(cropRect.height * transformedNaturalSize.height),
+    };
+  }
+
+  if (!isDefaultResizeScale(resizeConfig)) {
+    edits.resize = {
+      width: clamp(
+        Math.round(cropPixelDimensions.width * resizeConfig.scaleX),
+        MIN_RESIZE_DIMENSION,
+        MAX_RESIZE_DIMENSION,
+      ),
+      height: clamp(
+        Math.round(cropPixelDimensions.height * resizeConfig.scaleY),
+        MIN_RESIZE_DIMENSION,
+        MAX_RESIZE_DIMENSION,
+      ),
+    };
+  }
+
+  const sharpen = touchup.sharpen / 100;
+  if (sharpen !== 0) {
+    edits.touchup = { brightness: 1, contrast: 1, saturation: 1, sharpen };
+  }
+
+  if (
+    transform.rotation !== 0 ||
+    transform.flipHorizontal ||
+    transform.flipVertical
+  ) {
+    edits.transform = {
+      rotation: transform.rotation,
+      flipHorizontal: transform.flipHorizontal,
+      flipVertical: transform.flipVertical,
+    };
+  }
+
+  return edits.crop || edits.resize || edits.touchup || edits.transform ?
+      edits
+    : undefined;
+}
+
+function restoreEditorState(
+  edits: ImageEditOptions | undefined,
+  naturalSize: { width: number; height: number },
+): EditorState {
+  const restoredTransform: TransformConfig = {
+    rotation: edits?.transform?.rotation ?? 0,
+    flipHorizontal: edits?.transform?.flipHorizontal ?? false,
+    flipVertical: edits?.transform?.flipVertical ?? false,
+  };
+  const transformedNaturalSize = getTransformedDimensions(
+    naturalSize.width,
+    naturalSize.height,
+    restoredTransform.rotation,
+  );
+  const restoredCropRect = normalizeCropRect(
+    edits?.crop,
+    transformedNaturalSize.width,
+    transformedNaturalSize.height,
+  );
+  const cropPixels = getCropPixelDimensions({
+    cropRect: restoredCropRect,
+    transformedNaturalSize,
+  });
+
+  return {
+    cropRect: restoredCropRect,
+    resizeConfig: {
+      scaleX: edits?.resize?.width ? edits.resize.width / cropPixels.width : 1,
+      scaleY:
+        edits?.resize?.height ? edits.resize.height / cropPixels.height : 1,
+    },
+    touchup: {
+      brightness: Math.round((edits?.touchup?.brightness ?? 1) * 100),
+      contrast: Math.round((edits?.touchup?.contrast ?? 1) * 100),
+      saturation: Math.round((edits?.touchup?.saturation ?? 1) * 100),
+      sharpen: Math.round((edits?.touchup?.sharpen ?? 0) * 100),
+    },
+    transform: restoredTransform,
+  };
+}
+
 // #endregion
 
 // #region Hooks
 // =============================================================================
 
-function useObjectUrl(file?: File) {
-  const [sourceUrl, setSourceUrl] = useState<string | undefined>(undefined);
-
-  useEffect(() => {
-    if (!file) {
-      setSourceUrl(undefined);
-      return;
-    }
-    const nextUrl = URL.createObjectURL(file);
-    setSourceUrl(nextUrl);
-    return () => {
-      URL.revokeObjectURL(nextUrl);
-    };
-  }, [file]);
-
-  return sourceUrl;
-}
-
-function useCropDraftSourceUrl(params: {
+/** Returns server-side draft Files for crop and resize previews. */
+function useEditorPreview(params: {
   open: boolean;
-  image: ManagedImage;
+  mode: EditMode;
+  originalFile: File;
   naturalSize: { width: number; height: number };
-  resizeConfig: ResizeConfig;
-  touchup: TouchupConfig;
-  isEditingPreview: boolean;
+  editorState: EditorState;
 }) {
-  const { open, image, naturalSize, resizeConfig, touchup, isEditingPreview } =
-    params;
-  const [draftFile, setDraftFile] = useState<File | undefined>(undefined);
-  const requestSignatureRef = useRef<string | null>(null);
+  const { open, mode, originalFile, naturalSize, editorState } = params;
 
-  const draftSignature = useMemo(
-    () =>
-      JSON.stringify({
-        fileName: image.originalFile.name,
-        fileSize: image.originalFile.size,
-        fileLastModified: image.originalFile.lastModified,
-        naturalSize,
-        resizeConfig,
-        touchup,
-      }),
-    [image.originalFile, naturalSize, resizeConfig, touchup],
+  const previewFormat = getImageFormatFromFile(originalFile);
+
+  const cropEdits = useMemo(
+    () => buildCropPreviewEdits(editorState.touchup),
+    [editorState.touchup],
   );
 
-  useEffect(() => {
-    if (!open) {
-      setDraftFile(undefined);
-      requestSignatureRef.current = null;
-      return;
-    }
+  const resizeEdits = useMemo(
+    () => buildResizePreviewEdits(naturalSize, editorState),
+    [naturalSize, editorState],
+  );
 
-    if (
-      isEditingPreview ||
-      naturalSize.width <= 0 ||
-      naturalSize.height <= 0 ||
-      draftSignature === requestSignatureRef.current
-    ) {
-      return;
-    }
+  const sourceKey = useMemo(
+    () => [originalFile.name, originalFile.size, originalFile.lastModified],
+    [originalFile],
+  );
 
-    // Invalidate the previous draft immediately so we keep using the
-    // CSS-transformed original preview until the new draft finishes.
-    setDraftFile(undefined);
-    requestSignatureRef.current = draftSignature;
-    const abortController = new AbortController();
-    const nextEdits: ImageEditOptions = {};
+  const [debouncedCropEdits] = useDebounceValue(cropEdits, PREVIEW_DEBOUNCE_MS);
+  const [debouncedResizeEdits] = useDebounceValue(
+    resizeEdits,
+    PREVIEW_DEBOUNCE_MS,
+  );
 
-    if (!isDefaultResizeScale(resizeConfig)) {
-      nextEdits.resize = {
-        width: clamp(
-          Math.round(naturalSize.width * resizeConfig.scaleX),
-          MIN_RESIZE_DIMENSION,
-          MAX_RESIZE_DIMENSION,
-        ),
-        height: clamp(
-          Math.round(naturalSize.height * resizeConfig.scaleY),
-          MIN_RESIZE_DIMENSION,
-          MAX_RESIZE_DIMENSION,
-        ),
-      };
-    }
+  // Deliberately NOT using keepPreviousData / placeholderData here. Stale
+  // drafts have sharpen (and in resize mode: crop/resize/transform) baked in
+  // at old values. CSS filterStyle provides visual continuity during the
+  // debounce window, so there's no flash when the draft clears.
+  const cropPreviewQuery = useQuery({
+    queryKey: ['editor-crop-preview', sourceKey, debouncedCropEdits],
+    queryFn: ({ signal }) =>
+      convertImage(
+        originalFile,
+        { edits: debouncedCropEdits, quality: 100, format: previewFormat },
+        { signal },
+      ),
+    enabled: open && mode === 'crop' && debouncedCropEdits !== undefined,
+    staleTime: Infinity,
+  });
 
-    const brightness = touchup.brightness / 100;
-    const contrast = touchup.contrast / 100;
-    const saturation = touchup.saturation / 100;
-    const sharpen = touchup.sharpen / 100;
-    if (
-      brightness !== 1 ||
-      contrast !== 1 ||
-      saturation !== 1 ||
-      sharpen !== 0
-    ) {
-      nextEdits.touchup = {
-        brightness,
-        contrast,
-        saturation,
-        sharpen,
-      };
-    }
+  const resizePreviewQuery = useQuery({
+    queryKey: ['editor-resize-preview', sourceKey, debouncedResizeEdits],
+    queryFn: ({ signal }) =>
+      convertImage(
+        originalFile,
+        { edits: debouncedResizeEdits, quality: 100, format: previewFormat },
+        { signal },
+      ),
+    enabled: open && mode === 'resize' && debouncedResizeEdits !== undefined,
+    staleTime: Infinity,
+  });
 
-    if (!nextEdits.resize && !nextEdits.touchup) {
-      setDraftFile(undefined);
-      return () => {
-        abortController.abort();
-      };
-    }
+  const cropDraftFile =
+    open && cropPreviewQuery.data ? cropPreviewQuery.data : undefined;
+  const resizeDraftFile =
+    open && resizePreviewQuery.data ? resizePreviewQuery.data : undefined;
 
-    void convertImage(
-      image.originalFile,
-      { edits: nextEdits, quality: 100 },
-      { signal: abortController.signal },
-    )
-      .then((file) => {
-        if (abortController.signal.aborted) {
-          return;
-        }
-        setDraftFile(file);
-      })
-      .catch((error: unknown) => {
-        if (!abortController.signal.aborted) {
-          console.error('Failed to build crop draft preview:', error);
-        }
-      });
-
-    return () => {
-      abortController.abort();
-    };
-  }, [
-    draftSignature,
-    image.originalFile,
-    isEditingPreview,
-    naturalSize.height,
-    naturalSize.width,
-    open,
-    resizeConfig,
-    touchup,
-  ]);
-
-  return useObjectUrl(draftFile);
+  return { cropDraftFile, resizeDraftFile };
 }
 
 function usePreviewBounds(open: boolean) {
@@ -473,7 +641,6 @@ function usePreviewBounds(open: boolean) {
     if (!open) {
       return;
     }
-
     const viewport = previewViewportRef.current;
     if (!viewport) {
       return;
@@ -490,7 +657,6 @@ function usePreviewBounds(open: boolean) {
     };
 
     updatePreviewBounds();
-
     const observer = new ResizeObserver(updatePreviewBounds);
     observer.observe(viewport);
     window.addEventListener('resize', updatePreviewBounds);
@@ -531,10 +697,9 @@ function usePreviewZoom(open: boolean) {
 
   const handlePreviewWheel = useCallback(
     (event: React.WheelEvent<HTMLDivElement>) => {
-      const target = event.target;
       if (
-        target instanceof Element &&
-        target.closest('button, input, [role="slider"]')
+        event.target instanceof Element &&
+        event.target.closest('button, input, [role="slider"]')
       ) {
         return;
       }
@@ -559,223 +724,6 @@ function usePreviewZoom(open: boolean) {
   };
 }
 
-function useImageEditLifecycle(params: {
-  open: boolean;
-  image: ManagedImage;
-  naturalSize: { width: number; height: number };
-  cropRect: NormalizedCropRect;
-  resizeConfig: ResizeConfig;
-  touchup: TouchupConfig;
-  transform: TransformConfig;
-  setCropRect: React.Dispatch<React.SetStateAction<NormalizedCropRect>>;
-  setResizeConfig: React.Dispatch<React.SetStateAction<ResizeConfig>>;
-  setTouchup: React.Dispatch<React.SetStateAction<TouchupConfig>>;
-  setTransform: React.Dispatch<React.SetStateAction<TransformConfig>>;
-}) {
-  const {
-    open,
-    image,
-    naturalSize,
-    cropRect,
-    resizeConfig,
-    touchup,
-    transform,
-    setCropRect,
-    setResizeConfig,
-    setTouchup,
-    setTransform,
-  } = params;
-  const [isInitialized, setIsInitialized] = useState(false);
-  const wasOpenRef = useRef(false);
-  const lastAppliedSignatureRef = useRef<string | null>(null);
-
-  const restoreFromImage = useCallback(() => {
-    const restoredTransform: TransformConfig = {
-      rotation: image.edits?.transform?.rotation ?? 0,
-      flipHorizontal: image.edits?.transform?.flipHorizontal ?? false,
-      flipVertical: image.edits?.transform?.flipVertical ?? false,
-    };
-    const transformedNaturalSize = getTransformedDimensions(
-      naturalSize.width,
-      naturalSize.height,
-      restoredTransform.rotation,
-    );
-    const restoredCropRect = normalizeCropRect(
-      image.edits?.crop,
-      transformedNaturalSize.width,
-      transformedNaturalSize.height,
-    );
-    const cropPixels = getCropPixelDimensions({
-      cropRect: restoredCropRect,
-      transformedNaturalSize,
-    });
-    const existingResize = image.edits?.resize;
-
-    setResizeConfig({
-      scaleX:
-        existingResize?.width ? existingResize.width / cropPixels.width : 1,
-      scaleY:
-        existingResize?.height ? existingResize.height / cropPixels.height : 1,
-    });
-    setCropRect(restoredCropRect);
-    setTouchup({
-      brightness: Math.round((image.edits?.touchup?.brightness ?? 1) * 100),
-      contrast: Math.round((image.edits?.touchup?.contrast ?? 1) * 100),
-      saturation: Math.round((image.edits?.touchup?.saturation ?? 1) * 100),
-      sharpen: Math.round((image.edits?.touchup?.sharpen ?? 0) * 100),
-    });
-    setTransform(restoredTransform);
-  }, [
-    image,
-    naturalSize.height,
-    naturalSize.width,
-    setCropRect,
-    setResizeConfig,
-    setTouchup,
-    setTransform,
-  ]);
-
-  useEffect(() => {
-    if (open && !wasOpenRef.current) {
-      restoreFromImage();
-      setIsInitialized(true);
-    } else if (!open && wasOpenRef.current) {
-      setIsInitialized(false);
-      lastAppliedSignatureRef.current = null;
-    }
-
-    wasOpenRef.current = open;
-  }, [open, restoreFromImage]);
-
-  const getCurrentEdits = useCallback((): ImageEditOptions | undefined => {
-    if (naturalSize.width <= 0 || naturalSize.height <= 0) {
-      return undefined;
-    }
-
-    const transformedNaturalSize = getTransformedDimensions(
-      naturalSize.width,
-      naturalSize.height,
-      transform.rotation,
-    );
-    const edits: ImageEditOptions = {};
-    const cropPixelDimensions = getCropPixelDimensions({
-      cropRect,
-      transformedNaturalSize,
-    });
-    if (!isDefaultCrop(cropRect)) {
-      edits.crop = {
-        left: Math.round(cropRect.x * transformedNaturalSize.width),
-        top: Math.round(cropRect.y * transformedNaturalSize.height),
-        width: Math.round(cropRect.width * transformedNaturalSize.width),
-        height: Math.round(cropRect.height * transformedNaturalSize.height),
-      };
-    }
-
-    const shouldResize = !isDefaultResizeScale(resizeConfig);
-    if (shouldResize) {
-      edits.resize = {
-        width: clamp(
-          Math.round(cropPixelDimensions.width * resizeConfig.scaleX),
-          MIN_RESIZE_DIMENSION,
-          MAX_RESIZE_DIMENSION,
-        ),
-        height: clamp(
-          Math.round(cropPixelDimensions.height * resizeConfig.scaleY),
-          MIN_RESIZE_DIMENSION,
-          MAX_RESIZE_DIMENSION,
-        ),
-      };
-    }
-
-    const brightness = touchup.brightness / 100;
-    const contrast = touchup.contrast / 100;
-    const saturation = touchup.saturation / 100;
-    const sharpen = touchup.sharpen / 100;
-    const hasTouchup =
-      brightness !== 1 || contrast !== 1 || saturation !== 1 || sharpen !== 0;
-    if (hasTouchup) {
-      edits.touchup = {
-        brightness,
-        contrast,
-        saturation,
-        sharpen,
-      };
-    }
-
-    const hasTransform =
-      transform.rotation !== 0 ||
-      transform.flipHorizontal ||
-      transform.flipVertical;
-    if (hasTransform) {
-      edits.transform = {
-        rotation: transform.rotation,
-        flipHorizontal: transform.flipHorizontal,
-        flipVertical: transform.flipVertical,
-      };
-    }
-
-    return edits.crop || edits.resize || edits.touchup || edits.transform ?
-        edits
-      : undefined;
-  }, [
-    cropRect,
-    naturalSize.height,
-    naturalSize.width,
-    resizeConfig,
-    touchup,
-    transform,
-  ]);
-
-  useEffect(() => {
-    if (
-      !open ||
-      !isInitialized ||
-      naturalSize.width <= 0 ||
-      naturalSize.height <= 0
-    ) {
-      return;
-    }
-
-    const edits = getCurrentEdits();
-    const signature = JSON.stringify(edits ?? null);
-    if (lastAppliedSignatureRef.current === signature) {
-      return;
-    }
-
-    lastAppliedSignatureRef.current = signature;
-    image.setEdits(edits);
-  }, [
-    getCurrentEdits,
-    image,
-    isInitialized,
-    naturalSize.height,
-    naturalSize.width,
-    open,
-  ]);
-
-  const handleResetToOriginal = useCallback(() => {
-    setCropRect({ x: 0, y: 0, width: 1, height: 1 });
-    setTouchup({
-      brightness: 100,
-      contrast: 100,
-      saturation: 100,
-      sharpen: 0,
-    });
-    setResizeConfig({
-      scaleX: 1,
-      scaleY: 1,
-    });
-    setTransform({
-      rotation: 0,
-      flipHorizontal: false,
-      flipVertical: false,
-    });
-    image.resetEdits();
-  }, [image, setCropRect, setResizeConfig, setTransform, setTouchup]);
-
-  return { handleResetToOriginal };
-}
-
 // #endregion
 
 // #region Subcomponents
@@ -783,18 +731,16 @@ function useImageEditLifecycle(params: {
 
 type PreviewCanvasProps = {
   open: boolean;
-  originalSourceUrl?: string;
-  sourceUrl?: string;
-  isUsingOriginalPreview: boolean;
-  isUsingCropDraft: boolean;
+  mode: EditMode;
+  setMode: React.Dispatch<React.SetStateAction<EditMode>>;
+  editorState: EditorState;
+  setEditorState: React.Dispatch<React.SetStateAction<EditorState>>;
+  cropSourceFile: File;
+  resizeSourceFile: File;
+  hasCropDraft: boolean;
+  hasResizeDraft: boolean;
   filename: string;
   naturalSize: { width: number; height: number };
-  resizeConfig: ResizeConfig;
-  setResizeConfig: React.Dispatch<React.SetStateAction<ResizeConfig>>;
-  cropRect: NormalizedCropRect;
-  setCropRect: React.Dispatch<React.SetStateAction<NormalizedCropRect>>;
-  transform: TransformConfig;
-  setTransform: React.Dispatch<React.SetStateAction<TransformConfig>>;
   filterStyle: React.CSSProperties;
   onImageLoad: (event: React.SyntheticEvent<HTMLImageElement>) => void;
   previewZoom: number;
@@ -806,8 +752,6 @@ type PreviewCanvasProps = {
 };
 
 type PreviewCanvasContextValue = PreviewCanvasProps & {
-  mode: EditMode;
-  setMode: React.Dispatch<React.SetStateAction<EditMode>>;
   cropDragRef: React.RefObject<{
     handle: DragHandle;
     startX: number;
@@ -849,31 +793,11 @@ type PreviewCanvasProviderProps = PreviewCanvasProps & {
   children: React.ReactNode;
 };
 
-const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = ({
-  open,
-  originalSourceUrl,
-  sourceUrl,
-  isUsingOriginalPreview,
-  isUsingCropDraft,
-  filename,
-  naturalSize,
-  resizeConfig,
-  setResizeConfig,
-  cropRect,
-  setCropRect,
-  transform,
-  setTransform,
-  filterStyle,
-  onImageLoad,
-  previewZoom,
-  zoomInPreview,
-  zoomOutPreview,
-  resetPreviewZoom,
-  handlePreviewWheel,
-  handlePreviewDoubleClick,
-  children,
-}) => {
-  const [mode, setMode] = useState<EditMode>('crop');
+const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = (props) => {
+  const { open, editorState, setEditorState, naturalSize, children, ...rest } =
+    props;
+  const { transform } = editorState;
+
   const cropDragRef = useRef<{
     handle: DragHandle;
     startX: number;
@@ -891,7 +815,6 @@ const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = ({
 
   useEffect(() => {
     if (!open) {
-      setMode('crop');
       cropDragRef.current = null;
       resizeDragRef.current = null;
     }
@@ -920,9 +843,9 @@ const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = ({
       targetAxis: ResizeTargetAxis,
       shouldPreserveAspectRatio = false,
     ) => {
-      setResizeConfig((prev) => {
+      setEditorState((prev) => {
         const cropPixels = getCropPixelDimensions({
-          cropRect,
+          cropRect: prev.cropRect,
           transformedNaturalSize,
         });
         const safeAspect = Math.max(
@@ -943,14 +866,13 @@ const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = ({
         if (!shouldPreserveAspectRatio) {
           const scaleX = clampedWidth / cropPixels.width;
           const scaleY = clampedHeight / cropPixels.height;
-          if (scaleX === prev.scaleX && scaleY === prev.scaleY) {
+          if (
+            scaleX === prev.resizeConfig.scaleX &&
+            scaleY === prev.resizeConfig.scaleY
+          ) {
             return prev;
           }
-          return {
-            ...prev,
-            scaleX,
-            scaleY,
-          };
+          return { ...prev, resizeConfig: { scaleX, scaleY } };
         }
 
         let width = clampedWidth;
@@ -978,9 +900,10 @@ const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = ({
             MIN_RESIZE_DIMENSION,
             MAX_RESIZE_DIMENSION,
           );
-          const widthError = Math.abs(clampedWidth - widthFromHeight);
-          const heightError = Math.abs(clampedHeight - heightFromWidth);
-          if (widthError <= heightError) {
+          if (
+            Math.abs(clampedWidth - widthFromHeight) <=
+            Math.abs(clampedHeight - heightFromWidth)
+          ) {
             width = clampedWidth;
             height = heightFromWidth;
           } else {
@@ -991,82 +914,44 @@ const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = ({
 
         const scaleX = width / cropPixels.width;
         const scaleY = height / cropPixels.height;
-        if (scaleX === prev.scaleX && scaleY === prev.scaleY) {
+        if (
+          scaleX === prev.resizeConfig.scaleX &&
+          scaleY === prev.resizeConfig.scaleY
+        ) {
           return prev;
         }
-
-        return {
-          ...prev,
-          scaleX,
-          scaleY,
-        };
+        return { ...prev, resizeConfig: { scaleX, scaleY } };
       });
     },
-    [cropRect, setResizeConfig, transformedNaturalSize],
+    [setEditorState, transformedNaturalSize],
   );
 
   const contextValue = useMemo<PreviewCanvasContextValue>(
     () => ({
       open,
-      originalSourceUrl,
-      sourceUrl,
-      isUsingOriginalPreview,
-      isUsingCropDraft,
-      filename,
+      editorState,
+      setEditorState,
       naturalSize,
-      resizeConfig,
-      setResizeConfig,
-      cropRect,
-      setCropRect,
-      transform,
-      setTransform,
-      filterStyle,
-      onImageLoad,
-      mode,
-      setMode,
+      ...rest,
       cropDragRef,
       resizeDragRef,
       previewViewportRef,
       previewBounds,
-      previewZoom,
-      zoomInPreview,
-      zoomOutPreview,
-      resetPreviewZoom,
-      handlePreviewWheel,
-      handlePreviewDoubleClick,
       transformedNaturalSize,
       previewTransform,
       updateResizeDimensions,
     }),
     [
-      cropRect,
-      filename,
-      filterStyle,
-      mode,
-      naturalSize,
-      onImageLoad,
       open,
-      originalSourceUrl,
-      isUsingOriginalPreview,
-      isUsingCropDraft,
+      editorState,
+      setEditorState,
+      naturalSize,
+      rest,
       previewBounds,
-      previewZoom,
       previewTransform,
-      resizeConfig,
-      resetPreviewZoom,
-      setCropRect,
-      setMode,
-      setResizeConfig,
-      setTransform,
-      sourceUrl,
-      transform,
       transformedNaturalSize,
       updateResizeDimensions,
       previewViewportRef,
-      zoomInPreview,
-      zoomOutPreview,
-      handlePreviewWheel,
-      handlePreviewDoubleClick,
     ],
   );
 
@@ -1078,8 +963,8 @@ const PreviewCanvasProvider: React.FC<PreviewCanvasProviderProps> = ({
 };
 
 const PreviewTransformControls: React.FC = () => {
-  const { setCropRect, setResizeConfig, setTransform, transform } =
-    usePreviewCanvasContext();
+  const { setEditorState, editorState } = usePreviewCanvasContext();
+  const { transform } = editorState;
 
   return (
     <div className='absolute top-2 left-2 z-30 flex items-center gap-2 rounded-md p-1'>
@@ -1091,15 +976,17 @@ const PreviewTransformControls: React.FC = () => {
             className='h-8 w-8'
             aria-label='Rotate left'
             onClick={() => {
-              setCropRect((prev) => rotateCropRectLeft(prev));
-              setResizeConfig((prev) => ({
+              setEditorState((prev) => ({
                 ...prev,
-                scaleX: prev.scaleY,
-                scaleY: prev.scaleX,
-              }));
-              setTransform((prev) => ({
-                ...prev,
-                rotation: rotateLeft(prev.rotation),
+                cropRect: rotateCropRectLeft(prev.cropRect),
+                resizeConfig: {
+                  scaleX: prev.resizeConfig.scaleY,
+                  scaleY: prev.resizeConfig.scaleX,
+                },
+                transform: {
+                  ...prev.transform,
+                  rotation: rotateLeft(prev.transform.rotation),
+                },
               }));
             }}
           >
@@ -1116,15 +1003,17 @@ const PreviewTransformControls: React.FC = () => {
             className='h-8 w-8'
             aria-label='Rotate right'
             onClick={() => {
-              setCropRect((prev) => rotateCropRectRight(prev));
-              setResizeConfig((prev) => ({
+              setEditorState((prev) => ({
                 ...prev,
-                scaleX: prev.scaleY,
-                scaleY: prev.scaleX,
-              }));
-              setTransform((prev) => ({
-                ...prev,
-                rotation: rotateRight(prev.rotation),
+                cropRect: rotateCropRectRight(prev.cropRect),
+                resizeConfig: {
+                  scaleX: prev.resizeConfig.scaleY,
+                  scaleY: prev.resizeConfig.scaleX,
+                },
+                transform: {
+                  ...prev.transform,
+                  rotation: rotateRight(prev.transform.rotation),
+                },
               }));
             }}
           >
@@ -1141,13 +1030,16 @@ const PreviewTransformControls: React.FC = () => {
             className='h-8 w-8'
             aria-label='Flip horizontally'
             onClick={() => {
-              setCropRect((prev) => ({
+              setEditorState((prev) => ({
                 ...prev,
-                x: 1 - prev.x - prev.width,
-              }));
-              setTransform((prev) => ({
-                ...prev,
-                flipHorizontal: !prev.flipHorizontal,
+                cropRect: {
+                  ...prev.cropRect,
+                  x: 1 - prev.cropRect.x - prev.cropRect.width,
+                },
+                transform: {
+                  ...prev.transform,
+                  flipHorizontal: !prev.transform.flipHorizontal,
+                },
               }));
             }}
           >
@@ -1164,13 +1056,16 @@ const PreviewTransformControls: React.FC = () => {
             className='h-8 w-8'
             aria-label='Flip vertically'
             onClick={() => {
-              setCropRect((prev) => ({
+              setEditorState((prev) => ({
                 ...prev,
-                y: 1 - prev.y - prev.height,
-              }));
-              setTransform((prev) => ({
-                ...prev,
-                flipVertical: !prev.flipVertical,
+                cropRect: {
+                  ...prev.cropRect,
+                  y: 1 - prev.cropRect.y - prev.cropRect.height,
+                },
+                transform: {
+                  ...prev.transform,
+                  flipVertical: !prev.transform.flipVertical,
+                },
               }));
             }}
           >
@@ -1185,7 +1080,6 @@ const PreviewTransformControls: React.FC = () => {
 
 const PreviewModeControls: React.FC = () => {
   const { mode, setMode } = usePreviewCanvasContext();
-
   return (
     <div className='absolute top-2 right-2 z-30 flex items-center gap-2 rounded-md p-1'>
       <Tooltip>
@@ -1227,9 +1121,7 @@ const PreviewModeControls: React.FC = () => {
 const PreviewZoomControls: React.FC = () => {
   const { previewZoom, zoomInPreview, zoomOutPreview, resetPreviewZoom } =
     usePreviewCanvasContext();
-
   const zoomPercent = Math.round(previewZoom * 100);
-
   return (
     <div className='absolute top-2 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-md border bg-black/40 px-2 py-1 backdrop-blur-sm'>
       <Tooltip>
@@ -1274,22 +1166,22 @@ const PreviewZoomControls: React.FC = () => {
 
 const PreviewCropStage: React.FC = () => {
   const {
-    originalSourceUrl,
-    isUsingCropDraft,
+    cropSourceFile,
+    hasCropDraft,
     filename,
     naturalSize,
     transformedNaturalSize,
-    resizeConfig,
+    editorState,
+    setEditorState,
     previewBounds,
     previewZoom,
     filterStyle,
     previewTransform,
     onImageLoad,
-    cropRect,
-    setCropRect,
     cropDragRef,
     resizeDragRef,
   } = usePreviewCanvasContext();
+  const { cropRect, resizeConfig } = editorState;
   const cropContainerRef = useRef<HTMLDivElement>(null);
 
   const cropStyle = useMemo(
@@ -1320,7 +1212,6 @@ const PreviewCropStage: React.FC = () => {
       if (!cropDragRef.current || !cropContainerRef.current) {
         return;
       }
-
       const { handle, startX, startY, startRect } = cropDragRef.current;
       const { width, height } =
         cropContainerRef.current.getBoundingClientRect();
@@ -1336,37 +1227,34 @@ const PreviewCropStage: React.FC = () => {
         x = clamp(startRect.x + dx, 0, 1 - rectWidth);
         y = clamp(startRect.y + dy, 0, 1 - rectHeight);
       } else {
-        const left = startRect.x;
-        const top = startRect.y;
-        const right = startRect.x + startRect.width;
-        const bottom = startRect.y + startRect.height;
-        let nextLeft = left;
-        let nextTop = top;
-        let nextRight = right;
-        let nextBottom = bottom;
-
+        let nextLeft = startRect.x,
+          nextTop = startRect.y;
+        let nextRight = startRect.x + startRect.width,
+          nextBottom = startRect.y + startRect.height;
         if (handle.includes('w')) {
-          nextLeft = clamp(left + dx, 0, right - MIN_CROP_SIZE);
+          nextLeft = clamp(startRect.x + dx, 0, nextRight - MIN_CROP_SIZE);
         }
         if (handle.includes('e')) {
-          nextRight = clamp(right + dx, left + MIN_CROP_SIZE, 1);
+          nextRight = clamp(nextRight + dx, nextLeft + MIN_CROP_SIZE, 1);
         }
         if (handle.includes('n')) {
-          nextTop = clamp(top + dy, 0, bottom - MIN_CROP_SIZE);
+          nextTop = clamp(startRect.y + dy, 0, nextBottom - MIN_CROP_SIZE);
         }
         if (handle.includes('s')) {
-          nextBottom = clamp(bottom + dy, top + MIN_CROP_SIZE, 1);
+          nextBottom = clamp(nextBottom + dy, nextTop + MIN_CROP_SIZE, 1);
         }
-
         x = nextLeft;
         y = nextTop;
         rectWidth = nextRight - nextLeft;
         rectHeight = nextBottom - nextTop;
       }
 
-      setCropRect({ x, y, width: rectWidth, height: rectHeight });
+      setEditorState((prev) => ({
+        ...prev,
+        cropRect: { x, y, width: rectWidth, height: rectHeight },
+      }));
     },
-    [cropDragRef, setCropRect],
+    [cropDragRef, setEditorState],
   );
 
   const cropPreview = useMemo(() => {
@@ -1376,22 +1264,18 @@ const PreviewCropStage: React.FC = () => {
     const safeTransformedHeight = Math.max(transformedNaturalSize.height, 1);
     const scaledTransformedWidth = safeTransformedWidth * resizeConfig.scaleX;
     const scaledTransformedHeight = safeTransformedHeight * resizeConfig.scaleY;
-    const fallbackViewportWidth =
-      typeof window === 'undefined' ? 1024 : window.innerWidth;
-    const fallbackViewportHeight =
-      typeof window === 'undefined' ? 768 : window.innerHeight;
-    const hasMeasuredWidth = previewBounds.width > PREVIEW_STAGE_PADDING;
-    const hasMeasuredHeight = previewBounds.maxHeight > 0;
+    const fallbackW = typeof window === 'undefined' ? 1024 : window.innerWidth;
+    const fallbackH = typeof window === 'undefined' ? 768 : window.innerHeight;
     const availableWidth = Math.max(
-      hasMeasuredWidth ?
-        previewBounds.width - PREVIEW_STAGE_PADDING
-      : fallbackViewportWidth - PREVIEW_STAGE_PADDING,
+      (previewBounds.width > PREVIEW_STAGE_PADDING ?
+        previewBounds.width
+      : fallbackW) - PREVIEW_STAGE_PADDING,
       1,
     );
     const availableHeight = Math.max(
-      hasMeasuredHeight ?
+      previewBounds.maxHeight > 0 ?
         previewBounds.maxHeight
-      : fallbackViewportHeight * PREVIEW_MAX_VIEWPORT_HEIGHT_RATIO,
+      : fallbackH * PREVIEW_MAX_VIEWPORT_HEIGHT_RATIO,
       1,
     );
     const baseScale = Math.min(
@@ -1400,37 +1284,34 @@ const PreviewCropStage: React.FC = () => {
       availableHeight / Math.max(scaledTransformedHeight, Number.EPSILON),
     );
     const scale = baseScale * previewZoom;
-    const imageStyle = {
-      ...(isUsingCropDraft ? {} : filterStyle),
-      width: `${safeNaturalWidth * resizeConfig.scaleX * scale}px`,
-      height: `${safeNaturalHeight * resizeConfig.scaleY * scale}px`,
-      transform: `translate(-50%, -50%) ${previewTransform}`,
-      transformOrigin: 'center',
-    } satisfies React.CSSProperties;
 
+    // filterStyle is ALWAYS spread into imageStyle regardless of whether a
+    // server-side draft is being used. This is critical: the draft only
+    // contains sharpen, so CSS must handle brightness/contrast/saturation.
+    // Conditionally skipping filterStyle was the root cause of touchup desync
+    // between crop and resize views.
     return {
       frameStyle: {
         width: `${scaledTransformedWidth * scale}px`,
         height: `${scaledTransformedHeight * scale}px`,
       },
-      imageStyle,
+      imageStyle: {
+        ...filterStyle,
+        width: `${safeNaturalWidth * resizeConfig.scaleX * scale}px`,
+        height: `${safeNaturalHeight * resizeConfig.scaleY * scale}px`,
+        transform: `translate(-50%, -50%) ${previewTransform}`,
+        transformOrigin: 'center',
+      } satisfies React.CSSProperties,
     };
   }, [
     filterStyle,
-    isUsingCropDraft,
-    naturalSize.height,
-    naturalSize.width,
-    previewBounds.maxHeight,
-    previewBounds.width,
+    naturalSize,
+    previewBounds,
     previewZoom,
     previewTransform,
     resizeConfig,
     transformedNaturalSize,
   ]);
-
-  if (!originalSourceUrl) {
-    return null;
-  }
 
   return (
     <div
@@ -1447,21 +1328,19 @@ const PreviewCropStage: React.FC = () => {
       }}
     >
       <div className='relative overflow-hidden' style={cropPreview.frameStyle}>
-        <img
-          src={originalSourceUrl}
+        <FileImage
+          file={cropSourceFile}
           alt={filename}
           className='absolute top-1/2 left-1/2 max-h-none max-w-none select-none'
           style={cropPreview.imageStyle}
           onLoad={(event) => {
-            if (isUsingCropDraft) {
-              return;
+            if (!hasCropDraft) {
+              onImageLoad(event);
             }
-            onImageLoad(event);
           }}
           draggable={false}
         />
       </div>
-
       <div
         className='border-primary pointer-events-auto absolute border-2 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]'
         style={cropStyle}
@@ -1496,8 +1375,8 @@ const PreviewCropStage: React.FC = () => {
 
 const PreviewResizeStage: React.FC = () => {
   const {
-    sourceUrl,
-    isUsingOriginalPreview,
+    resizeSourceFile,
+    hasResizeDraft,
     filename,
     naturalSize,
     transformedNaturalSize,
@@ -1506,12 +1385,14 @@ const PreviewResizeStage: React.FC = () => {
     filterStyle,
     previewTransform,
     onImageLoad,
-    resizeConfig,
-    cropRect,
+    editorState,
     resizeDragRef,
     cropDragRef,
     updateResizeDimensions,
   } = usePreviewCanvasContext();
+  const { resizeConfig, cropRect } = editorState;
+  const isUsingOriginalPreview = !hasResizeDraft;
+
   const resizePixelDimensions = useMemo(
     () =>
       getResizePixelDimensions({
@@ -1527,42 +1408,30 @@ const PreviewResizeStage: React.FC = () => {
       cropRect,
       transformedNaturalSize,
     });
-    const frameLogicalWidth = Math.max(resizePixelDimensions.width, 1);
-    const frameLogicalHeight = Math.max(resizePixelDimensions.height, 1);
-    const stageLogicalWidth = Math.max(frameLogicalWidth, cropPixels.width);
-    const stageLogicalHeight = Math.max(frameLogicalHeight, cropPixels.height);
-    const fallbackViewportWidth =
-      typeof window === 'undefined' ? 1024 : window.innerWidth;
-    const fallbackViewportHeight =
-      typeof window === 'undefined' ? 768 : window.innerHeight;
-    const hasMeasuredWidth = previewBounds.width > PREVIEW_STAGE_PADDING;
-    const hasMeasuredHeight = previewBounds.maxHeight > 0;
-    const availableWidth = Math.max(
-      hasMeasuredWidth ?
-        previewBounds.width - PREVIEW_STAGE_PADDING
-      : fallbackViewportWidth - PREVIEW_STAGE_PADDING,
+    const frameW = Math.max(resizePixelDimensions.width, 1);
+    const frameH = Math.max(resizePixelDimensions.height, 1);
+    const stageW = Math.max(frameW, cropPixels.width);
+    const stageH = Math.max(frameH, cropPixels.height);
+    const fallbackW = typeof window === 'undefined' ? 1024 : window.innerWidth;
+    const fallbackH = typeof window === 'undefined' ? 768 : window.innerHeight;
+    const availW = Math.max(
+      (previewBounds.width > PREVIEW_STAGE_PADDING ?
+        previewBounds.width
+      : fallbackW) - PREVIEW_STAGE_PADDING,
       1,
     );
-    const availableHeight = Math.max(
-      hasMeasuredHeight ?
+    const availH = Math.max(
+      previewBounds.maxHeight > 0 ?
         previewBounds.maxHeight
-      : fallbackViewportHeight * PREVIEW_MAX_VIEWPORT_HEIGHT_RATIO,
+      : fallbackH * PREVIEW_MAX_VIEWPORT_HEIGHT_RATIO,
       1,
     );
-
-    const baseScale = Math.min(
-      1,
-      availableWidth / stageLogicalWidth,
-      availableHeight / stageLogicalHeight,
-    );
-    return baseScale * previewZoom;
+    return Math.min(1, availW / stageW, availH / stageH) * previewZoom;
   }, [
     cropRect,
-    previewBounds.maxHeight,
-    previewBounds.width,
+    previewBounds,
     previewZoom,
-    resizePixelDimensions.height,
-    resizePixelDimensions.width,
+    resizePixelDimensions,
     transformedNaturalSize,
   ]);
 
@@ -1577,7 +1446,7 @@ const PreviewResizeStage: React.FC = () => {
       };
       event.currentTarget.setPointerCapture(event.pointerId);
     },
-    [resizeDragRef, resizePixelDimensions.height, resizePixelDimensions.width],
+    [resizeDragRef, resizePixelDimensions],
   );
 
   const onResizePointerMove = useCallback(
@@ -1585,17 +1454,14 @@ const PreviewResizeStage: React.FC = () => {
       if (!resizeDragRef.current) {
         return;
       }
-
       const { handle, startX, startY, startWidth, startHeight } =
         resizeDragRef.current;
       const logicalScale = Math.max(resizePreviewScale, Number.EPSILON);
       const dx = ((event.clientX - startX) * 2) / logicalScale;
       const dy = ((event.clientY - startY) * 2) / logicalScale;
-
-      let nextWidth = startWidth;
-      let nextHeight = startHeight;
+      let nextWidth = startWidth,
+        nextHeight = startHeight;
       let targetAxis: ResizeTargetAxis = 'auto';
-
       if (handle.includes('e')) {
         nextWidth = startWidth + dx;
         targetAxis = 'width';
@@ -1612,98 +1478,84 @@ const PreviewResizeStage: React.FC = () => {
         nextHeight = startHeight - dy;
         targetAxis = targetAxis === 'width' ? 'auto' : 'height';
       }
-
-      const isCornerHandle = handle.length === 2;
-      updateResizeDimensions(nextWidth, nextHeight, targetAxis, isCornerHandle);
+      updateResizeDimensions(
+        nextWidth,
+        nextHeight,
+        targetAxis,
+        handle.length === 2,
+      );
     },
     [resizeDragRef, resizePreviewScale, updateResizeDimensions],
   );
 
   const resizePreview = useMemo(() => {
-    const safeNaturalWidth = Math.max(naturalSize.width, 1);
-    const safeNaturalHeight = Math.max(naturalSize.height, 1);
-    const safeTransformedWidth = Math.max(transformedNaturalSize.width, 1);
-    const safeTransformedHeight = Math.max(transformedNaturalSize.height, 1);
+    const safeNW = Math.max(naturalSize.width, 1);
+    const safeNH = Math.max(naturalSize.height, 1);
+    const safeTW = Math.max(transformedNaturalSize.width, 1);
+    const safeTH = Math.max(transformedNaturalSize.height, 1);
     const cropPixels = getCropPixelDimensions({
       cropRect,
       transformedNaturalSize,
     });
-    const scaleX = resizeConfig.scaleX;
-    const scaleY = resizeConfig.scaleY;
-    const frameLogicalWidth = Math.max(resizePixelDimensions.width, 1);
-    const frameLogicalHeight = Math.max(resizePixelDimensions.height, 1);
-    const stageLogicalWidth = Math.max(frameLogicalWidth, cropPixels.width);
-    const stageLogicalHeight = Math.max(frameLogicalHeight, cropPixels.height);
+    const { scaleX, scaleY } = resizeConfig;
+    const frameW = Math.max(resizePixelDimensions.width, 1);
+    const frameH = Math.max(resizePixelDimensions.height, 1);
+    const stageW = Math.max(frameW, cropPixels.width);
+    const stageH = Math.max(frameH, cropPixels.height);
     const scale = resizePreviewScale;
-    const displayStageWidth = stageLogicalWidth * scale;
-    const displayStageHeight = stageLogicalHeight * scale;
-    const displayFrameWidth = frameLogicalWidth * scale;
-    const displayFrameHeight = frameLogicalHeight * scale;
-    const imageWidth = safeNaturalWidth * scaleX * scale;
-    const imageHeight = safeNaturalHeight * scaleY * scale;
-    const transformedPlaneWidth = safeTransformedWidth * scaleX * scale;
-    const transformedPlaneHeight = safeTransformedHeight * scaleY * scale;
-    const defaultPreviewImageStyle = {
+    const dStageW = stageW * scale,
+      dStageH = stageH * scale;
+    const dFrameW = frameW * scale,
+      dFrameH = frameH * scale;
+    const imgW = safeNW * scaleX * scale,
+      imgH = safeNH * scaleY * scale;
+    const tPlaneW = safeTW * scaleX * scale,
+      tPlaneH = safeTH * scaleY * scale;
+
+    // Both paths spread filterStyle for the same reason as crop mode (see
+    // comment in cropPreview). The draft path omits previewTransform because
+    // the server-side draft already has rotation/flip baked in.
+    const defaultImageStyle = {
+      ...filterStyle,
       width: '100%',
       height: '100%',
       objectFit: 'fill',
       transform: 'translate(-50%, -50%)',
       transformOrigin: 'center',
     } satisfies React.CSSProperties;
-    const editingPreviewImageStyle = {
+    const editingImageStyle = {
       ...filterStyle,
-      width: `${imageWidth}px`,
-      height: `${imageHeight}px`,
+      width: `${imgW}px`,
+      height: `${imgH}px`,
       transform: `translate(-50%, -50%) ${previewTransform}`,
       transformOrigin: 'center',
     } satisfies React.CSSProperties;
 
     return {
-      stageStyle: {
-        width: `${displayStageWidth}px`,
-        height: `${displayStageHeight}px`,
-      },
-      frameStyle: {
-        width: `${displayFrameWidth}px`,
-        height: `${displayFrameHeight}px`,
-      },
+      stageStyle: { width: `${dStageW}px`, height: `${dStageH}px` },
+      frameStyle: { width: `${dFrameW}px`, height: `${dFrameH}px` },
       transformedPlaneStyle: {
-        width:
-          isUsingOriginalPreview ?
-            `${transformedPlaneWidth}px`
-          : `${displayFrameWidth}px`,
-        height:
-          isUsingOriginalPreview ?
-            `${transformedPlaneHeight}px`
-          : `${displayFrameHeight}px`,
+        width: isUsingOriginalPreview ? `${tPlaneW}px` : `${dFrameW}px`,
+        height: isUsingOriginalPreview ? `${tPlaneH}px` : `${dFrameH}px`,
         transform:
           isUsingOriginalPreview ?
-            `translate(${-cropRect.x * transformedPlaneWidth}px, ${-cropRect.y * transformedPlaneHeight}px)`
+            `translate(${-cropRect.x * tPlaneW}px, ${-cropRect.y * tPlaneH}px)`
           : 'none',
       },
       imageStyle:
-        isUsingOriginalPreview ?
-          editingPreviewImageStyle
-        : defaultPreviewImageStyle,
+        isUsingOriginalPreview ? editingImageStyle : defaultImageStyle,
     };
   }, [
     cropRect,
     filterStyle,
     isUsingOriginalPreview,
-    naturalSize.height,
-    naturalSize.width,
+    naturalSize,
     transformedNaturalSize,
-    resizeConfig.scaleX,
-    resizeConfig.scaleY,
-    resizePixelDimensions.height,
-    resizePixelDimensions.width,
+    resizeConfig,
+    resizePixelDimensions,
     resizePreviewScale,
     previewTransform,
   ]);
-
-  if (!sourceUrl) {
-    return null;
-  }
 
   return (
     <div
@@ -1734,16 +1586,15 @@ const PreviewResizeStage: React.FC = () => {
               className='absolute top-0 left-0'
               style={resizePreview.transformedPlaneStyle}
             >
-              <img
-                src={sourceUrl}
+              <FileImage
+                file={resizeSourceFile}
                 alt={filename}
                 className='absolute top-1/2 left-1/2 max-h-none max-w-none select-none'
                 style={resizePreview.imageStyle}
                 onLoad={(event) => {
-                  if (!isUsingOriginalPreview) {
-                    return;
+                  if (isUsingOriginalPreview) {
+                    onImageLoad(event);
                   }
-                  onImageLoad(event);
                 }}
                 draggable={false}
               />
@@ -1777,12 +1628,9 @@ const PreviewResizeStage: React.FC = () => {
 };
 
 const PreviewDimensionsIndicator: React.FC = () => {
-  const {
-    resizeConfig,
-    cropRect,
-    transformedNaturalSize,
-    updateResizeDimensions,
-  } = usePreviewCanvasContext();
+  const { editorState, transformedNaturalSize, updateResizeDimensions } =
+    usePreviewCanvasContext();
+  const { resizeConfig, cropRect } = editorState;
   const [isOpen, setIsOpen] = useState(false);
   const [lockAspectRatio, setLockAspectRatio] = useState(true);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -1800,27 +1648,22 @@ const PreviewDimensionsIndicator: React.FC = () => {
     if (!isOpen) {
       return;
     }
-
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target;
       if (!(target instanceof Node)) {
         return;
       }
-
       if (popoverRef.current?.contains(target)) {
         return;
       }
-
       if (
         target instanceof Element &&
         target.closest('[data-dimensions-indicator-button="true"]')
       ) {
         return;
       }
-
       setIsOpen(false);
     };
-
     document.addEventListener('pointerdown', onPointerDown, true);
     return () => {
       document.removeEventListener('pointerdown', onPointerDown, true);
@@ -1873,17 +1716,16 @@ const PreviewDimensionsIndicator: React.FC = () => {
                   min={MIN_RESIZE_DIMENSION}
                   max={MAX_RESIZE_DIMENSION}
                   value={displayedDimensions.width}
-                  onChange={(event) => {
-                    const nextWidth = Number(event.target.value);
-                    if (!Number.isFinite(nextWidth)) {
-                      return;
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v)) {
+                      updateResizeDimensions(
+                        v,
+                        displayedDimensions.height,
+                        'width',
+                        lockAspectRatio,
+                      );
                     }
-                    updateResizeDimensions(
-                      nextWidth,
-                      displayedDimensions.height,
-                      'width',
-                      lockAspectRatio,
-                    );
                   }}
                   aria-label='Width in pixels'
                 />
@@ -1892,17 +1734,16 @@ const PreviewDimensionsIndicator: React.FC = () => {
                   min={MIN_RESIZE_DIMENSION}
                   max={MAX_RESIZE_DIMENSION}
                   value={displayedDimensions.height}
-                  onChange={(event) => {
-                    const nextHeight = Number(event.target.value);
-                    if (!Number.isFinite(nextHeight)) {
-                      return;
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v)) {
+                      updateResizeDimensions(
+                        displayedDimensions.width,
+                        v,
+                        'height',
+                        lockAspectRatio,
+                      );
                     }
-                    updateResizeDimensions(
-                      displayedDimensions.width,
-                      nextHeight,
-                      'height',
-                      lockAspectRatio,
-                    );
                   }}
                   aria-label='Height in pixels'
                 />
@@ -1937,7 +1778,6 @@ const PreviewCanvasViewport: React.FC = () => {
     handlePreviewWheel,
     handlePreviewDoubleClick,
   } = usePreviewCanvasContext();
-
   return (
     <div className='space-y-3'>
       <div className='relative p-3'>
@@ -1946,10 +1786,9 @@ const PreviewCanvasViewport: React.FC = () => {
           className='bg-background relative flex h-[55vh] items-center justify-center overflow-auto rounded-md border p-2 pt-14 sm:pt-16'
           onWheel={handlePreviewWheel}
           onDoubleClick={(event) => {
-            const target = event.target;
             if (
-              target instanceof Element &&
-              target.closest('button, input, [role="slider"]')
+              event.target instanceof Element &&
+              event.target.closest('button, input, [role="slider"]')
             ) {
               return;
             }
@@ -1980,7 +1819,7 @@ const PreviewCanvas: React.FC<PreviewCanvasProps> = (props) => {
 type TouchupControlsProps = {
   open: boolean;
   touchup: TouchupConfig;
-  setTouchup: React.Dispatch<React.SetStateAction<TouchupConfig>>;
+  setTouchup: (updater: (prev: TouchupConfig) => TouchupConfig) => void;
 };
 
 const TouchupControls: React.FC<TouchupControlsProps> = ({
@@ -1999,8 +1838,7 @@ const TouchupControls: React.FC<TouchupControlsProps> = ({
   }, [open]);
 
   const activeTouchupMeta = useMemo(
-    () =>
-      touchupControls.find((control) => control.id === activeTouchupControl),
+    () => touchupControls.find((c) => c.id === activeTouchupControl),
     [activeTouchupControl],
   );
 
@@ -2008,27 +1846,22 @@ const TouchupControls: React.FC<TouchupControlsProps> = ({
     if (!open || !activeTouchupControl) {
       return;
     }
-
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target;
       if (!(target instanceof Node)) {
         return;
       }
-
       if (touchupPopoverRef.current?.contains(target)) {
         return;
       }
-
       if (
         target instanceof Element &&
         target.closest('[data-touchup-control-button="true"]')
       ) {
         return;
       }
-
       setActiveTouchupControl(null);
     };
-
     document.addEventListener('pointerdown', onPointerDown, true);
     return () => {
       document.removeEventListener('pointerdown', onPointerDown, true);
@@ -2066,7 +1899,6 @@ const TouchupControls: React.FC<TouchupControlsProps> = ({
           </div>
         </div>
       )}
-
       <div className='flex items-center justify-center gap-2 p-1'>
         {touchupControls.map((control) => {
           const Icon = control.icon;
@@ -2107,31 +1939,15 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
   image,
 }) => {
   const [open, setOpen] = useState(false);
-  const originalSourceUrl = useObjectUrl(image.originalFile);
-  const renderedSourceUrl = useObjectUrl(image.file);
+  const [mode, setMode] = useState<EditMode>('crop');
   const [naturalSize, setNaturalSize] = useState({ width: 0, height: 0 });
-  const [resizeConfig, setResizeConfig] = useState<ResizeConfig>({
-    scaleX: 1,
-    scaleY: 1,
-  });
-  const [cropRect, setCropRect] = useState<NormalizedCropRect>({
-    x: 0,
-    y: 0,
-    width: 1,
-    height: 1,
-  });
-  const [touchup, setTouchup] = useState<TouchupConfig>({
-    brightness: 100,
-    contrast: 100,
-    saturation: 100,
-    sharpen: 0,
-  });
-  const [transform, setTransform] = useState<TransformConfig>({
-    rotation: 0,
-    flipHorizontal: false,
-    flipVertical: false,
-  });
-  const [isEditingPreview, setIsEditingPreview] = useState(true);
+  // Single state object -- all mutations go through setEditorState to ensure
+  // atomicity. Do NOT split this into separate useState hooks for cropRect,
+  // resizeConfig, etc., as that causes intermediate renders with mixed
+  // old/new values across the different fields.
+  const [editorState, setEditorState] =
+    useState<EditorState>(DEFAULT_EDITOR_STATE);
+
   const {
     previewZoom,
     zoomInPreview,
@@ -2141,84 +1957,81 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
     handlePreviewDoubleClick,
   } = usePreviewZoom(open);
 
-  const editSignature = useMemo(
-    () =>
-      JSON.stringify({
-        cropRect,
-        resizeConfig,
-        touchup,
-        transform,
-      }),
-    [cropRect, resizeConfig, touchup, transform],
-  );
-
+  // Initialize internal state when dialog opens
+  const wasOpenRef = useRef(false);
   useEffect(() => {
-    if (!open) {
-      setIsEditingPreview(true);
-      return;
+    if (open && !wasOpenRef.current) {
+      setEditorState(
+        restoreEditorState(image.transformations.edits, naturalSize),
+      );
     }
+    wasOpenRef.current = open;
+  }, [open, image.transformations.edits, naturalSize]);
 
-    setIsEditingPreview(true);
-    const timeout = window.setTimeout(() => {
-      setIsEditingPreview(false);
-    }, PREVIEW_RENDER_DEBOUNCE_MS);
-
-    return () => {
-      window.clearTimeout(timeout);
-    };
-  }, [editSignature, open]);
-
-  const isUsingOriginalPreview =
-    isEditingPreview || !image.ready || !renderedSourceUrl;
-  const sourceUrl =
-    isUsingOriginalPreview ? originalSourceUrl : renderedSourceUrl;
-  const cropDraftSourceUrl = useCropDraftSourceUrl({
+  // Internal preview via react-query
+  const { cropDraftFile, resizeDraftFile } = useEditorPreview({
     open,
-    image,
+    mode,
+    originalFile: image.originalFile,
     naturalSize,
-    resizeConfig,
-    touchup,
-    isEditingPreview,
+    editorState,
   });
-  const cropSourceUrl =
-    isEditingPreview || !cropDraftSourceUrl ? originalSourceUrl : (
-      cropDraftSourceUrl
-    );
-  const isUsingCropDraft = !isEditingPreview && Boolean(cropDraftSourceUrl);
 
-  const filterStyle = useMemo(() => {
-    return {
-      filter: `brightness(${touchup.brightness}%) contrast(${touchup.contrast}%) saturate(${touchup.saturation}%)`,
-    };
-  }, [touchup.brightness, touchup.contrast, touchup.saturation]);
+  const cropSourceFile = cropDraftFile ?? image.originalFile;
+  const resizeSourceFile = resizeDraftFile ?? image.originalFile;
+
+  const filterStyle = useMemo(
+    () => ({
+      filter: `brightness(${editorState.touchup.brightness}%) contrast(${editorState.touchup.contrast}%) saturate(${editorState.touchup.saturation}%)`,
+    }),
+    [
+      editorState.touchup.brightness,
+      editorState.touchup.contrast,
+      editorState.touchup.saturation,
+    ],
+  );
 
   const handlePreviewImageLoad = useCallback(
     (event: React.SyntheticEvent<HTMLImageElement>) => {
-      const target = event.currentTarget;
       setNaturalSize({
-        width: target.naturalWidth,
-        height: target.naturalHeight,
+        width: event.currentTarget.naturalWidth,
+        height: event.currentTarget.naturalHeight,
       });
     },
     [],
   );
 
-  const { handleResetToOriginal } = useImageEditLifecycle({
-    open,
-    image,
-    naturalSize,
-    cropRect,
-    resizeConfig,
-    touchup,
-    transform,
-    setCropRect,
-    setResizeConfig,
-    setTouchup,
-    setTransform,
-  });
+  const handleResetToOriginal = useCallback(() => {
+    setEditorState(DEFAULT_EDITOR_STATE);
+  }, []);
+
+  // Dispatch to ManagedImage only on close, not during editing. This prevents
+  // the outer image list from re-converting on every slider tick.
+  const handleClose = useCallback(() => {
+    const edits = buildEditsFromState(naturalSize, editorState);
+    image.setTransformations({ ...image.transformations, edits });
+    setOpen(false);
+    setMode('crop');
+  }, [naturalSize, editorState, image]);
+
+  const setTouchup = useCallback(
+    (updater: (prev: TouchupConfig) => TouchupConfig) => {
+      setEditorState((prev) => ({ ...prev, touchup: updater(prev.touchup) }));
+    },
+    [],
+  );
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => {
+        if (isOpen) {
+          setOpen(true);
+        } else {
+          handleClose();
+        }
+      }}
+    >
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
@@ -2244,18 +2057,16 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
 
         <PreviewCanvas
           open={open}
-          originalSourceUrl={cropSourceUrl}
-          sourceUrl={sourceUrl}
-          isUsingOriginalPreview={isUsingOriginalPreview}
-          isUsingCropDraft={isUsingCropDraft}
+          mode={mode}
+          setMode={setMode}
+          editorState={editorState}
+          setEditorState={setEditorState}
+          cropSourceFile={cropSourceFile}
+          resizeSourceFile={resizeSourceFile}
+          hasCropDraft={Boolean(cropDraftFile)}
+          hasResizeDraft={Boolean(resizeDraftFile)}
           filename={image.filename}
           naturalSize={naturalSize}
-          resizeConfig={resizeConfig}
-          setResizeConfig={setResizeConfig}
-          cropRect={cropRect}
-          setCropRect={setCropRect}
-          transform={transform}
-          setTransform={setTransform}
           filterStyle={filterStyle}
           onImageLoad={handlePreviewImageLoad}
           previewZoom={previewZoom}
@@ -2268,7 +2079,7 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
 
         <TouchupControls
           open={open}
-          touchup={touchup}
+          touchup={editorState.touchup}
           setTouchup={setTouchup}
         />
 
@@ -2283,12 +2094,7 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
             <RotateCcw />
             Revert to Original
           </Button>
-          <Button
-            variant='outline'
-            onClick={() => {
-              setOpen(false);
-            }}
-          >
+          <Button variant='outline' onClick={handleClose}>
             Done
           </Button>
         </DialogFooter>

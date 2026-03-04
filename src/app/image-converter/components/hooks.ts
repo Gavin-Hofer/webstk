@@ -1,6 +1,11 @@
 import { useState } from 'react';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import type { QueryFunction } from '@tanstack/react-query';
 import { useDebounceValue } from 'usehooks-ts';
 
@@ -9,6 +14,7 @@ import type { ManagedImage } from '@/hooks/use-persistent-images';
 import { usePreviousValue } from '@/hooks/use-previous-value';
 import { downloadFile, downloadFiles } from '@/lib/download-file';
 import { convertImage } from '@/lib/image-tools';
+import type { ImageTransformations } from '@/lib/image-tools/types';
 import { replaceFileExtension } from '@/lib/utils';
 import type { ImageFormat } from '@/lib/vips';
 
@@ -23,50 +29,76 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function getQueryKey(image: ManagedImage) {
-  const sourceKey = [
-    image.file.name,
-    image.file.size,
-    image.file.lastModified,
-  ].join(':');
-  return [[image.id, sourceKey, image.format, image.quality]];
+function getSourceKey(file: File) {
+  return [file.name, file.size, file.lastModified].join(':');
 }
 
-function getQueryFn(image: ManagedImage): QueryFunction<File> {
+function getQueryKey(
+  imageId: string,
+  file: File,
+  filename: string,
+  transformations: ImageTransformations,
+) {
+  return [
+    'convert-image',
+    imageId,
+    getSourceKey(file),
+    filename,
+    transformations,
+  ];
+}
+
+function getQueryFn(
+  file: File,
+  filename: string,
+  transformations: ImageTransformations,
+): QueryFunction<File> {
   return ({ signal }) => {
-    try {
-      return convertImage(
-        image.file,
-        {
-          format: image.format,
-          filename: replaceFileExtension(image.filename, image.format),
-          quality: image.quality,
-        },
-        { signal },
-      );
-    } catch (error) {
-      console.error('Failed to convert image:', error);
-      throw error;
-    }
+    return convertImage(
+      file,
+      {
+        format: transformations.format,
+        quality: transformations.quality,
+        edits: transformations.edits,
+        filename: replaceFileExtension(filename, transformations.format),
+      },
+      { signal },
+    );
   };
 }
 
 export function useConvertImage(image: ManagedImage) {
   const queryClient = useQueryClient();
 
-  // Debounce the query key to prevent lots of requests to start converting
-  // when changing the slider value.
-  const queryKey = useDebounceValue(getQueryKey(image), 100);
-  const queryFn = getQueryFn(image);
+  const [queryKey] = useDebounceValue(
+    getQueryKey(
+      image.id,
+      image.originalFile,
+      image.filename,
+      image.transformations,
+    ),
+    100,
+  );
+  const queryFn = getQueryFn(
+    image.originalFile,
+    image.filename,
+    image.transformations,
+  );
 
-  // Optimistically start converting as soon as the image is ready
-  const convertQuery = useQuery({ queryKey, queryFn, enabled: image.ready });
+  const convertQuery = useQuery({
+    queryKey: [queryKey],
+    queryFn,
+    enabled: image.ready,
+    placeholderData: keepPreviousData,
+  });
   useErrorNotification(convertQuery.error);
 
-  // Use a mutation to download the image
   const downloadMutation = useMutation({
     async mutationFn() {
-      const file = await queryClient.ensureQueryData({ queryKey, queryFn });
+      const file = await queryClient.ensureQueryData({
+        queryKey: [queryKey],
+        queryFn,
+      });
       await downloadFile(file);
     },
   });
@@ -100,10 +132,25 @@ export function useDownloadAll(format: DownloadAllFormat) {
       const files: File[] = [];
       await Promise.allSettled(
         images.map(async (image) => {
-          const resolvedFormat = format === 'current' ? image.format : format;
-          const imageWithFormat = { ...image, format: resolvedFormat };
-          const queryKey = getQueryKey(imageWithFormat);
-          const queryFn = getQueryFn(imageWithFormat);
+          const resolvedFormat =
+            format === 'current' ? image.transformations.format : format;
+          const transformations = {
+            ...image.transformations,
+            format: resolvedFormat,
+          };
+          const queryKey = [
+            getQueryKey(
+              image.id,
+              image.originalFile,
+              image.filename,
+              transformations,
+            ),
+          ];
+          const queryFn = getQueryFn(
+            image.originalFile,
+            image.filename,
+            transformations,
+          );
           const file = await queryClient.ensureQueryData({ queryKey, queryFn });
           files.push(file);
           setProgress((prev) => prev + 1);
