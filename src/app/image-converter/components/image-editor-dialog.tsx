@@ -20,6 +20,7 @@ import {
   Expand,
   FlipHorizontal,
   FlipVertical,
+  Loader2,
   Lock,
   LockOpen,
   RotateCcw,
@@ -742,7 +743,6 @@ type PreviewCanvasProps = {
   filename: string;
   naturalSize: { width: number; height: number };
   filterStyle: React.CSSProperties;
-  onImageLoad: (event: React.SyntheticEvent<HTMLImageElement>) => void;
   previewZoom: number;
   zoomInPreview: () => void;
   zoomOutPreview: () => void;
@@ -1167,7 +1167,6 @@ const PreviewZoomControls: React.FC = () => {
 const PreviewCropStage: React.FC = () => {
   const {
     cropSourceFile,
-    hasCropDraft,
     filename,
     naturalSize,
     transformedNaturalSize,
@@ -1177,7 +1176,6 @@ const PreviewCropStage: React.FC = () => {
     previewZoom,
     filterStyle,
     previewTransform,
-    onImageLoad,
     cropDragRef,
     resizeDragRef,
   } = usePreviewCanvasContext();
@@ -1258,12 +1256,10 @@ const PreviewCropStage: React.FC = () => {
   );
 
   const cropPreview = useMemo(() => {
-    const safeNaturalWidth = Math.max(naturalSize.width, 1);
-    const safeNaturalHeight = Math.max(naturalSize.height, 1);
-    const safeTransformedWidth = Math.max(transformedNaturalSize.width, 1);
-    const safeTransformedHeight = Math.max(transformedNaturalSize.height, 1);
-    const scaledTransformedWidth = safeTransformedWidth * resizeConfig.scaleX;
-    const scaledTransformedHeight = safeTransformedHeight * resizeConfig.scaleY;
+    const scaledTransformedWidth =
+      transformedNaturalSize.width * resizeConfig.scaleX;
+    const scaledTransformedHeight =
+      transformedNaturalSize.height * resizeConfig.scaleY;
     const fallbackW = typeof window === 'undefined' ? 1024 : window.innerWidth;
     const fallbackH = typeof window === 'undefined' ? 768 : window.innerHeight;
     const availableWidth = Math.max(
@@ -1297,8 +1293,8 @@ const PreviewCropStage: React.FC = () => {
       },
       imageStyle: {
         ...filterStyle,
-        width: `${safeNaturalWidth * resizeConfig.scaleX * scale}px`,
-        height: `${safeNaturalHeight * resizeConfig.scaleY * scale}px`,
+        width: `${naturalSize.width * resizeConfig.scaleX * scale}px`,
+        height: `${naturalSize.height * resizeConfig.scaleY * scale}px`,
         transform: `translate(-50%, -50%) ${previewTransform}`,
         transformOrigin: 'center',
       } satisfies React.CSSProperties,
@@ -1333,11 +1329,6 @@ const PreviewCropStage: React.FC = () => {
           alt={filename}
           className='absolute top-1/2 left-1/2 max-h-none max-w-none select-none'
           style={cropPreview.imageStyle}
-          onLoad={(event) => {
-            if (!hasCropDraft) {
-              onImageLoad(event);
-            }
-          }}
           draggable={false}
         />
       </div>
@@ -1384,7 +1375,6 @@ const PreviewResizeStage: React.FC = () => {
     previewZoom,
     filterStyle,
     previewTransform,
-    onImageLoad,
     editorState,
     resizeDragRef,
     cropDragRef,
@@ -1489,10 +1479,6 @@ const PreviewResizeStage: React.FC = () => {
   );
 
   const resizePreview = useMemo(() => {
-    const safeNW = Math.max(naturalSize.width, 1);
-    const safeNH = Math.max(naturalSize.height, 1);
-    const safeTW = Math.max(transformedNaturalSize.width, 1);
-    const safeTH = Math.max(transformedNaturalSize.height, 1);
     const cropPixels = getCropPixelDimensions({
       cropRect,
       transformedNaturalSize,
@@ -1507,10 +1493,10 @@ const PreviewResizeStage: React.FC = () => {
       dStageH = stageH * scale;
     const dFrameW = frameW * scale,
       dFrameH = frameH * scale;
-    const imgW = safeNW * scaleX * scale,
-      imgH = safeNH * scaleY * scale;
-    const tPlaneW = safeTW * scaleX * scale,
-      tPlaneH = safeTH * scaleY * scale;
+    const imgW = naturalSize.width * scaleX * scale,
+      imgH = naturalSize.height * scaleY * scale;
+    const tPlaneW = transformedNaturalSize.width * scaleX * scale,
+      tPlaneH = transformedNaturalSize.height * scaleY * scale;
 
     // Both paths spread filterStyle for the same reason as crop mode (see
     // comment in cropPreview). The draft path omits previewTransform because
@@ -1591,11 +1577,6 @@ const PreviewResizeStage: React.FC = () => {
                 alt={filename}
                 className='absolute top-1/2 left-1/2 max-h-none max-w-none select-none'
                 style={resizePreview.imageStyle}
-                onLoad={(event) => {
-                  if (isUsingOriginalPreview) {
-                    onImageLoad(event);
-                  }
-                }}
                 draggable={false}
               />
             </div>
@@ -1940,7 +1921,28 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
 }) => {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<EditMode>('crop');
-  const [naturalSize, setNaturalSize] = useState({ width: 0, height: 0 });
+  const [naturalSize, setNaturalSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
+
+  useEffect(() => {
+    setNaturalSize(null);
+    const url = URL.createObjectURL(image.originalFile);
+    const img = new Image();
+    img.addEventListener('load', () => {
+      setNaturalSize({ width: img.naturalWidth, height: img.naturalHeight });
+      URL.revokeObjectURL(url);
+    });
+    img.addEventListener('error', () => {
+      URL.revokeObjectURL(url);
+    });
+    img.src = url;
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [image.originalFile]);
+
   // Single state object -- all mutations go through setEditorState to ensure
   // atomicity. Do NOT split this into separate useState hooks for cropRect,
   // resizeConfig, etc., as that causes intermediate renders with mixed
@@ -1957,15 +1959,22 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
     handlePreviewDoubleClick,
   } = usePreviewZoom(open);
 
-  // Initialize internal state when dialog opens
-  const wasOpenRef = useRef(false);
+  // Initialize internal state when dialog opens. We defer until naturalSize is
+  // known (non-zero) to avoid dividing by zero when restoring resize scales.
+  const hasRestoredRef = useRef(false);
   useEffect(() => {
-    if (open && !wasOpenRef.current) {
-      setEditorState(
-        restoreEditorState(image.transformations.edits, naturalSize),
-      );
+    if (!open) {
+      hasRestoredRef.current = false;
+      return;
     }
-    wasOpenRef.current = open;
+    if (hasRestoredRef.current || !naturalSize) {
+      return;
+    }
+
+    setEditorState(
+      restoreEditorState(image.transformations.edits, naturalSize),
+    );
+    hasRestoredRef.current = true;
   }, [open, image.transformations.edits, naturalSize]);
 
   // Internal preview via react-query
@@ -1973,7 +1982,7 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
     open,
     mode,
     originalFile: image.originalFile,
-    naturalSize,
+    naturalSize: naturalSize ?? { width: 0, height: 0 },
     editorState,
   });
 
@@ -1991,16 +2000,6 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
     ],
   );
 
-  const handlePreviewImageLoad = useCallback(
-    (event: React.SyntheticEvent<HTMLImageElement>) => {
-      setNaturalSize({
-        width: event.currentTarget.naturalWidth,
-        height: event.currentTarget.naturalHeight,
-      });
-    },
-    [],
-  );
-
   const handleResetToOriginal = useCallback(() => {
     setEditorState(DEFAULT_EDITOR_STATE);
   }, []);
@@ -2008,8 +2007,10 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
   // Dispatch to ManagedImage only on close, not during editing. This prevents
   // the outer image list from re-converting on every slider tick.
   const handleClose = useCallback(() => {
-    const edits = buildEditsFromState(naturalSize, editorState);
-    image.setTransformations({ ...image.transformations, edits });
+    if (naturalSize) {
+      const edits = buildEditsFromState(naturalSize, editorState);
+      image.setTransformations({ ...image.transformations, edits });
+    }
     setOpen(false);
     setMode('crop');
   }, [naturalSize, editorState, image]);
@@ -2055,49 +2056,55 @@ export const ImageEditorDialog: React.FC<ImageEditorDialogProps> = ({
           </DialogTitle>
         </DialogHeader>
 
-        <PreviewCanvas
-          open={open}
-          mode={mode}
-          setMode={setMode}
-          editorState={editorState}
-          setEditorState={setEditorState}
-          cropSourceFile={cropSourceFile}
-          resizeSourceFile={resizeSourceFile}
-          hasCropDraft={Boolean(cropDraftFile)}
-          hasResizeDraft={Boolean(resizeDraftFile)}
-          filename={image.filename}
-          naturalSize={naturalSize}
-          filterStyle={filterStyle}
-          onImageLoad={handlePreviewImageLoad}
-          previewZoom={previewZoom}
-          zoomInPreview={zoomInPreview}
-          zoomOutPreview={zoomOutPreview}
-          resetPreviewZoom={resetPreviewZoom}
-          handlePreviewWheel={handlePreviewWheel}
-          handlePreviewDoubleClick={handlePreviewDoubleClick}
-        />
+        {naturalSize ?
+          <>
+            <PreviewCanvas
+              open={open}
+              mode={mode}
+              setMode={setMode}
+              editorState={editorState}
+              setEditorState={setEditorState}
+              cropSourceFile={cropSourceFile}
+              resizeSourceFile={resizeSourceFile}
+              hasCropDraft={Boolean(cropDraftFile)}
+              hasResizeDraft={Boolean(resizeDraftFile)}
+              filename={image.filename}
+              naturalSize={naturalSize}
+              filterStyle={filterStyle}
+              previewZoom={previewZoom}
+              zoomInPreview={zoomInPreview}
+              zoomOutPreview={zoomOutPreview}
+              resetPreviewZoom={resetPreviewZoom}
+              handlePreviewWheel={handlePreviewWheel}
+              handlePreviewDoubleClick={handlePreviewDoubleClick}
+            />
 
-        <TouchupControls
-          open={open}
-          touchup={editorState.touchup}
-          setTouchup={setTouchup}
-        />
+            <TouchupControls
+              open={open}
+              touchup={editorState.touchup}
+              setTouchup={setTouchup}
+            />
 
-        <DialogFooter className='mt-2 flex-col-reverse gap-2 sm:flex-row sm:justify-between'>
-          <Button
-            variant='ghost'
-            onClick={() => {
-              handleResetToOriginal();
-              resetPreviewZoom();
-            }}
-          >
-            <RotateCcw />
-            Revert to Original
-          </Button>
-          <Button variant='outline' onClick={handleClose}>
-            Done
-          </Button>
-        </DialogFooter>
+            <DialogFooter className='mt-2 flex-col-reverse gap-2 sm:flex-row sm:justify-between'>
+              <Button
+                variant='ghost'
+                onClick={() => {
+                  handleResetToOriginal();
+                  resetPreviewZoom();
+                }}
+              >
+                <RotateCcw />
+                Revert to Original
+              </Button>
+              <Button variant='outline' onClick={handleClose}>
+                Done
+              </Button>
+            </DialogFooter>
+          </>
+        : <div className='flex items-center justify-center py-24'>
+            <Loader2 className='text-muted-foreground h-6 w-6 animate-spin' />
+          </div>
+        }
       </DialogContent>
     </Dialog>
   );
