@@ -52,7 +52,6 @@ function createPngFile(name: string): File {
   return new File([png1x1Transparent], name, { type: 'image/png' });
 }
 
-// Supports cloning file objects, like structuredClone does in the browser
 function superjsonClone<T>(value: T): T {
   return superjson.deserialize(superjson.serialize(value));
 }
@@ -75,22 +74,26 @@ describe('usePersistentImages', () => {
     await imageCache.set('1', {
       id: '1',
       timestamp: new Date('2024-01-01T00:00:00.000Z'),
-      file: oldFile,
+      originalFile: oldFile,
       preview: oldFile,
       ready: true,
       filename: 'old.png',
-      format: 'png',
-      quality: 85,
+      transformations: {
+        format: 'png',
+        quality: 85,
+      },
     });
     await imageCache.set('2', {
       id: '2',
       timestamp: new Date('2024-01-02T00:00:00.000Z'),
-      file: newFile,
+      originalFile: newFile,
       preview: newFile,
       ready: true,
       filename: 'new.png',
-      format: 'png',
-      quality: 85,
+      transformations: {
+        format: 'png',
+        quality: 85,
+      },
     });
 
     const { result } = renderHook(() => usePersistentImages());

@@ -32,6 +32,12 @@ export type ImageEditOptions = {
   transform?: ImageTransformOptions;
 };
 
+export type ImageTransformations = {
+  format: ImageFormat;
+  quality: number;
+  edits?: ImageEditOptions;
+};
+
 export type ConvertImageOptions = {
   format?: ImageFormat;
   quality?: number;

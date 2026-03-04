@@ -26,7 +26,7 @@ export const DownloadAllButton: React.FC<{ images: ManagedImage[] }> = ({
     if (format !== 'current') {
       return undefined;
     }
-    const formats = new Set(images.map((img) => img.format));
+    const formats = new Set(images.map((img) => img.transformations.format));
     if (formats.size === 1) {
       return formats.values().next().value?.toUpperCase();
     }

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 
 import {
   FileDownIcon,
@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { FileImage } from '@/components/ui/file-image';
 import { ImageViewerDialog } from '@/components/ui/image-viewer-dialog';
 import { Input } from '@/components/ui/input';
 import {
@@ -20,7 +21,7 @@ import {
 } from '@/components/ui/tooltip';
 import type { ManagedImage } from '@/hooks/use-persistent-images';
 import { cn } from '@/lib/utils';
-import { COMPRESSION_SUPPORTED } from '@/lib/vips';
+import { COMPRESSION_SUPPORTED, type ImageFormat } from '@/lib/vips';
 import { FormatSelect } from './format-select';
 import { useConvertImage } from './hooks';
 import { ImageEditorDialog } from './image-editor-dialog';
@@ -110,25 +111,25 @@ const ImageFilenameEditor: React.FC<{
   );
 };
 
-const ImagePreview: React.FC<{ image: ManagedImage }> = ({ image }) => {
-  const previewUrl = useMemo(() => {
-    return URL.createObjectURL(image.preview);
-  }, [image.preview]);
+const ImagePreview: React.FC<{
+  image: ManagedImage;
+  convertedFile?: File;
+}> = ({ image, convertedFile }) => {
+  const thumbnailSource = convertedFile ?? image.preview;
 
   return (
     <ImageViewerDialog
-      file={image.file}
-      format={image.format}
-      quality={image.quality}
+      file={image.originalFile}
+      transformations={image.transformations}
     >
       <button
         data-testid='image-preview-trigger'
         className='hover:border-glow cursor-pointer rounded-lg border transition-all duration-500 ease-out hover:opacity-80'
       >
-        <img
+        <FileImage
           data-testid='image-preview-thumbnail'
-          src={previewUrl}
-          alt={image.file.name}
+          file={thumbnailSource}
+          alt={image.originalFile.name}
           className='h-10 w-10 flex-shrink-0 rounded-md object-cover'
         />
       </button>
@@ -136,10 +137,19 @@ const ImagePreview: React.FC<{ image: ManagedImage }> = ({ image }) => {
   );
 };
 
-const DownloadImageButton: React.FC<{ image: ManagedImage }> = ({ image }) => {
-  const { conversion, download, formattedFileSize, lastFormattedFileSize } =
-    useConvertImage(image);
-
+const DownloadImageButton: React.FC<{
+  image: ManagedImage;
+  conversion: ReturnType<typeof useConvertImage>['conversion'];
+  download: ReturnType<typeof useConvertImage>['download'];
+  formattedFileSize: string | undefined;
+  lastFormattedFileSize: string | undefined;
+}> = ({
+  image,
+  conversion,
+  download,
+  formattedFileSize,
+  lastFormattedFileSize,
+}) => {
   const status =
     conversion.isPending ? 'converting'
     : download.isPending ? 'downloading'
@@ -207,6 +217,19 @@ const DownloadImageButton: React.FC<{ image: ManagedImage }> = ({ image }) => {
 const ImageRow: React.FC<{
   image: ManagedImage;
 }> = ({ image }) => {
+  const { conversion, download, formattedFileSize, lastFormattedFileSize } =
+    useConvertImage(image);
+  const { format, quality } = image.transformations;
+  const compressionSupported = COMPRESSION_SUPPORTED[format];
+
+  const setFormat = (f: ImageFormat) => {
+    image.setTransformations({ ...image.transformations, format: f });
+  };
+
+  const setQuality = (q: number) => {
+    image.setTransformations({ ...image.transformations, quality: q });
+  };
+
   return (
     <div
       data-testid='image-card'
@@ -224,7 +247,9 @@ const ImageRow: React.FC<{
             <Loader2 className='text-muted-foreground h-4 w-4 animate-spin' />
           </div>
         )}
-        {image.ready && <ImagePreview image={image} />}
+        {image.ready && (
+          <ImagePreview image={image} convertedFile={conversion.data} />
+        )}
         {/* Filename */}
         <div className='min-w-0 flex-1'>
           <ImageFilenameEditor
@@ -244,24 +269,28 @@ const ImageRow: React.FC<{
       {/* Right side: format select + quality + download + remove */}
       <div className='flex w-full items-center justify-end gap-2 sm:w-auto'>
         <FormatSelect
-          format={image.format}
-          setFormat={(f) => {
-            image.setFormat(f);
-          }}
+          format={format}
+          setFormat={setFormat}
           data-testid='format-select'
         />
         <QualitySlider
-          quality={COMPRESSION_SUPPORTED[image.format] ? image.quality : 100}
-          setQuality={image.setQuality}
-          disabled={!COMPRESSION_SUPPORTED[image.format]}
+          quality={compressionSupported ? quality : 100}
+          setQuality={setQuality}
+          disabled={!compressionSupported}
           tooltipTitle={
-            COMPRESSION_SUPPORTED[image.format] ?
+            compressionSupported ?
               'Adjust the image quality'
-            : `Quality adjustment is not supported for ${image.format}`
+            : `Quality adjustment is not supported for ${format}`
           }
         />
         <ImageEditorDialog image={image} />
-        <DownloadImageButton image={image} />
+        <DownloadImageButton
+          image={image}
+          conversion={conversion}
+          download={download}
+          formattedFileSize={formattedFileSize}
+          lastFormattedFileSize={lastFormattedFileSize}
+        />
         <RemoveImageButton
           onClick={() => {
             image.remove();

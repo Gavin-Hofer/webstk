@@ -1,14 +1,8 @@
-/* eslint-disable @typescript-eslint/no-unsafe-type-assertion */
 'use client';
 
-import React, {
-  useCallback,
-  useEffect,
-  useEffectEvent,
-  useRef,
-  useState,
-} from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
+import { useQuery } from '@tanstack/react-query';
 import {
   Maximize2,
   Minimize2,
@@ -25,10 +19,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { FileImage } from '@/components/ui/file-image';
 import { useRefCallback } from '@/hooks/use-ref-callback';
 import { convertImage } from '@/lib/image-tools/convert-image';
+import type { ImageTransformations } from '@/lib/image-tools/types';
 import { cn } from '@/lib/utils';
-import type { ImageFormat } from '@/lib/vips';
 
 // #region Constants
 // =============================================================================
@@ -43,34 +38,26 @@ const SCROLL_ZOOM_SENSITIVITY = 0.002;
 // #region Hooks
 // =============================================================================
 
-function useImageUrl(
+/**
+ * Converts an image with the given transformations. FileImage handles
+ * displayability, so no secondary format check is needed here.
+ */
+function useConvertedFile(
   file: File,
-  options: { format: ImageFormat; quality: number },
-): string | undefined {
-  const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
+  transformations: ImageTransformations,
+): File | undefined {
+  const sourceKey = [file.name, file.size, file.lastModified].join(':');
+  const { format, quality, edits } = transformations;
 
-  const setImageUrlWrapper = useEffectEvent((previewFile: File) => {
-    const newImageUrl = URL.createObjectURL(previewFile);
-    setImageUrl(newImageUrl);
-    if (imageUrl) {
-      URL.revokeObjectURL(imageUrl);
-    }
+  const query = useQuery({
+    queryKey: ['image-viewer', sourceKey, format, quality, edits],
+    queryFn: async ({ signal }) => {
+      return convertImage(file, { format, quality, edits }, { signal });
+    },
+    staleTime: Infinity,
   });
 
-  useEffect(() => {
-    void convertImage(file, options)
-      .then((f) => {
-        if (['webp', 'png', 'jpeg'].includes(options.format)) {
-          return f;
-        }
-        return convertImage(f, { format: 'webp' });
-      })
-      .then((previewFile) => {
-        setImageUrlWrapper(previewFile);
-      });
-  }, [file, options]);
-
-  return imageUrl;
+  return query.data;
 }
 
 function useImageViewer() {
@@ -126,7 +113,9 @@ function useImageViewer() {
       setIsPanning(true);
       panStart.current = { x: e.clientX, y: e.clientY };
       panOffset.current = { ...pan };
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      if (e.target instanceof HTMLElement) {
+        e.target.setPointerCapture(e.pointerId);
+      }
     },
     [pan, zoom],
   );
@@ -210,8 +199,7 @@ const ToolbarButton: React.FC<ToolbarButtonProps> = ({
 
 type ImageViewerDialogProps = {
   file: File;
-  format: ImageFormat;
-  quality: number;
+  transformations: ImageTransformations;
   children: React.ReactNode;
 };
 
@@ -221,13 +209,13 @@ type ImageViewerDialogProps = {
  * Double-click toggles between 1x and 2x zoom. Scroll to zoom. Drag to pan
  * when zoomed in beyond 1x.
  *
- * @param props.file - The image File to display.
+ * @param props.file - The original image File to display.
+ * @param props.transformations - Format, quality, and edits to apply for preview.
  * @param props.children - The trigger element that opens the dialog.
  */
 export const ImageViewerDialog: React.FC<ImageViewerDialogProps> = ({
   file,
-  format,
-  quality,
+  transformations,
   children,
 }) => {
   const [open, setOpen] = useState(false);
@@ -247,7 +235,7 @@ export const ImageViewerDialog: React.FC<ImageViewerDialogProps> = ({
     handleDoubleClick,
   } = useImageViewer();
 
-  const imageUrl = useImageUrl(file, { format, quality });
+  const convertedFile = useConvertedFile(file, transformations);
 
   const { refCallback: containerRef } = useRefCallback<HTMLDivElement>(
     (node) => {
@@ -277,7 +265,6 @@ export const ImageViewerDialog: React.FC<ImageViewerDialogProps> = ({
     resetView();
   }, [resetView]);
 
-  // Keyboard shortcuts while the dialog is open
   useEffect(() => {
     if (!open) {
       return;
@@ -414,10 +401,10 @@ export const ImageViewerDialog: React.FC<ImageViewerDialogProps> = ({
               transition: isPanning ? 'none' : 'transform 0.2s ease-out',
             }}
           >
-            {imageUrl && (
-              <img
+            {convertedFile && (
+              <FileImage
                 data-testid='image-viewer-image'
-                src={imageUrl}
+                file={convertedFile}
                 alt={file.name}
                 className='max-h-full max-w-full object-contain select-none'
                 draggable={false}
