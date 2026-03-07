@@ -1608,6 +1608,7 @@ const PreviewDimensionsIndicator: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [lockAspectRatio, setLockAspectRatio] = useState(true);
   const popoverRef = useRef<HTMLDivElement>(null);
+
   const displayedDimensions = useMemo(
     () =>
       getResizePixelDimensions({
@@ -1616,6 +1617,77 @@ const PreviewDimensionsIndicator: React.FC = () => {
         resizeConfig,
       }),
     [cropRect, resizeConfig, transformedNaturalSize],
+  );
+
+  const [draftWidth, setDraftWidth] = useState('');
+  const [draftHeight, setDraftHeight] = useState('');
+  const aspectRatioRef = useRef(1);
+
+  const openPopover = useCallback(() => {
+    const dims = getResizePixelDimensions({
+      cropRect,
+      transformedNaturalSize,
+      resizeConfig,
+    });
+    setDraftWidth(String(dims.width));
+    setDraftHeight(String(dims.height));
+    aspectRatioRef.current = dims.width / Math.max(dims.height, Number.EPSILON);
+    setIsOpen(true);
+  }, [cropRect, transformedNaturalSize, resizeConfig]);
+
+  const closePopover = useCallback(() => {
+    setIsOpen(false);
+    const w = Math.round(Number(draftWidth));
+    const h = Math.round(Number(draftHeight));
+    if (
+      !Number.isFinite(w) ||
+      !Number.isFinite(h) ||
+      w < MIN_RESIZE_DIMENSION ||
+      h < MIN_RESIZE_DIMENSION
+    ) {
+      return;
+    }
+    updateResizeDimensions(w, h, 'width', false);
+  }, [draftWidth, draftHeight, updateResizeDimensions]);
+
+  const handleWidthChange = useCallback(
+    (raw: string) => {
+      setDraftWidth(raw);
+      if (!lockAspectRatio) {
+        return;
+      }
+      const v = Number(raw);
+      if (!Number.isFinite(v) || v < MIN_RESIZE_DIMENSION) {
+        return;
+      }
+      const coupled = clamp(
+        Math.round(v / aspectRatioRef.current),
+        MIN_RESIZE_DIMENSION,
+        MAX_RESIZE_DIMENSION,
+      );
+      setDraftHeight(String(coupled));
+    },
+    [lockAspectRatio],
+  );
+
+  const handleHeightChange = useCallback(
+    (raw: string) => {
+      setDraftHeight(raw);
+      if (!lockAspectRatio) {
+        return;
+      }
+      const v = Number(raw);
+      if (!Number.isFinite(v) || v < MIN_RESIZE_DIMENSION) {
+        return;
+      }
+      const coupled = clamp(
+        Math.round(v * aspectRatioRef.current),
+        MIN_RESIZE_DIMENSION,
+        MAX_RESIZE_DIMENSION,
+      );
+      setDraftWidth(String(coupled));
+    },
+    [lockAspectRatio],
   );
 
   useEffect(() => {
@@ -1636,13 +1708,13 @@ const PreviewDimensionsIndicator: React.FC = () => {
       ) {
         return;
       }
-      setIsOpen(false);
+      closePopover();
     };
     document.addEventListener('pointerdown', onPointerDown, true);
     return () => {
       document.removeEventListener('pointerdown', onPointerDown, true);
     };
-  }, [isOpen]);
+  }, [isOpen, closePopover]);
 
   return (
     <div className='absolute right-2 bottom-2 z-30'>
@@ -1689,16 +1761,13 @@ const PreviewDimensionsIndicator: React.FC = () => {
                   type='number'
                   min={MIN_RESIZE_DIMENSION}
                   max={MAX_RESIZE_DIMENSION}
-                  value={displayedDimensions.width}
+                  value={draftWidth}
                   onChange={(e) => {
-                    const v = Number(e.target.value);
-                    if (Number.isFinite(v)) {
-                      updateResizeDimensions(
-                        v,
-                        displayedDimensions.height,
-                        'width',
-                        lockAspectRatio,
-                      );
+                    handleWidthChange(e.target.value);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      closePopover();
                     }
                   }}
                   aria-label='Width in pixels'
@@ -1707,16 +1776,13 @@ const PreviewDimensionsIndicator: React.FC = () => {
                   type='number'
                   min={MIN_RESIZE_DIMENSION}
                   max={MAX_RESIZE_DIMENSION}
-                  value={displayedDimensions.height}
+                  value={draftHeight}
                   onChange={(e) => {
-                    const v = Number(e.target.value);
-                    if (Number.isFinite(v)) {
-                      updateResizeDimensions(
-                        displayedDimensions.width,
-                        v,
-                        'height',
-                        lockAspectRatio,
-                      );
+                    handleHeightChange(e.target.value);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      closePopover();
                     }
                   }}
                   aria-label='Height in pixels'
@@ -1736,7 +1802,11 @@ const PreviewDimensionsIndicator: React.FC = () => {
         aria-label='Set image dimensions'
         data-dimensions-indicator-button='true'
         onClick={() => {
-          setIsOpen((prev) => !prev);
+          if (isOpen) {
+            closePopover();
+          } else {
+            openPopover();
+          }
         }}
       >
         {displayedDimensions.width} x {displayedDimensions.height}px
