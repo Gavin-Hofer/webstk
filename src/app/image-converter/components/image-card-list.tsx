@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import {
   FileDownIcon,
@@ -56,6 +56,13 @@ const ImageFilenameEditor: React.FC<{
 }> = ({ filename, setFilename }) => {
   const ref = useRef<HTMLFormElement>(null);
   const [editing, setEditing] = useState<boolean>(false);
+  const [draftFilename, setDraftFilename] = useState(filename);
+
+  useEffect(() => {
+    if (!editing) {
+      setDraftFilename(filename);
+    }
+  }, [editing, filename]);
 
   const handleSubmit = (event: React.SubmitEvent | React.FocusEvent) => {
     event.preventDefault();
@@ -64,7 +71,7 @@ const ImageFilenameEditor: React.FC<{
     const formData = new FormData(form);
     // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     const newFilename = formData.get('filename') as string | null;
-    if (newFilename) {
+    if (newFilename && newFilename !== filename) {
       setFilename(newFilename);
     }
     setEditing(false);
@@ -80,6 +87,7 @@ const ImageFilenameEditor: React.FC<{
         )}
         type='button'
         onClick={() => {
+          setDraftFilename(filename);
           setEditing(true);
         }}
       >
@@ -98,9 +106,9 @@ const ImageFilenameEditor: React.FC<{
       <Input
         name='filename'
         className='h-8 w-full flex-grow text-sm'
-        value={filename}
+        value={draftFilename}
         onChange={(event) => {
-          setFilename(event.target.value);
+          setDraftFilename(event.target.value);
         }}
         autoFocus
       />
