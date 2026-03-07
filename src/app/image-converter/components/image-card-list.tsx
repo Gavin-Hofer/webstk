@@ -151,7 +151,7 @@ const DownloadImageButton: React.FC<{
   lastFormattedFileSize,
 }) => {
   const status =
-    conversion.isPending ? 'converting'
+    conversion.isFetching ? 'converting'
     : download.isPending ? 'downloading'
     : image.ready ? 'ready'
     : 'not_ready';
@@ -191,7 +191,7 @@ const DownloadImageButton: React.FC<{
                   data-testid='file-size'
                   className={cn(
                     'inline-flex w-24 items-center justify-center',
-                    conversion.isPending && 'animate-pulse opacity-80',
+                    conversion.isFetching && 'animate-pulse opacity-80',
                   )}
                 >
                   {formattedFileSize ?
