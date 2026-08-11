@@ -26,6 +26,11 @@ Sentry.init({
     // userInfo: false,
     // httpBodies: [],
   },
+
+  denyUrls: [
+    // Don't want to send any sentry payloads on the password generator page
+    /\/password-generator/,
+  ],
 });
 
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
