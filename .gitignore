@@ -52,3 +52,6 @@ next-env.d.ts
 
 # wasm-vips files (copied by postinstall)
 /public/vips/**
+
+# Sentry Config File
+.env.sentry-build-plugin
