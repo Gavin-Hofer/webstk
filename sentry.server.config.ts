@@ -5,7 +5,7 @@
 import * as Sentry from '@sentry/nextjs';
 
 Sentry.init({
-  dsn: 'https://62895c1140633020d7c54b2de2a80fe0@o4511892867842048.ingest.us.sentry.io/4511892885864448',
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
 
   // Enable logs to be sent to Sentry
   enableLogs: true,
